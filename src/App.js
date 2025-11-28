@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import './App.css';
-import Login from './Login.jsx';
-import AdminHomePage from './AdminHomePage.jsx';
-import AdminRosterPage from './AdminRoster.jsx';          // All Rosters list
-import AdminRosterView from './AdminRosterView.jsx';      // Single month sheet
-import AdminStaffManagementPage from './AdminStaffManagement.jsx';
-import AdminShiftDistributionPage from './AdminShiftDistribution.jsx';
-import AdminNewAccounts from './AdminNewStaffAcounts.jsx';
-import AdminManageLeave from './AdminManageLeave.jsx';
+import Login from './Login.js';
+import AdminHomePage from './AdminHomePage.js';
+import AdminRosterPage from './AdminRoster.js';          // All Rosters list
+import AdminRosterView from './AdminRosterView.js';      // Single month sheet
+import AdminStaffManagementPage from './AdminStaffManagement.js';
+import AdminShiftDistributionPage from './AdminShiftDistribution.js';
+import AdminNewAccounts from './AdminNewStaffAcounts.js';
+import AdminManageLeave from './AdminManageLeave.js';
 
 function App() {
   const [page, setPage] = useState('login');

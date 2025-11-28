@@ -1,37 +1,70 @@
 import React from 'react';
-import Navbar from './navbar.jsx';
+import Navbar from './navbar.js';
+
+const activityItems = [
+  '5m ago, November Roster Draft Approved by Admin Janet.',
+  '5m ago, November Roster Draft Approved by Admin Janet.',
+  '5m ago, November Roster Draft Approved by Admin Janet.',
+  '23m ago, New Preference added to December Roster Draft by Tim Smith.',
+  '23m ago, New Preference added to December Roster Draft by Tim Smith.',
+  '23m ago, New Preference added to December Roster Draft by Tim Smith.',
+  '1h 05m ago, December preference window opened by Admin Janet.',
+  '1h 05m ago, December preference window opened by Admin Janet.',
+];
+
+const criticalAlerts = [
+  {
+    title: 'WARNING:',
+    text: 'Understaffed RRT PM Shift on 18 Oct (1 RRT Short)',
+    barColor: '#FF2525',
+  },
+  {
+    title: 'CONTRADICTING SHIFT:',
+    text: 'Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)',
+    barColor: '#F0DC00',
+  },
+];
+
+const todoItems = [
+  {
+    header: 'New Account Requested – By 23 Oct',
+    title: '3 New User Accounts Awaiting Approval',
+    body: 'Reminded to approve new account for onboarding members of the team.',
+  },
+  {
+    header: 'Published November Roster – By 29 Oct',
+    title: 'Roster Publish.',
+    body: 'Reminded to publish November roster to all.',
+  },
+];
+
+const quickLinks = [
+  { label: 'Start New\nRoster', disabled: false },
+  { label: 'Add\nNew Staff', disabled: false },
+  { label: 'Manage\nLeave', disabled: false },
+  { label: 'Staff\nPreferences', disabled: false },
+  { label: 'Add New\nLinks', disabled: true },
+];
 
 function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
-  const activityItems = [
-    '5m ago, November Roster Draft Approved by Admin Janet.',
-    '5m ago, November Roster Draft Approved by Admin Janet.',
-    '5m ago, November Roster Draft Approved by Admin Janet.',
-    '23m ago, New Preference added to December Roster Draft by Tim Smith.',
-    '23m ago, New Preference added to December Roster Draft by Tim Smith.',
-    '23m ago, New Preference added to December Roster Draft by Tim Smith.',
-    '1h 05m ago, December preference window opened by Admin Janet.',
-    '1h 05m ago, December preference window opened by Admin Janet.',
-  ];
-
   return (
     <div
       style={{
         width: '100%',
         minHeight: '100vh',
         background: '#EDF0F5',
-        overflowX: 'hidden',   // no horizontal scroll
-        overflowY: 'auto',     // allow vertical scroll
+        overflowX: 'hidden',
+        overflowY: 'auto',
         fontFamily: 'Inter, sans-serif',
       }}
     >
-        <Navbar
+      <Navbar
         active="home"
         onGoHome={onGoHome}
         onGoRoster={onGoRoster}
         onGoStaff={onGoStaff}
         onGoShift={onGoShift}
       />
-      
 
       {/* MAIN CONTENT */}
       <main
@@ -162,19 +195,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                 </div>
               </div>
 
-              {/* Two warning rows */}
-              {[
-                {
-                  title: 'WARNING:',
-                  text: 'Understaffed RRT PM Shift on 18 Oct (1 RRT Short)',
-                  barColor: '#FF2525',
-                },
-                {
-                  title: 'CONTRADICTING SHIFT:',
-                  text: 'Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)',
-                  barColor: '#F0DC00',
-                },
-              ].map((item, idx) => (
+              {criticalAlerts.map((item, idx) => (
                 <div
                   key={idx}
                   style={{
@@ -232,113 +253,61 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                 To-Do List / Action Items
               </div>
 
-              {/* First to-do */}
-              <div
-                style={{
-                  background: '#EDF0F5',
-                  borderRadius: 16,
-                  overflow: 'hidden',
-                  marginBottom: 12,
-                }}
-              >
+              {todoItems.map((item, idx) => (
                 <div
+                  key={idx}
                   style={{
-                    background: '#5091CD',
-                    color: 'white',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    padding: '6px 16px',
+                    background: '#EDF0F5',
+                    borderRadius: 16,
+                    overflow: 'hidden',
+                    marginBottom: idx === todoItems.length - 1 ? 0 : 12,
                   }}
                 >
-                  New Account Requested – By 23 Oct
-                </div>
-                <div style={{ padding: '10px 16px' }}>
                   <div
                     style={{
-                      fontSize: 16,
+                      background: '#5091CD',
+                      color: 'white',
+                      fontSize: 13,
                       fontWeight: 700,
-                      marginBottom: 4,
+                      padding: '6px 16px',
                     }}
                   >
-                    3 New User Accounts Awaiting Approval
+                    {item.header}
                   </div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      marginBottom: 6,
-                    }}
-                  >
-                    Reminded to approve new account for onboarding members of the
-                    team.
+                  <div style={{ padding: '10px 16px' }}>
+                    <div
+                      style={{
+                        fontSize: 16,
+                        fontWeight: 700,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {item.title}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        marginBottom: 6,
+                      }}
+                    >
+                      {item.body}
+                    </div>
+                    <button
+                      type="button"
+                      style={{
+                        padding: 0,
+                        border: 'none',
+                        background: 'none',
+                        fontSize: 14,
+                        textDecoration: 'underline',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      More Info
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    style={{
-                      padding: 0,
-                      border: 'none',
-                      background: 'none',
-                      fontSize: 14,
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    More Info
-                  </button>
                 </div>
-              </div>
-
-              {/* Second to-do */}
-              <div
-                style={{
-                  background: '#EDF0F5',
-                  borderRadius: 16,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    background: '#5091CD',
-                    color: 'white',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    padding: '6px 16px',
-                  }}
-                >
-                  Published November Roster – By 29 Oct
-                </div>
-                <div style={{ padding: '10px 16px' }}>
-                  <div
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 700,
-                      marginBottom: 4,
-                    }}
-                  >
-                    Roster Publish.
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      marginBottom: 6,
-                    }}
-                  >
-                    Reminded to publish November roster to all.
-                  </div>
-                  <button
-                    type="button"
-                    style={{
-                      padding: 0,
-                      border: 'none',
-                      background: 'none',
-                      fontSize: 14,
-                      textDecoration: 'underline',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    More Info
-                  </button>
-                </div>
-              </div>
+              ))}
             </section>
           </div>
 
@@ -376,13 +345,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                   gap: 12,
                 }}
               >
-                {[
-                  'Start New\nRoster',
-                  'Add\nNew Staff',
-                  'Manage\nLeave',
-                  'Staff\nPreferences',
-                  'Add New\nLinks',
-                ].map((label, idx) => (
+                {quickLinks.map((link, idx) => (
                   <div
                     key={idx}
                     style={{
@@ -397,7 +360,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                       style={{
                         width: 78,
                         height: 78,
-                        background: idx === 4 ? '#8C8C8C' : '#5091CD',
+                        background: link.disabled ? '#8C8C8C' : '#5091CD',
                         borderRadius: 8,
                       }}
                     />
@@ -414,7 +377,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                         whiteSpace: 'pre-line',
                       }}
                     >
-                      {label}
+                      {link.label}
                     </div>
                   </div>
                 ))}
@@ -449,7 +412,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 4,
-                  overflow: 'hidden', // later can be auto for inner scroll
+                  overflow: 'hidden',
                 }}
               >
                 {activityItems.map((text, i) => (
@@ -487,7 +450,6 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                         justifyContent: 'center',
                       }}
                     >
-                      {/* icon placeholder */}
                       <div
                         style={{
                           width: 12,
