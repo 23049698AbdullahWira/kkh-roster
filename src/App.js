@@ -13,6 +13,7 @@ import UserRoster from './UserRoster.js';                // user roster view
 import UserShiftPref from './UserShiftPref.js';         // user shift preference
 import UserApplyLeave from './UserApplyLeave.js';
 import UserAccountInformation from './UserAccountInformation.js';
+import SignUp from './SignUp.js';
 
 
 
@@ -23,13 +24,22 @@ function App() {
 
   // LOGIN
   if (page === 'login') {
-    return (
-      <Login
-        onAdminLoginSuccess={() => setPage('home')}
-        onUserLoginSuccess={() => setPage('userHome')}
-      />
-    );
-  }
+  return (
+    <Login
+      onAdminLoginSuccess={() => setPage('home')}
+      onUserLoginSuccess={() => setPage('userHome')}
+      onGoSignup={() => setPage('signup')}   // NEW
+    />
+  );
+}
+
+  if (page === 'signup') {
+  return (
+    <SignUp
+      onDone={() => setPage('login')}        // Get Started / Log in → login
+    />
+  );
+}
 
   // shared navbar navigation for all ADMIN pages
   const navProps = {

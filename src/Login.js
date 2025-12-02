@@ -11,7 +11,7 @@ const USERS = {
   },
 };
 
-function Login({ onAdminLoginSuccess, onUserLoginSuccess }) {
+function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
   const [step, setStep] = useState('identifier'); // 'identifier' | 'password'
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -26,7 +26,9 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess }) {
     }
 
     if (!USERS[trimmed]) {
-      setError('Account not found. Try admin@example.com or user@example.com.');
+      setError(
+        'Account not found. Try admin@example.com or user@example.com.'
+      );
       return;
     }
 
@@ -126,6 +128,7 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess }) {
               <span>New to KKH Roster? </span>
               <button
                 type="button"
+                onClick={onGoSignup}
                 style={{
                   border: 'none',
                   background: 'none',
@@ -186,7 +189,7 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess }) {
           </div>
         )}
 
-        {/* Error message */}
+        {/* Error */}
         {error && (
           <div
             style={{
@@ -200,9 +203,10 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess }) {
           </div>
         )}
 
-        {/* STEP 1: Identifier screen (email/phone) */}
+        {/* Identifier or password section */}
         {step === 'identifier' ? (
           <>
+            {/* Identifier UI */}
             <div
               style={{
                 display: 'flex',
@@ -338,8 +342,8 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess }) {
             </div>
           </>
         ) : (
-          /* STEP 2: Password screen */
           <>
+            {/* Password UI */}
             <div
               style={{
                 display: 'flex',

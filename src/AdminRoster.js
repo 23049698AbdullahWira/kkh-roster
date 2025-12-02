@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Navbar from './navbar';
+import AdminNewRoster from './AdminNewRoster';
 
 function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster }) {
+  const [showNewRoster, setShowNewRoster] = useState(false);
   const rosterRows = [
     {
       title: 'October Roster 2026',
@@ -80,33 +82,44 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
           </h1>
 
           <button
-            type="button"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 24px',
-              background: '#5091CD',
-              borderRadius: 999,
-              border: 'none',
-              color: 'white',
-              fontSize: 16,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            New Roster
-            <span
-              style={{
-                width: 18,
-                height: 18,
-                background: 'white',
-                borderRadius: 4,
-                display: 'inline-block',
-              }}
-            />
-          </button>
-        </div>
+        type="button"
+        onClick={() => setShowNewRoster(true)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '10px 24px',
+          background: '#5091CD',
+          borderRadius: 999,
+          border: 'none',
+          color: 'white',
+          fontSize: 16,
+          fontWeight: 600,
+          cursor: 'pointer',
+        }}
+      >
+        New Roster
+        <span
+          style={{
+            width: 18,
+            height: 18,
+            background: 'white',
+            borderRadius: 4,
+            display: 'inline-block',
+          }}
+        />
+      </button>
+
+      <AdminNewRoster
+        open={showNewRoster}
+        onCancel={() => setShowNewRoster(false)}
+        onConfirm={(data) => {
+          console.log('new roster:', data);
+          // TODO: add to list / call backend
+          setShowNewRoster(false);
+        }}
+      />
+    </div>
 
         {/* Table header */}
         <div
