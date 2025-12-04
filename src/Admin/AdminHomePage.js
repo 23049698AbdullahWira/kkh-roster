@@ -1,5 +1,5 @@
 import React from 'react';
-import Navbar from './navbar.js';
+import Navbar from '../Nav/navbar.js';
 
 const activityItems = [
   '5m ago, November Roster Draft Approved by Admin Janet.',

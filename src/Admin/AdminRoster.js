@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Navbar from './navbar';
+import Navbar from '../Nav/navbar';
 import AdminNewRoster from './AdminNewRoster';
 
 function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster }) {

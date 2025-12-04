@@ -1,6 +1,6 @@
 // src/UserShiftPref.js
 import React from 'react';
-import UserNavbar from './UserNavbar.js';
+import UserNavbar from '../Nav/UserNavbar.js';
 
 const monthMeta = {
   title: 'February Roster 2026',

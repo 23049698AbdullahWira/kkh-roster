@@ -1,6 +1,6 @@
 // src/UserAccountInformation.js
 import React from 'react';
-import UserNavbar from './UserNavbar.js';
+import UserNavbar from '../Nav/UserNavbar.js';
 
 const userProfile = {
   displayName: 'Vanessa',

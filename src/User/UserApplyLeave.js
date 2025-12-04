@@ -1,6 +1,6 @@
 // src/UserApplyLeave.js
 import React, { useState } from 'react';
-import UserNavbar from './UserNavbar.js';
+import UserNavbar from '../Nav/UserNavbar.js';
 
 function UserApplyLeave({
   onBack,

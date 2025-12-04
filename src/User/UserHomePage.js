@@ -1,6 +1,6 @@
 // src/UserHomePage.jsx
 import React from 'react';
-import UserNavbar from './UserNavbar.js';
+import UserNavbar from '../Nav/UserNavbar.js';
 
 const todayAssignment = {
   date: '21 November 2025',

@@ -1,5 +1,5 @@
 import React from 'react';
-import Navbar from './navbar.js';
+import Navbar from '../Nav/navbar.js';
 
 function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onGoNewStaffAccounts, onGoManageLeave }) {
   const staffRows = [

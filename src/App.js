@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import './App.css';
-import Login from './Login.js';
-import AdminHomePage from './AdminHomePage.js';
-import AdminRosterPage from './AdminRoster.js';          // All Rosters list
-import AdminRosterView from './AdminRosterView.js';      // Single month sheet
-import AdminStaffManagementPage from './AdminStaffManagement.js';
-import AdminShiftDistributionPage from './AdminShiftDistribution.js';
-import AdminNewAccounts from './AdminNewStaffAcounts.js';
-import AdminManageLeave from './AdminManageLeave.js';
-import UserHomePage from './UserHomePage.js';            // user home
-import UserRoster from './UserRoster.js';                // user roster view
-import UserShiftPref from './UserShiftPref.js';         // user shift preference
-import UserApplyLeave from './UserApplyLeave.js';
-import UserAccountInformation from './UserAccountInformation.js';
-import SignUp from './SignUp.js';
+import Login from './Auth/Login.js';
+import AdminHomePage from './Admin/AdminHomePage.js';
+import AdminRosterPage from './Admin/AdminRoster.js';          // All Rosters list
+import AdminRosterView from './Admin/AdminRosterView.js';      // Single month sheet
+import AdminStaffManagementPage from './Admin/AdminStaffManagement.js';
+import AdminShiftDistributionPage from './Admin/AdminShiftDistribution.js';
+import AdminNewAccounts from './Admin/AdminNewStaffAcounts.js';
+import AdminManageLeave from './Admin/AdminManageLeave.js';
+import UserHomePage from './User/UserHomePage.js';            // user home
+import UserRoster from './User/UserRoster.js';                // user roster view
+import UserShiftPref from './User/UserShiftPref.js';         // user shift preference
+import UserApplyLeave from './User/UserApplyLeave.js';
+import UserAccountInformation from './User/UserAccountInformation.js';
+import SignUp from './Auth/SignUp.js';
 
 
 

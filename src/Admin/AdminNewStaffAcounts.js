@@ -1,46 +1,40 @@
 import React from 'react';
-import Navbar from './navbar';
+import Navbar from '../Nav/navbar';
 
-const leaveRows = [
+const pendingAccounts = [
+  {
+    fullName: 'Aaron Wong',
+    contact: '8765 4321',
+    email: 'aaron.wong@example.com',
+    role: 'APN',
+    ward: 'CE',
+  },
   {
     fullName: 'Boris Davies',
-    staffId: '12345678',
-    contact: '8765 4321',
+    contact: '8123 4567',
     email: 'boris.davies@example.com',
-    type: 'Annual Leave',
-    period: '12–16 Dec 2025',
-    status: 'Approved',
-    statusColor: '#199325',
+    role: 'APN',
+    ward: '76',
   },
   {
     fullName: 'Clark Evans',
-    staffId: '23456789',
-    contact: '8123 4567',
+    contact: '8899 1122',
     email: 'clark.evans@example.com',
-    type: 'Medical Leave',
-    period: '03–05 Nov 2025',
-    status: 'Pending',
-    statusColor: '#B8B817',
+    role: 'APN',
+    ward: 'CE',
   },
   {
-    fullName: 'Janet Gilburt',
-    staffId: '34567890',
-    contact: '8899 0011',
-    email: 'janet.gilburt@example.com',
-    type: 'Emergency Leave',
-    period: '28–29 Oct 2025',
-    status: 'Rejected',
-    statusColor: '#B91C1C',
+    fullName: 'Eva Foster',
+    contact: '9001 2233',
+    email: 'eva.foster@example.com',
+    role: 'ADMIN',
+    ward: '-',
   },
 ];
 
-function AdminManageLeave({
-  onBack,
-  onGoHome,
-  onGoRoster,
-  onGoStaff,
-  onGoShift,
-}) {
+function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
+  const totalPending = pendingAccounts.length;
+
   return (
     <div
       style={{
@@ -68,7 +62,7 @@ function AdminManageLeave({
           boxSizing: 'border-box',
         }}
       >
-        {/* Top row: title + back */}
+        {/* Top row: Back, title, count */}
         <div
           style={{
             display: 'flex',
@@ -77,6 +71,7 @@ function AdminManageLeave({
             marginBottom: 20,
           }}
         >
+          {/* Back button */}
           <button
             type="button"
             onClick={onBack}
@@ -114,10 +109,25 @@ function AdminManageLeave({
               margin: 0,
             }}
           >
-            Manage Leave
+            New Staff Account
           </h1>
 
-          <div style={{ width: 160 }} /> {/* spacer */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 16,
+              fontWeight: 600,
+            }}
+          >
+            <span>{totalPending} Accounts Awaiting Approval</span>
+            <img
+              style={{ width: 24, height: 24 }}
+              src="https://placehold.co/24x24"
+              alt=""
+            />
+          </div>
         </div>
 
         {/* Table header */}
@@ -128,7 +138,7 @@ function AdminManageLeave({
             border: '1px solid #E6E6E6',
             borderBottom: 'none',
             display: 'grid',
-            gridTemplateColumns: '2fr 1.2fr 1.2fr 2fr 1.8fr 1.2fr 1fr',
+            gridTemplateColumns: '2fr 1.3fr 2fr 1fr 1fr 1.1fr',
             alignItems: 'center',
             height: 56,
             padding: '0 16px',
@@ -138,11 +148,10 @@ function AdminManageLeave({
           }}
         >
           <div>Full Name</div>
-          <div>Staff ID</div>
           <div>Contact</div>
           <div>Email</div>
-          <div>Leave Type / Period</div>
-          <div>Status</div>
+          <div>Role</div>
+          <div>Ward</div>
           <div>Actions</div>
         </div>
 
@@ -156,13 +165,12 @@ function AdminManageLeave({
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
           }}
         >
-          {leaveRows.map((row, idx) => (
+          {pendingAccounts.map((row, idx) => (
             <div
-              key={row.staffId + row.period}
+              key={row.email}
               style={{
                 display: 'grid',
-                gridTemplateColumns:
-                  '2fr 1.2fr 1.2fr 2fr 1.8fr 1.2fr 1fr',
+                gridTemplateColumns: '2fr 1.3fr 2fr 1fr 1fr 1.1fr',
                 alignItems: 'center',
                 padding: '10px 16px',
                 boxSizing: 'border-box',
@@ -171,41 +179,24 @@ function AdminManageLeave({
               }}
             >
               <div>{row.fullName}</div>
-              <div>{row.staffId}</div>
               <div>{row.contact}</div>
               <div>{row.email}</div>
-              <div>
-                <div style={{ fontWeight: 600 }}>{row.type}</div>
-                <div style={{ fontSize: 13, color: '#555' }}>{row.period}</div>
-              </div>
-              <div>
-                <span
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: 8,
-                    background: '#EDF0F5',
-                    color: row.statusColor,
-                    fontWeight: 600,
-                    fontSize: 13,
-                  }}
-                >
-                  {row.status}
-                </span>
-              </div>
+              <div>{row.role}</div>
+              <div>{row.ward}</div>
+
               <div
                 style={{
                   display: 'flex',
-                  gap: 8,
+                  gap: 10,
                   alignItems: 'center',
-                  justifyContent: 'flex-start',
                 }}
               >
-                {/* Approve button */}
+                {/* Approve */}
                 <button
                   type="button"
                   style={{
-                    width: 30,
-                    height: 30,
+                    width: 34,
+                    height: 34,
                     borderRadius: 8,
                     border: 'none',
                     background: 'rgba(0, 174, 6, 0.25)',
@@ -217,8 +208,8 @@ function AdminManageLeave({
                 >
                   <div
                     style={{
-                      width: 12,
-                      height: 8,
+                      width: 14,
+                      height: 10,
                       borderLeft: '3px solid #00AE06',
                       borderBottom: '3px solid #00AE06',
                       transform: 'rotate(-45deg)',
@@ -226,12 +217,12 @@ function AdminManageLeave({
                   />
                 </button>
 
-                {/* Reject button */}
+                {/* Reject */}
                 <button
                   type="button"
                   style={{
-                    width: 30,
-                    height: 30,
+                    width: 34,
+                    height: 34,
                     borderRadius: 8,
                     border: 'none',
                     background: 'rgba(255, 37, 37, 0.25)',
@@ -243,8 +234,8 @@ function AdminManageLeave({
                 >
                   <div
                     style={{
-                      width: 12,
-                      height: 12,
+                      width: 14,
+                      height: 14,
                       position: 'relative',
                     }}
                   >
@@ -277,10 +268,76 @@ function AdminManageLeave({
               </div>
             </div>
           ))}
+
+          {/* Static pagination footer */}
+          <div
+            style={{
+              height: 60,
+              background: 'white',
+              borderTop: '1px solid #EEE',
+              borderRadius: '0 0 10px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                border: '1px solid #EEE',
+                background: 'rgba(255,255,255,0.4)',
+              }}
+            >
+              «
+            </button>
+            <button
+              type="button"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                border: '1px solid #EEE',
+                background: 'white',
+              }}
+            >
+              ‹
+            </button>
+            <span style={{ fontSize: 14, color: '#656575' }}>
+              1–{totalPending} of {totalPending}
+            </span>
+            <button
+              type="button"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                border: '1px solid #EEE',
+                background: 'white',
+              }}
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                border: '1px solid #EEE',
+                background: 'white',
+              }}
+            >
+              »
+            </button>
+          </div>
         </div>
       </main>
     </div>
   );
 }
 
-export default AdminManageLeave;
+export default AdminNewAccounts;
