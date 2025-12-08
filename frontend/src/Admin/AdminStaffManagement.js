@@ -1,42 +1,62 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar.js';
 
 function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onGoNewStaffAccounts, onGoManageLeave }) {
-  const staffRows = [
-    {
-      fullName: 'Boris Davies',
-      staffId: '12345678',
-      contact: '87654321',
-      email: 'example123@mail.com',
-      status: 'Day-Off',
-      statusColor: '#B8B817',
-      statusBg: '#FEF9C3',
-      role: 'APN',
-      service: 'CE',
-    },
-    {
-      fullName: 'Clark Evans',
-      staffId: '23456789',
-      contact: '81234567',
-      email: 'clark.evans@mail.com',
-      status: 'On-Duty',
-      statusColor: '#199325',
-      statusBg: '#DCFCE7',
-      role: 'APN',
-      service: 'CE',
-    },
-    {
-      fullName: 'Janet Gilburt',
-      staffId: '34567890',
-      contact: '87651234',
-      email: 'janet.gilburt@mail.com',
-      status: 'Leave',
-      statusColor: '#B91C1C',
-      statusBg: '#FEE2E2',
-      role: 'RN',
-      service: 'RRT',
-    },
-  ];
+  
+  // 1. STATE: Stores the list of staff
+  const [staffRows, setStaffRows] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 2. HELPER: Determine colors based on status
+  const getStatusStyle = (status) => {
+    // Normalize text to lowercase to avoid case-sensitive bugs (e.g. "Active" vs "active")
+    const lowerStatus = status ? status.toLowerCase() : '';
+
+    if (lowerStatus === 'on-duty') return { color: '#199325', bg: '#DCFCE7' }; // Green
+    if (lowerStatus === 'leave') return { color: '#B91C1C', bg: '#FEE2E2' };   // Red
+    if (lowerStatus === 'day-off') return { color: '#B8B817', bg: '#FEF9C3' }; // Yellow
+    
+    // Default (e.g., "Active" or unknown)
+    return { color: '#5091CD', bg: '#E1F0FF' }; // Blueish default
+  };
+
+  // 3. FETCH: Get data from Backend
+  useEffect(() => {
+    fetch('http://localhost:5000/users')
+      .then(res => res.json())
+      .then(data => {
+        console.log("Raw DB Data:", data); 
+
+        // 4. MAPPING: Convert DB columns to UI format
+        const formattedStaff = data.map(user => {
+          const style = getStatusStyle(user.status);
+          
+          return {
+            // UI Name      :   Database Column Name
+            fullName:       user.full_name,       // <--- CRITICAL UPDATE
+            staffId:        user.user_id,         // <--- CRITICAL UPDATE
+            email:          user.email,           // <--- CRITICAL UPDATE
+            role:           user.role || 'Staff', // <--- CRITICAL UPDATE
+            status:         user.status || 'Active', // <--- CRITICAL UPDATE
+            
+            // These columns don't exist in the DB table yet, so we use placeholders:
+            contact:        '---', 
+            service:        '---',
+            
+            // Apply the colors we calculated above
+            statusColor:    style.color,
+            statusBg:       style.bg,
+          };
+        });
+
+        setStaffRows(formattedStaff);
+        setIsLoading(false);
+      })
+      .catch(err => {
+        console.error("Error fetching staff:", err);
+        setIsLoading(false);
+      });
+  }, []);
 
   return (
     <div
@@ -49,7 +69,7 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
         fontFamily: 'Inter, sans-serif',
       }}
     >
-        <Navbar
+      <Navbar
         active="home"
         onGoHome={onGoHome}
         onGoRoster={onGoRoster}
@@ -75,70 +95,49 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
             marginBottom: 16,
           }}
         >
-          <h1
-            style={{
-              fontSize: 24,
-              fontWeight: 900,
-              margin: 0,
-            }}
-          >
+          <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>
             All Staff Members
           </h1>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button
-    type="button"
-    onClick={onGoManageLeave}
-    style={{
-      padding: '10px 24px',
-      background: '#5091CD',
-      borderRadius: 68,
-      border: 'none',
-      color: 'white',
-      fontSize: 16,
-      fontWeight: 600,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      cursor: 'pointer',
-    }}
-  >
-    Manage Leave
-    <img
-      style={{ width: 20, height: 20 }}
-      src="https://placehold.co/24x24"
-      alt=""
-    />
-  </button>
+              type="button"
+              onClick={onGoManageLeave}
+              style={{
+                padding: '10px 24px',
+                background: '#5091CD',
+                borderRadius: 68,
+                border: 'none',
+                color: 'white',
+                fontSize: 16,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+              }}
+            >
+              Manage Leave
+            </button>
             <button
-  type="button"
-  onClick={onGoNewStaffAccounts}
-  style={{
-    padding: '10px 24px',
-    background: '#5091CD',
-    borderRadius: 68,
-    border: 'none',
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 600,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    cursor: 'pointer',
-  }}
->
-  New Staff Account
-  <span
-    style={{
-      width: 18,
-      height: 18,
-      background: 'white',
-      borderRadius: 4,
-      display: 'inline-block',
-    }}
-  />
-</button>
-
+              type="button"
+              onClick={onGoNewStaffAccounts}
+              style={{
+                padding: '10px 24px',
+                background: '#5091CD',
+                borderRadius: 68,
+                border: 'none',
+                color: 'white',
+                fontSize: 16,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+              }}
+            >
+              New Staff Account
+            </button>
           </div>
         </div>
 
@@ -179,9 +178,18 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
           }}
         >
-          {staffRows.map((row, idx) => (
+          {isLoading ? (
+             <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+               Loading database data...
+             </div>
+          ) : staffRows.length === 0 ? (
+             <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+               No staff found in database.
+             </div>
+          ) : (
+             staffRows.map((row, idx) => (
             <div
-              key={row.staffId}
+              key={row.staffId} 
               style={{
                 display: 'grid',
                 gridTemplateColumns:
@@ -196,7 +204,9 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
               <div>{row.fullName}</div>
               <div>{row.staffId}</div>
               <div>{row.contact}</div>
-              <div>{row.email}</div>
+              <div style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '10px'}}>
+                {row.email}
+              </div>
               <div>
                 <span
                   style={{
@@ -220,27 +230,15 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
                   justifyContent: 'flex-start',
                 }}
               >
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    background: '#EDF0F5',
-                    borderRadius: 8,
-                  }}
-                />
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    background: '#EDF0F5',
-                    borderRadius: 8,
-                  }}
-                />
+                {/* Placeholder Action Buttons */}
+                <div style={{ width: 30, height: 30, background: '#EDF0F5', borderRadius: 8, cursor: 'pointer' }} />
+                <div style={{ width: 30, height: 30, background: '#EDF0F5', borderRadius: 8, cursor: 'pointer' }} />
               </div>
             </div>
-          ))}
+          ))
+         )}
 
-          {/* Pagination (static) */}
+          {/* Pagination Footer */}
           <div
             style={{
               height: 60,
@@ -253,55 +251,9 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
               gap: 8,
             }}
           >
-            <button
-              type="button"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #EEE',
-                background: 'rgba(255,255,255,0.4)',
-              }}
-            >
-              «
-            </button>
-            <button
-              type="button"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #EEE',
-                background: 'white',
-              }}
-            >
-              ‹
-            </button>
-            <span style={{ fontSize: 14, color: '#656575' }}>1–3 of 3</span>
-            <button
-              type="button"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #EEE',
-                background: 'white',
-              }}
-            >
-              ›
-            </button>
-            <button
-              type="button"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #EEE',
-                background: 'white',
-              }}
-            >
-              »
-            </button>
+             <span style={{ fontSize: 14, color: '#656575' }}>
+               Showing {staffRows.length} members
+             </span>
           </div>
         </div>
       </main>
