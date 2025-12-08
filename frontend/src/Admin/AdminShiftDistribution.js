@@ -1,47 +1,59 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar';
 
-const analysisSummary = {
-  totalShifts: 63,
-  year: 2025,
-  shiftType: 'NNJ Clinic',
-  targetPerApn: 8,
-};
-
-const shiftSummary = [
-  { label: 'Total AM Shifts', value: 24, color: '#5091CD' },
-  { label: 'Total PM Shifts', value: 21, color: '#FFB020' },
-  { label: 'Total Night Shifts', value: 18, color: '#4B5563' },
-];
-
-const staffShiftRows = [
-  {
-    name: 'Boris Davies',
-    ph: 2,
-    sunday: 3,
-    total: 8,
-    workloadLabel: 'Balanced',
-    workloadColor: '#199325',
-  },
-  {
-    name: 'Clark Evans',
-    ph: 1,
-    sunday: 1,
-    total: 5,
-    workloadLabel: 'Below Target',
-    workloadColor: '#B8B817',
-  },
-  {
-    name: 'Janet Gilburt',
-    ph: 3,
-    sunday: 2,
-    total: 10,
-    workloadLabel: 'Heavy',
-    workloadColor: '#B91C1C',
-  },
-];
-
 function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift }) {
+  // --- 1. STATE ---
+  const [shiftData, setShiftData] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Filter States
+  const [year, setYear] = useState(2025);
+  const [shiftType, setShiftType] = useState('NNJ Clinic');
+  const [target, setTarget] = useState(8);
+
+  // --- 2. HELPER: Calculate Workload Status ---
+  const getWorkloadStatus = (total, targetVal) => {
+    const diff = total - targetVal;
+    if (diff === 0) return { label: 'Balanced', color: '#199325', bg: '#dcfce7' }; // Green
+    if (diff > 0) return { label: `Heavy (+${diff})`, color: '#B91C1C', bg: '#fee2e2' }; // Red
+    return { label: `Light (${diff})`, color: '#B8B817', bg: '#fef9c3' }; // Yellow
+  };
+
+  // --- 3. FETCH DATA ---
+  useEffect(() => {
+    setIsLoading(true);
+    
+    // Simulating API fetch. Replace URL with your actual endpoint:
+    fetch(`http://localhost:5000/shifts?year=${year}&type=${shiftType}`)
+    
+    // For now, using a timeout to simulate network request with mock data
+    setTimeout(() => {
+        // Mock Response Data based on your DB schema
+        const mockResponse = [
+            { user_id: 3, full_name: 'Janet Gilburt', role: 'APN', ph_count: 3, sun_count: 2, total_count: 10 },
+            { user_id: 4, full_name: 'Aaron Wong', role: 'Senior RN', ph_count: 2, sun_count: 7, total_count: 9 },
+            { user_id: 5, full_name: 'Eva Foster', role: 'CNS', ph_count: 2, sun_count: 7, total_count: 9 },
+        ];
+
+        const formattedData = mockResponse.map(item => ({
+          id: item.user_id,
+          name: item.full_name,
+          role: item.role,
+          ph: item.ph_count, 
+          sunday: item.sun_count,
+          total: item.total_count
+        }));
+
+        setShiftData(formattedData);
+        setIsLoading(false);
+    }, 800);
+
+  }, [year, shiftType]); 
+
+  // --- 4. CALCULATE SUMMARY METRICS ---
+  const totalShifts = shiftData.reduce((sum, row) => sum + row.total, 0);
+  const unbalancedCount = shiftData.filter(row => (row.total - target) !== 0).length;
+
   return (
     <div
       style={{
@@ -69,238 +81,256 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
           boxSizing: 'border-box',
         }}
       >
-        {/* Title */}
         <h1
           style={{
             fontSize: 24,
             fontWeight: 900,
             marginBottom: 16,
+            marginTop: 24,
+            color: '#111827',
           }}
         >
           Annual Shift Distribution Analysis
         </h1>
 
-        {/* Summary strip (Total, Year, Shift Type, Target) */}
+        {/* --- INTERACTIVE FILTER SECTION --- */}
         <section
           style={{
             background: 'white',
             borderRadius: 8,
-            boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
-            padding: '20px 28px',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            padding: '24px 28px',
             marginBottom: 24,
           }}
         >
+          <p style={{ marginBottom: 20, fontSize: 14, fontWeight: 500, color: '#374151' }}>
+            Adjust parameters to recalculate fairness report.
+          </p>
+
           <div
             style={{
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
               flexWrap: 'wrap',
-              gap: 16,
+              alignItems: 'end',
+              gap: 24,
             }}
           >
-            {/* Total shifts */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <span style={{ fontSize: 18, fontWeight: 500 }}>Total Shifts:</span>
-              <span style={{ fontSize: 22, fontWeight: 700 }}>
-                {analysisSummary.totalShifts}
-              </span>
-            </div>
-
-            {/* Year */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <span style={{ fontSize: 18, fontWeight: 500 }}>Analysis Year:</span>
-              <div
+            {/* Filter: Analysis Year */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ fontSize: 14, fontWeight: 600, color: '#4B5563' }}>
+                Analysis Year
+              </label>
+              <select
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
                 style={{
-                  padding: '8px 16px',
-                  background: '#EDF0F5',
+                  padding: '10px 16px',
+                  background: '#F3F4F6',
+                  border: '1px solid transparent',
                   borderRadius: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: '#111827',
+                  minWidth: 160,
+                  outline: 'none',
+                  cursor: 'pointer',
                 }}
               >
-                <span style={{ fontSize: 16 }}>
-                  {analysisSummary.year} (Current)
+                <option value="2025">2025 (Current)</option>
+                <option value="2024">2024</option>
+              </select>
+            </div>
+
+            {/* Filter: Shift Type */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ fontSize: 14, fontWeight: 600, color: '#4B5563' }}>
+                Shift Type
+              </label>
+              <select
+                value={shiftType}
+                onChange={(e) => setShiftType(e.target.value)}
+                style={{
+                  padding: '10px 16px',
+                  background: '#F3F4F6',
+                  border: '1px solid transparent',
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: '#111827',
+                  minWidth: 180,
+                  outline: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="NNJ Clinic">NNJ Clinic</option>
+                <option value="Public Holiday">Public Holiday</option>
+                <option value="Sunday">Sunday</option>
+              </select>
+            </div>
+
+            {/* Filter: Target Count (Number Input) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label style={{ fontSize: 14, fontWeight: 600, color: '#4B5563' }}>
+                Target Count
+              </label>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: '#F3F4F6',
+                  borderRadius: 6,
+                  padding: '0 12px',
+                }}
+              >
+                <input
+                  type="number"
+                  value={target}
+                  onChange={(e) => setTarget(Number(e.target.value))}
+                  style={{
+                    padding: '10px 0',
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: '#2563EB', // Blue text for target
+                    width: 50,
+                    outline: 'none',
+                    textAlign: 'center',
+                  }}
+                />
+                <span style={{ fontSize: 14, color: '#6B7280', fontWeight: 500 }}>
+                  / Nurse
                 </span>
               </div>
             </div>
 
-            {/* Shift type */}
+            {/* Metrics Summary (Right Side) */}
             <div
               style={{
+                flex: 1,
                 display: 'flex',
+                justifyContent: 'flex-end',
                 alignItems: 'center',
-                gap: 12,
+                gap: 32,
+                paddingLeft: 32,
+                borderLeft: '1px solid #E5E7EB',
               }}
             >
-              <span style={{ fontSize: 18, fontWeight: 500 }}>Shift Type:</span>
-              <div
-                style={{
-                  padding: '8px 16px',
-                  background: '#EDF0F5',
-                  borderRadius: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                }}
-              >
-                <span style={{ fontSize: 16 }}>{analysisSummary.shiftType}</span>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 12, textTransform: 'uppercase', color: '#9CA3AF', fontWeight: 700 }}>
+                  Total {shiftType}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>
+                  {isLoading ? '...' : totalShifts}
+                </div>
               </div>
-            </div>
-
-            {/* Target count */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <span style={{ fontSize: 18, fontWeight: 500 }}>
-                Target Shift Count:
-              </span>
-              <div
-                style={{
-                  padding: '8px 16px',
-                  background: '#EDF0F5',
-                  borderRadius: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <span style={{ fontSize: 16, fontWeight: 500 }}>
-                  {analysisSummary.targetPerApn}
-                </span>
-                <span
-                  style={{ fontSize: 16, fontWeight: 500, color: '#8C8C8C' }}
-                >
-                  / APN
-                </span>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 12, textTransform: 'uppercase', color: '#9CA3AF', fontWeight: 700 }}>
+                  Unbalanced
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: unbalancedCount > 0 ? '#EF4444' : '#199325' }}>
+                  {isLoading ? '...' : unbalancedCount}
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Small cards: AM/PM/Night totals */}
-        <section
-          style={{
-            display: 'flex',
-            gap: 16,
-            marginBottom: 24,
-            flexWrap: 'wrap',
-          }}
-        >
-          {shiftSummary.map((item) => (
-            <div
-              key={item.label}
-              style={{
-                flex: '1 1 160px',
-                background: 'white',
-                borderRadius: 8,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                padding: '12px 16px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 500 }}>{item.label}</span>
-              <span
-                style={{
-                  fontSize: 20,
-                  fontWeight: 700,
-                  color: item.color,
-                }}
-              >
-                {item.value}
-              </span>
-            </div>
-          ))}
-        </section>
-
-        {/* Staff distribution table */}
+        {/* --- STAFF TABLE --- */}
         <section>
           {/* Header */}
           <div
             style={{
-              background: 'white',
-              borderRadius: '10px 10px 0 0',
-              border: '1px solid #E6E6E6',
+              background: '#F9FAFB',
+              borderRadius: '8px 8px 0 0',
+              border: '1px solid #E5E7EB',
               borderBottom: 'none',
               display: 'grid',
-              gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
+              gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr', // Matches columns below
               alignItems: 'center',
-              height: 56,
-              padding: '0 16px',
-              boxSizing: 'border-box',
-              fontSize: 16,
-              fontWeight: 600,
+              height: 48,
+              padding: '0 24px',
+              fontSize: 12,
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              color: '#6B7280',
+              letterSpacing: '0.05em',
             }}
           >
             <div>Full Name</div>
-            <div>PH</div>
-            <div>Sunday</div>
-            <div>Total</div>
-            <div>Workload</div>
+            <div>PH Count</div>
+            <div>Sun Count</div>
+            <div>Total ({shiftType})</div>
+            <div>Workload (vs {target})</div>
           </div>
 
           {/* Body */}
           <div
             style={{
               background: 'white',
-              borderRadius: '0 0 10px 10px',
-              border: '1px solid #E6E6E6',
+              borderRadius: '0 0 8px 8px',
+              border: '1px solid #E5E7EB',
               borderTop: 'none',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
             }}
           >
-            {staffShiftRows.map((row, idx) => (
-              <div
-                key={row.name}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
-                  alignItems: 'center',
-                  padding: '10px 16px',
-                  boxSizing: 'border-box',
-                  fontSize: 14,
-                  borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6',
-                }}
-              >
-                <div>{row.name}</div>
-                <div>{row.ph}</div>
-                <div>{row.sunday}</div>
-                <div>{row.total}</div>
-                <div>
-                  <span
+            {isLoading ? (
+               <div style={{ padding: '40px', textAlign: 'center', color: '#6B7280' }}>
+                 Loading analysis data...
+               </div>
+            ) : shiftData.length === 0 ? (
+               <div style={{ padding: '40px', textAlign: 'center', color: '#6B7280' }}>
+                 No data found for these filters.
+               </div>
+            ) : (
+              shiftData.map((row, idx) => {
+                const status = getWorkloadStatus(row.total, target);
+
+                return (
+                  <div
+                    key={row.id}
                     style={{
-                      padding: '4px 8px',
-                      borderRadius: 8,
-                      background: '#EDF0F5',
-                      color: row.workloadColor,
-                      fontWeight: 600,
-                      fontSize: 13,
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr',
+                      alignItems: 'center',
+                      padding: '16px 24px',
+                      fontSize: 14,
+                      color: '#111827',
+                      borderTop: idx === 0 ? 'none' : '1px solid #E5E7EB',
+                      backgroundColor: idx % 2 === 0 ? 'white' : '#F9FAFB',
                     }}
                   >
-                    {row.workloadLabel}
-                  </span>
-                </div>
-              </div>
-            ))}
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{row.name}</div>
+                      <div style={{ fontSize: 12, color: '#6B7280' }}>{row.role}</div>
+                    </div>
+                    
+                    <div>{row.ph}</div>
+                    <div>{row.sunday}</div>
+                    
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>
+                      {row.total}
+                    </div>
+                    
+                    <div>
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 12,
+                          background: status.bg,
+                          color: status.color,
+                          fontWeight: 600,
+                          fontSize: 12,
+                          display: 'inline-block',
+                        }}
+                      >
+                        {status.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </section>
       </main>
