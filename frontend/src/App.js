@@ -21,17 +21,24 @@ function App() {
   const [page, setPage] = useState('login');
   const [rosterMonth, setRosterMonth] = useState('December');
   const [rosterYear, setRosterYear] = useState(2025);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // LOGIN
   if (page === 'login') {
-  return (
-    <Login
-      onAdminLoginSuccess={() => setPage('home')}
-      onUserLoginSuccess={() => setPage('userHome')}
-      onGoSignup={() => setPage('signup')}   // NEW
-    />
-  );
-}
+    return (
+      <Login
+        onAdminLoginSuccess={(user) => {
+          setCurrentUser(user);
+          setPage('home');
+        }}
+        onUserLoginSuccess={(user) => {
+          setCurrentUser(user);
+          setPage('userHome');
+        }}
+        onGoSignup={() => setPage('signup')}
+      />
+    );
+  }
 
   if (page === 'signup') {
   return (
@@ -40,6 +47,19 @@ function App() {
     />
   );
 }
+  if (page === 'userLeave') {
+    return (
+      <UserApplyLeave
+        currentUser={currentUser} // <-- NEW: Pass user data down
+        onBack={() => setPage('userHome')}
+        onGoHome={() => setPage('userHome')}
+        onGoRoster={() => setPage('userRoster')}
+        onGoShiftPreference={() => setPage('userPreference')}
+        onGoApplyLeave={() => setPage('userLeave')}
+        onGoAccount={() => setPage('userAccount')}
+      />
+    );
+  }
 
   // shared navbar navigation for all ADMIN pages
   const navProps = {

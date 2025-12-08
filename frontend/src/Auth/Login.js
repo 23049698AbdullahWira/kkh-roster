@@ -1,59 +1,71 @@
 import React, { useState } from 'react';
 
-const USERS = {
-  'admin@example.com': {
-    role: 'admin',
-    password: 'admin123',
-  },
-  'user@example.com': {
-    role: 'user',
-    password: 'user123',
-  },
-};
-
 function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
   const [step, setStep] = useState('identifier'); // 'identifier' | 'password'
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [currentEmail, setCurrentEmail] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleContinueIdentifier = () => {
+  // STEP 1: check identifier (email) exists
+  const handleContinueIdentifier = async () => {
     const trimmed = identifier.trim().toLowerCase();
     if (!trimmed) {
-      setError('Please enter your email or phone number.');
+      setError('Please enter your email.');
       return;
     }
 
-    if (!USERS[trimmed]) {
-      setError(
-        'Account not found. Try admin@example.com or user@example.com.'
-      );
-      return;
-    }
-
+    // For now we just treat whatever they type as email and move to password.
+    // Later you can add a real /check-email endpoint if you want.
     setCurrentEmail(trimmed);
     setPassword('');
     setError('');
     setStep('password');
   };
 
-  const handleLogin = () => {
+  // STEP 2: login against backend
+  const handleLogin = async () => {
     if (!password) {
       setError('Please enter your password.');
       return;
     }
-    const user = USERS[currentEmail];
-    if (!user || user.password !== password) {
-      setError('Incorrect password.');
+    if (!currentEmail) {
+      setError('Missing email. Please go back and enter your email again.');
+      setStep('identifier');
       return;
     }
+  
+        try {
+      setLoading(true);
+      setError('');
+      const res = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: currentEmail, password }),
+      });
 
-    setError('');
-    if (user.role === 'admin') {
-      onAdminLoginSuccess && onAdminLoginSuccess();
-    } else {
-      onUserLoginSuccess && onUserLoginSuccess();
+
+      const data = await res.json();
+
+
+      if (!res.ok || !data.success) {
+        setError(data.message || 'Login failed. Please check your credentials.');
+        return;
+      }
+
+
+      // Pass the whole user object back on success
+      if (data.user.role === 'ADMIN') {
+        onAdminLoginSuccess && onAdminLoginSuccess(data.user);
+      } else {
+        onUserLoginSuccess && onUserLoginSuccess(data.user);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Unable to connect to server. Please try again later.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -228,8 +240,8 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
                 }}
               >
                 <input
-                  type="text"
-                  placeholder="Email or Phone"
+                  type="email"
+                  placeholder="Email"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   style={{
@@ -259,22 +271,24 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
             <button
               type="button"
               onClick={handleContinueIdentifier}
+              disabled={loading}
               style={{
                 width: 278,
                 height: 41,
                 padding: 8,
-                background: '#5091CD',
+                background: loading ? '#9BBEE5' : '#5091CD',
                 borderRadius: 6,
                 border: '1px solid #8C8C8C',
                 color: 'white',
                 fontSize: 18,
                 fontWeight: 800,
-                cursor: 'pointer',
+                cursor: loading ? 'default' : 'pointer',
               }}
             >
-              Continue
+              {loading ? 'Please wait...' : 'Continue'}
             </button>
 
+            {/* The rest of your OR + SSO icons stay the same */}
             <div
               style={{
                 width: 277,
@@ -396,20 +410,21 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
             <button
               type="button"
               onClick={handleLogin}
+              disabled={loading}
               style={{
                 width: 278,
                 height: 41,
                 padding: 8,
-                background: '#5091CD',
+                background: loading ? '#9BBEE5' : '#5091CD',
                 borderRadius: 6,
                 border: 'none',
                 color: 'white',
                 fontSize: 18,
                 fontWeight: 800,
-                cursor: 'pointer',
+                cursor: loading ? 'default' : 'pointer',
               }}
             >
-              Log in
+              {loading ? 'Logging in...' : 'Log in'}
             </button>
 
             <div

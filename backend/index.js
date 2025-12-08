@@ -3,50 +3,34 @@ const cors = require('cors');
 const pool = require('./db');
 require('dotenv').config();
 
-const multer = require('multer');
-const path = require('path');
 
 const app = express();
 
-// --- MIDDLEWARE ---
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Serve the 'uploads' directory statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// --- MULTER CONFIGURATION FOR FILE UPLOADS ---
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix);
-  }
-});
-
-const upload = multer({ storage: storage });
-
-// --- ROUTES ---
-
-// 1. Test Route
+// 1. Test Route (To check if server works)
 app.get('/', (req, res) => {
   res.send('Backend is running!');
 });
+
 
 // 2. Database Connection Test
 app.get('/test-db', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT 1 + 1 AS result');
-    res.json({ message: "Database connected!", result: rows[0].result });
+    res.json({ message: 'Database connected!', result: rows[0].result });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// 3. GET Request to fetch all USERS
+
+// GET Request to fetch all USERS
 app.get('/users', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users');
@@ -57,59 +41,114 @@ app.get('/users', async (req, res) => {
   }
 });
 
-// --- LEAVE APPLICATION ROUTES ---
 
-// 4. GET Request to fetch all LEAVE TYPES
-// --- CHANGE 1: Route path changed to '/leave_types' for RESTful convention.
-// --- CHANGE 2: SQL query is now correct and selects from the `leave_type` table.
-app.get('/leave_types', async (req, res) => {
-    try {
-        // Assuming your table is `leave_type` with columns `leave_id` and `leave_type`
-        const [rows] = await pool.query('SELECT leave_id, leave_type FROM leave_type');
-        res.json(rows);
-    } catch (err) {
-        console.error("Error fetching leave types:", err);
-        res.status(500).json({ error: err.message });
-    }
-});
+// LOGIN: POST /api/auth/login (ENHANCED)
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
 
-// 5. POST Request to APPLY FOR LEAVE
-app.post('/leaves/apply', upload.single('leave_document'), async (req, res) => {
+
   try {
-    const { user_id, leave_id, leave_start_date, leave_end_date } = req.body;
+    // Fetch more user data on login
+    const [rows] = await pool.query(
+      `SELECT
+        u.user_id,
+        u.email,
+        u.password,
+        u.role,
+        u.full_name,
+        w.ward_name
+      FROM users u
+      LEFT JOIN rosters r ON u.user_id = r.creator_user_id
+      LEFT JOIN ward w ON r.ward_id = w.ward_id
+      WHERE u.email = ?
+      ORDER BY r.created_at DESC
+      LIMIT 1`,
+      [email]
+    );
 
-    // --- CHANGE 3: Switched to req.file.filename for a more robust and clean URL.
-    // This avoids issues with backslashes (\) in paths on Windows systems.
-    const leave_url = req.file 
-      ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` 
-      : null;
-    
-    if (!user_id || !leave_id || !leave_start_date || !leave_end_date) {
-        return res.status(400).json({ message: 'Missing required fields.' });
+
+    if (rows.length === 0) {
+      return res.status(401).json({ success: false, message: 'User not found' });
     }
 
-    const insertQuery = `
-      INSERT INTO leave_has_users (user_id, leave_id, leave_start, leave_end, leave_url)
-      VALUES (?, ?, ?, ?, ?)
-    `;
 
-    await pool.query(insertQuery, [
-      user_id,
-      leave_id,
-      leave_start_date,
-      leave_end_date,
-      leave_url
-    ]);
+    const user = rows[0];
 
-    res.status(201).json({ message: 'Leave request submitted successfully!' });
 
+    if (user.password !== password) {
+      return res.status(401).json({ success: false, message: 'Incorrect password' });
+    }
+
+
+    // Send back a user object
+    return res.json({
+      success: true,
+      user: {
+        userId: user.user_id,
+        role: user.role || 'user',
+        fullName: user.full_name,
+        email: user.email,
+        ward: user.ward_name || 'N/A', // Default if no ward found
+      },
+    });
   } catch (err) {
-    console.error("Error submitting leave request:", err);
-    res.status(500).json({ message: 'Failed to submit leave request.', error: err.message });
+    console.error(err);
+    return res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// --- SERVER INITIALIZATION ---
+
+// NEW: GET all leave types
+app.get('/api/leave-types', async (req, res) => {
+  try {
+    const [leaveTypes] = await pool.query('SELECT leave_id, leave_type FROM leave_type ORDER BY leave_type');
+    res.json(leaveTypes);
+  } catch (err) {
+    console.error('Error fetching leave types:', err);
+    res.status(500).json({ error: 'Failed to fetch leave types' });
+  }
+});
+
+
+// NEW: POST a new leave application
+app.post('/api/leaves', async (req, res) => {
+  const {
+    userId,
+    leaveId,
+    startDate,
+    endDate,
+    remarks,
+    leaveUrl
+  } = req.body;
+
+
+  // Basic validation
+  if (!userId || !leaveId || !startDate || !endDate) {
+    return res.status(400).json({ success: false, message: 'Missing required fields.' });
+  }
+
+
+  try {
+    const query = `
+      INSERT INTO leave_has_users
+      (user_id, leave_id, leave_start, leave_end, remarks, leave_url, leave_type)
+      VALUES (?, ?, ?, ?, ?, ?, (SELECT leave_type FROM leave_type WHERE leave_id = ?))
+    `;
+
+
+    await pool.query(query, [userId, leaveId, startDate, endDate, remarks || null, leaveUrl || null, leaveId]);
+
+
+    res.status(201).json({ success: true, message: 'Leave application submitted successfully.' });
+
+
+  } catch (err) {
+    console.error('Error submitting leave application:', err);
+    res.status(500).json({ success: false, message: 'Server error while submitting leave.' });
+  }
+});
+
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
