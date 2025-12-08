@@ -1,8 +1,9 @@
-// src/SignUp.js
+// src/Auth/SignUp.js
 import React, { useState } from 'react';
 
 function SignUp({ onDone }) {
   const [step, setStep] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     email: '',
@@ -28,7 +29,6 @@ function SignUp({ onDone }) {
   };
 
   const handleContinueFromPassword = () => {
-    // basic password match check
     if (form.password && form.password === form.confirmPassword) {
       next();
     } else {
@@ -36,13 +36,46 @@ function SignUp({ onDone }) {
     }
   };
 
-  const handleGetStarted = () => {
-    // here you could submit `form` to your backend
-    // then go back to login
-    onDone && onDone(form);
+  const handleGetStarted = async () => {
+    // Build payload for backend
+    const payload = {
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.loginEmail || form.email,
+      phone: form.optionalPhone || form.phone,
+      password: form.password,
+    };
+
+    if (!payload.email || !payload.password) {
+      alert('Email and password are required.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const res = await fetch('http://localhost:4000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        alert(data.message || 'Registration failed. Please try again.');
+        return;
+      }
+
+      // Registration OK → go back to Login
+      onDone && onDone();
+    } catch (err) {
+      console.error(err);
+      alert('Unable to connect to server. Please try again later.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  // --- Individual screens ---
+  // --- Individual screens (unchanged UI, just using form state) ---
 
   const renderStep0 = () => (
     <div style={outerContainer}>
@@ -117,7 +150,10 @@ function SignUp({ onDone }) {
 
         <div style={{ fontSize: 16, fontFamily: 'Inter, sans-serif' }}>
           <span>Already have an account? </span>
-          <span style={{ color: '#2424FF', cursor: 'pointer' }} onClick={onDone}>
+          <span
+            style={{ color: '#2424FF', cursor: 'pointer' }}
+            onClick={onDone}
+          >
             Log in
           </span>
         </div>
@@ -174,11 +210,7 @@ function SignUp({ onDone }) {
           Continue
         </button>
 
-        <button
-          type="button"
-          style={linkBack}
-          onClick={back}
-        >
+        <button type="button" style={linkBack} onClick={back}>
           Back
         </button>
       </div>
@@ -235,11 +267,7 @@ function SignUp({ onDone }) {
           Continue
         </button>
 
-        <button
-          type="button"
-          style={linkBack}
-          onClick={back}
-        >
+        <button type="button" style={linkBack} onClick={back}>
           Back
         </button>
       </div>
@@ -299,11 +327,7 @@ function SignUp({ onDone }) {
           Continue
         </button>
 
-        <button
-          type="button"
-          style={linkBack}
-          onClick={back}
-        >
+        <button type="button" style={linkBack} onClick={back}>
           Back
         </button>
       </div>
@@ -339,7 +363,7 @@ function SignUp({ onDone }) {
               fontWeight: 500,
             }}
           >
-            The following account has been created:
+            The following account will be created:
           </div>
           <div
             style={{
@@ -357,10 +381,15 @@ function SignUp({ onDone }) {
 
         <button
           type="button"
-          style={primaryButton}
+          style={{
+            ...primaryButton,
+            background: submitting ? '#9BBEE5' : '#5091CD',
+            cursor: submitting ? 'default' : 'pointer',
+          }}
           onClick={handleGetStarted}
+          disabled={submitting}
         >
-          Get Started
+          {submitting ? 'Creating...' : 'Get Started'}
         </button>
       </div>
     </div>
@@ -382,7 +411,7 @@ function SignUp({ onDone }) {
   }
 }
 
-// --- Shared small components / styles ---
+// --- Shared styles and FieldBox (unchanged) ---
 
 const outerContainer = {
   width: '100%',
