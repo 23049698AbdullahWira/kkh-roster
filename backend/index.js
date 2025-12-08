@@ -39,6 +39,65 @@ app.get('/users', async (req, res) => {
   }
 });
 
+// GET Request to fetch ROSTERS with Creator Name
+app.get('/api/rosters', async (req, res) => {
+  try {
+    // 1. Join 'rosters' with 'users' to get the creator's name
+    // NOTE: Check if your users table uses 'username', 'name', or 'full_name'
+    const query = `
+      SELECT 
+        r.roster_id, 
+        r.month, 
+        r.year, 
+        r.created_at, 
+        r.publish_date, 
+        r.remarks,
+        u.email as creator_name 
+      FROM rosters r
+      LEFT JOIN users u ON r.creator_user_id = u.user_id
+      ORDER BY r.year DESC, r.month DESC
+    `;
+    
+    const [rows] = await pool.query(query);
+
+    // 2. Helper lists/dates
+    const monthNames = ["January", "February", "March", "April", "May", "June", 
+                        "July", "August", "September", "October", "November", "December"];
+    const today = new Date();
+
+    // 3. Transform data for React
+    const formattedRosters = rows.map(row => {
+        // Calculate Status: If today is past publish_date, it is Published
+        let status = 'Draft';
+        if (row.publish_date && new Date(row.publish_date) <= today) {
+            status = 'Published';
+        }
+
+        // Convert month number (1-12) to name (January)
+        // We subtract 1 because array starts at 0
+        const monthName = monthNames[row.month - 1] || 'Unknown';
+
+        return {
+            id: row.roster_id,
+            title: `${monthName} Roster ${row.year}`,
+            generatedBy: row.creator_name || 'Unknown', // This will show their email
+            createdOn: row.created_at,
+            deadline: row.publish_date,
+            status: status,
+            month: monthName,
+            year: row.year
+        };
+    });
+
+    res.json(formattedRosters);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+// -------
+
 // LOGIN: POST /api/auth/login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;

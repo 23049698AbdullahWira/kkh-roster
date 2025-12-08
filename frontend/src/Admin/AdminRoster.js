@@ -1,38 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar';
 import AdminNewRoster from './AdminNewRoster';
 
 function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster }) {
   const [showNewRoster, setShowNewRoster] = useState(false);
-  const rosterRows = [
-    {
-      title: 'October Roster 2026',
-      generatedBy: 'Janet Gilburt',
-      createdOn: '01/11/2025 09:32:55',
-      deadline: '29/08/2026 23:59:59',
-      status: 'Preference Open',
-      month: 'October',
-      year: 2026,
-    },
-    {
-      title: 'November Roster 2025',
-      generatedBy: 'Janet Gilburt',
-      createdOn: '01/10/2025 09:32:55',
-      deadline: '29/09/2025 23:59:59',
-      status: 'Published',
-      month: 'November',
-      year: 2025,
-    },
-    {
-      title: 'December Roster 2025',
-      generatedBy: 'Janet Gilburt',
-      createdOn: '01/11/2025 09:32:55',
-      deadline: '29/11/2025 23:59:59',
-      status: 'Draft',
-      month: 'December',
-      year: 2025,
-    },
-  ];
+  
+  // 1. STATE: Store the real data here (start empty)
+  const [rosterRows, setRosterRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // 2. EFFECT: Fetch data from Node.js backend when page loads
+  useEffect(() => {
+    fetch('http://localhost:5000/api/rosters') // Make sure port matches your index.js (5000)
+      .then((res) => res.json())
+      .then((data) => {
+        setRosterRows(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch rosters:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  // 3. HELPER: Format Database Dates (YYYY-MM-DD) to Display Format (DD/MM/YYYY)
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    // Simple formatter: DD/MM/YYYY
+    return date.toLocaleDateString('en-GB') + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   return (
     <div
@@ -71,71 +68,44 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
             marginBottom: 16,
           }}
         >
-          <h1
-            style={{
-              fontSize: 24,
-              fontWeight: 900,
-              margin: 0,
-            }}
-          >
+          <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>
             All Rosters
           </h1>
 
           <button
-        type="button"
-        onClick={() => setShowNewRoster(true)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '10px 24px',
-          background: '#5091CD',
-          borderRadius: 999,
-          border: 'none',
-          color: 'white',
-          fontSize: 16,
-          fontWeight: 600,
-          cursor: 'pointer',
-        }}
-      >
-        New Roster
-        <span
-          style={{
-            width: 18,
-            height: 18,
-            background: 'white',
-            borderRadius: 4,
-            display: 'inline-block',
-          }}
-        />
-      </button>
+            type="button"
+            onClick={() => setShowNewRoster(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px',
+              background: '#5091CD', borderRadius: 999, border: 'none', color: 'white',
+              fontSize: 16, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            New Roster
+            <span
+              style={{
+                width: 18, height: 18, background: 'white', borderRadius: 4, display: 'inline-block',
+              }}
+            />
+          </button>
 
-      <AdminNewRoster
-        open={showNewRoster}
-        onCancel={() => setShowNewRoster(false)}
-        onConfirm={(data) => {
-          console.log('new roster:', data);
-          // TODO: add to list / call backend
-          setShowNewRoster(false);
-        }}
-      />
-    </div>
+          <AdminNewRoster
+            open={showNewRoster}
+            onCancel={() => setShowNewRoster(false)}
+            onConfirm={(data) => {
+              console.log('new roster:', data);
+              // Optional: Reload page to see new roster immediately
+              window.location.reload(); 
+            }}
+          />
+        </div>
 
         {/* Table header */}
         <div
           style={{
-            background: 'white',
-            borderRadius: '10px 10px 0 0',
-            border: '1px solid #E6E6E6',
-            borderBottom: 'none',
-            display: 'grid',
-            gridTemplateColumns: '2fr 1.3fr 1.4fr 1.7fr 1.2fr 0.8fr',
-            alignItems: 'center',
-            height: 56,
-            padding: '0 16px',
-            boxSizing: 'border-box',
-            fontSize: 16,
-            fontWeight: 600,
+            background: 'white', borderRadius: '10px 10px 0 0', border: '1px solid #E6E6E6', borderBottom: 'none',
+            display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.4fr 1.7fr 1.2fr 0.8fr', alignItems: 'center',
+            height: 56, padding: '0 16px', boxSizing: 'border-box', fontSize: 16, fontWeight: 600,
           }}
         >
           <div>Roster Title</div>
@@ -149,137 +119,64 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
         {/* Table body */}
         <div
           style={{
-            background: 'white',
-            borderRadius: '0 0 10px 10px',
-            border: '1px solid #E6E6E6',
-            borderTop: 'none',
+            background: 'white', borderRadius: '0 0 10px 10px', border: '1px solid #E6E6E6', borderTop: 'none',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
           }}
         >
-          {rosterRows.map((row, idx) => (
-            <div
-              key={idx}
-              onClick={() =>
-                onOpenRoster && onOpenRoster(row.month, row.year)
-              }
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '2fr 1.3fr 1.4fr 1.7fr 1.2fr 0.8fr',
-                alignItems: 'center',
-                padding: '12px 16px',
-                boxSizing: 'border-box',
-                fontSize: 14,
-                borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6',
-                cursor: 'pointer',
-              }}
-            >
-              <div>{row.title}</div>
-              <div>{row.generatedBy}</div>
-              <div>{row.createdOn}</div>
-              <div>{row.deadline}</div>
-              <div>
-                <span
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: 8,
-                    background: '#D9E8F3',
-                    color: '#194A93',
-                    fontWeight: 600,
-                    fontSize: 13,
-                  }}
-                >
-                  {row.status}
-                </span>
-              </div>
+          {loading ? (
+             <div style={{ padding: '20px', textAlign: 'center' }}>Loading rosters...</div>
+          ) : rosterRows.length === 0 ? (
+             <div style={{ padding: '20px', textAlign: 'center' }}>No rosters found.</div>
+          ) : (
+            rosterRows.map((row, idx) => (
               <div
+                key={row.id || idx} // Use DB ID if available
+                onClick={() =>
+                  onOpenRoster && onOpenRoster(row.month, row.year)
+                }
                 style={{
-                  display: 'flex',
-                  gap: 8,
-                  justifyContent: 'flex-start',
+                  display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.4fr 1.7fr 1.2fr 0.8fr', alignItems: 'center',
+                  padding: '12px 16px', boxSizing: 'border-box', fontSize: 14,
+                  borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6', cursor: 'pointer',
                 }}
               >
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    background: '#EDF0F5',
-                    borderRadius: 8,
-                  }}
-                />
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    background: '#EDF0F5',
-                    borderRadius: 8,
-                  }}
-                />
+                <div>{row.title}</div>
+                <div>{row.generatedBy}</div>
+                {/* 4. Format the dates here */}
+                <div>{formatDate(row.createdOn)}</div>
+                <div>{formatDate(row.deadline)}</div>
+                <div>
+                  <span
+                    style={{
+                      padding: '4px 8px', borderRadius: 8, background: '#D9E8F3',
+                      color: '#194A93', fontWeight: 600, fontSize: 13,
+                    }}
+                  >
+                    {row.status}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-start' }}>
+                  <div style={{ width: 30, height: 30, background: '#EDF0F5', borderRadius: 8 }} />
+                  <div style={{ width: 30, height: 30, background: '#EDF0F5', borderRadius: 8 }} />
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
 
-          {/* Pagination bar */}
+          {/* Pagination bar (Static for now) */}
           <div
             style={{
-              height: 60,
-              background: 'white',
-              borderTop: '1px solid #EEE',
-              borderRadius: '0 0 10px 10px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
+              height: 60, background: 'white', borderTop: '1px solid #EEE',
+              borderRadius: '0 0 10px 10px', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', gap: 8,
             }}
           >
-            <button
-              type="button"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #EEE',
-                background: 'rgba(255,255,255,0.4)',
-              }}
-            >
-              «
-            </button>
-            <button
-              type="button"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #EEE',
-                background: 'white',
-              }}
-            >
-              ‹
-            </button>
-            <span style={{ fontSize: 14, color: '#656575' }}>1–3 of 3</span>
-            <button
-              type="button"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #EEE',
-                background: 'white',
-              }}
-            >
-              ›
-            </button>
-            <button
-              type="button"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: '1px solid #EEE',
-                background: 'white',
-              }}
-            >
-              »
-            </button>
+             {/* Pagination buttons kept same as your code */}
+             <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'rgba(255,255,255,0.4)' }}>«</button>
+             <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>‹</button>
+             <span style={{ fontSize: 14, color: '#656575' }}>1–{rosterRows.length} of {rosterRows.length}</span>
+             <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>›</button>
+             <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>»</button>
           </div>
         </div>
       </main>
