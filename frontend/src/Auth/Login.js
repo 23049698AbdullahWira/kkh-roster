@@ -15,9 +15,6 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
       setError('Please enter your email.');
       return;
     }
-
-    // For now we just treat whatever they type as email and move to password.
-    // Later you can add a real /check-email endpoint if you want.
     setCurrentEmail(trimmed);
     setPassword('');
     setError('');
@@ -35,8 +32,8 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
       setStep('identifier');
       return;
     }
-  
-        try {
+
+    try {
       setLoading(true);
       setError('');
       const res = await fetch('http://localhost:5000/api/auth/login', {
@@ -45,21 +42,20 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
         body: JSON.stringify({ email: currentEmail, password }),
       });
 
-
       const data = await res.json();
-
 
       if (!res.ok || !data.success) {
         setError(data.message || 'Login failed. Please check your credentials.');
         return;
       }
 
+      // *** UPDATED: Pass the received user data to the parent (App.js) ***
+      const userData = data.user;
 
-      // Pass the whole user object back on success
-      if (data.user.role === 'ADMIN') {
-        onAdminLoginSuccess && onAdminLoginSuccess(data.user);
+      if (userData.role === 'ADMIN') {
+        onAdminLoginSuccess && onAdminLoginSuccess(userData);
       } else {
-        onUserLoginSuccess && onUserLoginSuccess(data.user);
+        onUserLoginSuccess && onUserLoginSuccess(userData);
       }
     } catch (err) {
       console.error(err);

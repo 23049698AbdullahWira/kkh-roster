@@ -15,48 +15,38 @@ import UserApplyLeave from './User/UserApplyLeave.js';
 import UserAccountInformation from './User/UserAccountInformation.js';
 import SignUp from './Auth/SignUp.js';
 
-
-
 function App() {
   const [page, setPage] = useState('login');
   const [rosterMonth, setRosterMonth] = useState('December');
   const [rosterYear, setRosterYear] = useState(2025);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [loggedInUser, setLoggedInUser] = useState(null); // *** NEW: State to hold user data ***
+
+  // *** UPDATED: Login success handlers now receive user data ***
+  const handleAdminLogin = (userData) => {
+    setLoggedInUser(userData);
+    setPage('home');
+  };
+
+  const handleUserLogin = (userData) => {
+    setLoggedInUser(userData);
+    setPage('userHome');
+  };
 
   // LOGIN
   if (page === 'login') {
     return (
       <Login
-        onAdminLoginSuccess={(user) => {
-          setCurrentUser(user);
-          setPage('home');
-        }}
-        onUserLoginSuccess={(user) => {
-          setCurrentUser(user);
-          setPage('userHome');
-        }}
+        onAdminLoginSuccess={handleAdminLogin}
+        onUserLoginSuccess={handleUserLogin}
         onGoSignup={() => setPage('signup')}
       />
     );
   }
 
   if (page === 'signup') {
-  return (
-    <SignUp
-      onDone={() => setPage('login')}        // Get Started / Log in → login
-    />
-  );
-}
-  if (page === 'userLeave') {
     return (
-      <UserApplyLeave
-        currentUser={currentUser} // <-- NEW: Pass user data down
-        onBack={() => setPage('userHome')}
-        onGoHome={() => setPage('userHome')}
-        onGoRoster={() => setPage('userRoster')}
-        onGoShiftPreference={() => setPage('userPreference')}
-        onGoApplyLeave={() => setPage('userLeave')}
-        onGoAccount={() => setPage('userAccount')}
+      <SignUp
+        onDone={() => setPage('login')}
       />
     );
   }
@@ -172,19 +162,20 @@ if (page === 'userPreference') {
   );
 }
 
-// USER apply leave view
-if (page === 'userLeave') {
-  return (
-    <UserApplyLeave
-      onBack={() => setPage('userHome')}
-      onGoHome={() => setPage('userHome')}
-      onGoRoster={() => setPage('userRoster')}
-      onGoShiftPreference={() => setPage('userPreference')}
-      onGoApplyLeave={() => setPage('userLeave')}
-      onGoAccount={() => setPage('userAccount')}       // NEW
-    />
-  );
-}
+  // USER apply leave view
+  if (page === 'userLeave') {
+    return (
+      <UserApplyLeave
+        loggedInUser={loggedInUser} // *** NEW: Pass user data as a prop ***
+        onBack={() => setPage('userHome')}
+        onGoHome={() => setPage('userHome')}
+        onGoRoster={() => setPage('userRoster')}
+        onGoShiftPreference={() => setPage('userPreference')}
+        onGoApplyLeave={() => setPage('userLeave')}
+        onGoAccount={() => setPage('userAccount')}
+      />
+    );
+  }
 
 // USER account information view
 if (page === 'userAccount') {
