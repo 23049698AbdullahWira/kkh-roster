@@ -4,13 +4,14 @@ import Navbar from '../Nav/navbar';
 function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift }) {
   // --- 1. STATE ---
   const [shiftData, setShiftData] = useState([]);
-  const [availableYears, setAvailableYears] = useState([]); // Stores years fetched from DB
+  const [availableYears, setAvailableYears] = useState([]); // Stores years fetched from DB + Future
   const [isLoading, setIsLoading] = useState(true);
   
   // Filter States
   const [year, setYear] = useState(''); // Empty initially, set after fetching years
-  const [shiftType, setShiftType] = useState('NNJ');
-  const [target, setTarget] = useState(8);
+  // Shift Type is now hardcoded to 'NNJ' as per request to remove dropdown
+  const [shiftType] = useState('NNJ'); 
+  const [target, setTarget] = useState(2);
 
   // --- 2. HELPER: Workload Calculation ---
   const getWorkloadStatus = (total, targetVal) => {
@@ -26,25 +27,32 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
       try {
         // Fetch unique years from the backend API
         const response = await fetch('http://localhost:5000/available-years');
-        const data = await response.json();
+        const dbYears = await response.json(); // e.g. [2024, 2023]
         
-        console.log("Years available in DB:", data);
-        setAvailableYears(data);
+        console.log("Years available in DB:", dbYears);
 
-        // LOGIC: Set Default Year
+        // LOGIC: Always include Current Year AND Next Year (2026) for planning
         const currentSystemYear = new Date().getFullYear();
+        const nextYear = currentSystemYear + 1; // 2026
+
+        // Combine DB years with mandatory years, remove duplicates, sort descending
+        const uniqueYears = [...new Set([...dbYears, currentSystemYear, nextYear])].sort((a, b) => b - a);
         
-        if (data.includes(currentSystemYear)) {
-          setYear(currentSystemYear); // Use current year if data exists
-        } else if (data.length > 0) {
-          setYear(data[0]); // Else use the most recent year available
+        setAvailableYears(uniqueYears);
+
+        // Set default year logic
+        if (uniqueYears.includes(currentSystemYear)) {
+          setYear(currentSystemYear); // Default to current year
         } else {
-          setYear(currentSystemYear); // Fallback
+          setYear(uniqueYears[0]); // Fallback to newest
         }
+
       } catch (err) {
         console.error("Error fetching years:", err);
         // Fallback if API fails
-        setYear(new Date().getFullYear());
+        const current = new Date().getFullYear();
+        setAvailableYears([current + 1, current]); // Show 2026, 2025
+        setYear(current);
       }
     };
 
@@ -66,14 +74,20 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
         return res.json();
       })
       .then(data => {
-        const formattedData = data.map(item => ({
-          id: item.user_id,
-          name: item.full_name,
-          role: item.role || 'Staff',
-          ph: Number(item.ph_count), 
-          sunday: Number(item.sun_count),
-          total: Number(item.total_count)
-        }));
+        const formattedData = data.map(item => {
+          const ph = Number(item.ph_count);
+          const sunday = Number(item.sun_count);
+          
+          return {
+            id: item.user_id,
+            name: item.full_name,
+            role: item.role || 'Staff',
+            ph: ph, 
+            sunday: sunday,
+            // Total is sum of PH + Sunday 
+            total: ph + sunday 
+          };
+        });
         setShiftData(formattedData);
         setIsLoading(false);
       })
@@ -127,19 +141,25 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
               </select>
             </div>
 
-            {/* Shift Type */}
+            {/* Shift Type Dropdown REMOVED as requested. 
+                Using a static label to indicate we are viewing NNJ data. */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Shift Type</label>
-              <select
-                value={shiftType}
-                onChange={(e) => setShiftType(e.target.value)}
-                style={{ padding: '10px 12px', background: '#FEFCE8', border: '1px solid #FEF08A', borderRadius: 6, fontSize: 14, minWidth: 180, cursor: 'pointer', fontWeight: 600, color: '#854D0E' }}
-              >
-                <option value="NNJ">NNJ</option>
-                <option value="PM">PM Shift</option>
-                <option value="AM">AM Shift</option>
-                <option value="N">Night Shift</option>
-              </select>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' }}>Shift Mode</label>
+              <div style={{ 
+                padding: '10px 16px', 
+                background: '#FEFCE8', 
+                border: '1px solid #FEF08A', 
+                borderRadius: 6, 
+                fontSize: 14, 
+                fontWeight: 600, 
+                color: '#854D0E',
+                minWidth: 100,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                NNJ Analysis
+              </div>
             </div>
 
             {/* Target Count */}
@@ -177,11 +197,11 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
         {/* --- DATA TABLE SECTION --- */}
         <section style={{ background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           {/* Table Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr', padding: '16px 24px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1.5fr', padding: '16px 24px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
             <div style={headerStyle}>Staff Member</div>
             <div style={headerStyle}>PH Count</div>
             <div style={headerStyle}>Sun Count</div>
-            <div style={headerStyle}>Total ({shiftType})</div>
+            <div style={headerStyle}>Total</div>
             <div style={headerStyle}>Workload Status</div>
           </div>
 
@@ -197,7 +217,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
                 return (
                   <div key={row.id} style={{ 
                     display: 'grid', 
-                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1.5fr', 
+                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 1.5fr', 
                     padding: '16px 24px', 
                     alignItems: 'center',
                     borderTop: idx === 0 ? 'none' : '1px solid #E5E7EB',
