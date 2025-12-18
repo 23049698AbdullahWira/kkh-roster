@@ -9,7 +9,8 @@ const pool = mysql.createPool({
   port: process.env.MYSQL_ADDON_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 1,
-  queueLimit: 0
+  queueLimit: 0,
+  dateStrings: true
 });
 
 // Test the connection

@@ -15,33 +15,30 @@ import UserApplyLeave from './User/UserApplyLeave.js';
 import UserAccountInformation from './User/UserAccountInformation.js';
 import SignUp from './Auth/SignUp.js';
 
-
-
 function App() {
   const [page, setPage] = useState('login');
+  
+  // --- NEW STATE: TRACK THE ID ---
+  const [rosterId, setRosterId] = useState(null); 
   const [rosterMonth, setRosterMonth] = useState('December');
   const [rosterYear, setRosterYear] = useState(2025);
 
   // LOGIN
   if (page === 'login') {
-  return (
-    <Login
-      onAdminLoginSuccess={() => setPage('home')}
-      onUserLoginSuccess={() => setPage('userHome')}
-      onGoSignup={() => setPage('signup')}   // NEW
-    />
-  );
-}
+    return (
+      <Login
+        onAdminLoginSuccess={() => setPage('home')}
+        onUserLoginSuccess={() => setPage('userHome')}
+        onGoSignup={() => setPage('signup')}
+      />
+    );
+  }
 
   if (page === 'signup') {
-  return (
-    <SignUp
-      onDone={() => setPage('login')}        // Get Started / Log in → login
-    />
-  );
-}
+    return <SignUp onDone={() => setPage('login')} />;
+  }
 
-  // shared navbar navigation for all ADMIN pages
+  // Shared navbar navigation for all ADMIN pages
   const navProps = {
     onGoHome: () => setPage('home'),
     onGoRoster: () => setPage('rosterList'),
@@ -49,25 +46,28 @@ function App() {
     onGoShift: () => setPage('shift'),
   };
 
-  // All Rosters page (table of months)
+  // --- UPDATED: All Rosters page ---
   if (page === 'rosterList') {
     return (
       <AdminRosterPage
         {...navProps}
-        onOpenRoster={(month, year) => {
+        // Updated to accept ID as the first argument
+        onOpenRoster={(id, month, year) => {
+          setRosterId(id);       // Save the ID!
           setRosterMonth(month);
           setRosterYear(year);
-          setPage('rosterView');   // go to detailed sheet
+          setPage('rosterView'); // Switch to Grid View
         }}
       />
     );
   }
 
-  // Single month roster sheet
+  // --- UPDATED: Single month roster sheet ---
   if (page === 'rosterView') {
     return (
       <AdminRosterView
         {...navProps}
+        rosterId={rosterId} // Pass the ID here!
         month={rosterMonth}
         year={rosterYear}
         onBack={() => setPage('rosterList')}
@@ -93,92 +93,77 @@ function App() {
 
   // New staff accounts
   if (page === 'newStaff') {
-    return (
-      <AdminNewAccounts
-        {...navProps}
-        onBack={() => setPage('staff')}
-      />
-    );
+    return <AdminNewAccounts {...navProps} onBack={() => setPage('staff')} />;
   }
 
   // Manage leave
   if (page === 'manageLeave') {
+    return <AdminManageLeave {...navProps} onBack={() => setPage('staff')} />;
+  }
+
+  // USER PAGES (Unchanged)
+  if (page === 'userHome') {
     return (
-      <AdminManageLeave
-        {...navProps}
-        onBack={() => setPage('staff')}
+      <UserHomePage
+        onGoHome={() => setPage('userHome')}
+        onGoRoster={() => setPage('userRoster')}
+        onGoShiftPreference={() => setPage('userPreference')}
+        onGoApplyLeave={() => setPage('userLeave')}
+        onGoAccount={() => setPage('userAccount')}
       />
     );
   }
 
-  // USER home (non-admin)
-if (page === 'userHome') {
-  return (
-    <UserHomePage
-      onGoHome={() => setPage('userHome')}
-      onGoRoster={() => setPage('userRoster')}
-      onGoShiftPreference={() => setPage('userPreference')}
-      onGoApplyLeave={() => setPage('userLeave')}
-      onGoAccount={() => setPage('userAccount')}       // NEW
-    />
-  );
-}
+  if (page === 'userRoster') {
+    return (
+      <UserRoster
+        onBack={() => setPage('userHome')}
+        onGoHome={() => setPage('userHome')}
+        onGoRoster={() => setPage('userRoster')}
+        onGoShiftPreference={() => setPage('userPreference')}
+        onGoApplyLeave={() => setPage('userLeave')}
+        onGoAccount={() => setPage('userAccount')}
+      />
+    );
+  }
 
-// USER roster view
-if (page === 'userRoster') {
-  return (
-    <UserRoster
-      onBack={() => setPage('userHome')}
-      onGoHome={() => setPage('userHome')}
-      onGoRoster={() => setPage('userRoster')}
-      onGoShiftPreference={() => setPage('userPreference')}
-      onGoApplyLeave={() => setPage('userLeave')}
-      onGoAccount={() => setPage('userAccount')}       // NEW
-    />
-  );
-}
+  if (page === 'userPreference') {
+    return (
+      <UserShiftPref
+        onBack={() => setPage('userHome')}
+        onGoHome={() => setPage('userHome')}
+        onGoRoster={() => setPage('userRoster')}
+        onGoShiftPreference={() => setPage('userPreference')}
+        onGoApplyLeave={() => setPage('userLeave')}
+        onGoAccount={() => setPage('userAccount')}
+      />
+    );
+  }
 
-// USER shift preference view
-if (page === 'userPreference') {
-  return (
-    <UserShiftPref
-      onBack={() => setPage('userHome')}
-      onGoHome={() => setPage('userHome')}
-      onGoRoster={() => setPage('userRoster')}
-      onGoShiftPreference={() => setPage('userPreference')}
-      onGoApplyLeave={() => setPage('userLeave')}
-      onGoAccount={() => setPage('userAccount')}       // NEW
-    />
-  );
-}
+  if (page === 'userLeave') {
+    return (
+      <UserApplyLeave
+        onBack={() => setPage('userHome')}
+        onGoHome={() => setPage('userHome')}
+        onGoRoster={() => setPage('userRoster')}
+        onGoShiftPreference={() => setPage('userPreference')}
+        onGoApplyLeave={() => setPage('userLeave')}
+        onGoAccount={() => setPage('userAccount')}
+      />
+    );
+  }
 
-// USER apply leave view
-if (page === 'userLeave') {
-  return (
-    <UserApplyLeave
-      onBack={() => setPage('userHome')}
-      onGoHome={() => setPage('userHome')}
-      onGoRoster={() => setPage('userRoster')}
-      onGoShiftPreference={() => setPage('userPreference')}
-      onGoApplyLeave={() => setPage('userLeave')}
-      onGoAccount={() => setPage('userAccount')}       // NEW
-    />
-  );
-}
-
-// USER account information view
-if (page === 'userAccount') {
-  return (
-    <UserAccountInformation
-      onGoHome={() => setPage('userHome')}
-      onGoRoster={() => setPage('userRoster')}
-      onGoShiftPreference={() => setPage('userPreference')}
-      onGoApplyLeave={() => setPage('userLeave')}
-      onGoAccount={() => setPage('userAccount')}       // keep for navbar
-    />
-  );
-}
-
+  if (page === 'userAccount') {
+    return (
+      <UserAccountInformation
+        onGoHome={() => setPage('userHome')}
+        onGoRoster={() => setPage('userRoster')}
+        onGoShiftPreference={() => setPage('userPreference')}
+        onGoApplyLeave={() => setPage('userLeave')}
+        onGoAccount={() => setPage('userAccount')}
+      />
+    );
+  }
 
   // Default: admin home dashboard
   return <AdminHomePage {...navProps} />;

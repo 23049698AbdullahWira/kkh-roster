@@ -132,7 +132,7 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
               <div
                 key={row.id || idx} // Use DB ID if available
                 onClick={() =>
-                  onOpenRoster && onOpenRoster(row.month, row.year)
+                  onOpenRoster && onOpenRoster(row.id, row.month, row.year)
                 }
                 style={{
                   display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.4fr 1.7fr 1.2fr 0.8fr', alignItems: 'center',

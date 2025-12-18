@@ -98,6 +98,34 @@ app.get('/api/rosters', async (req, res) => {
 });
 // -------
 
+// GET Request to fetch SHIFTS with detailed info (Color & Code)
+app.get('/api/shifts/:rosterId', async (req, res) => {
+  const { rosterId } = req.params;
+  
+  try {
+    // We join 'shifts' with 'shift_desc' to get the color and short code (e.g., 'PM')
+    const query = `
+      SELECT 
+        s.shift_id, 
+        s.shift_date, 
+        s.user_id, 
+        sd.shift_code,       
+        sd.shift_color_hex,  
+        sd.is_work_shift
+      FROM shifts s
+      JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
+      WHERE s.roster_id = ?
+    `;
+    
+    const [rows] = await pool.query(query, [rosterId]);
+    res.json(rows);
+    
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // LOGIN: POST /api/auth/login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
