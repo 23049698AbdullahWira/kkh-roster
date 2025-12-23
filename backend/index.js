@@ -9,7 +9,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 1. Test Route (To check if server works)
+// 1. Test Route
 app.get('/', (req, res) => {
   res.send('Backend is running!');
 });
@@ -25,13 +25,14 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
-// GET Request to fetch all USERS
+// ---------------------------------------------------------
+//  USER MANAGEMENT ROUTES
+// ---------------------------------------------------------
+
+// GET All Users
 app.get('/users', async (req, res) => {
   try {
-    // We changed 'nurses' to 'users' here
     const [rows] = await pool.query('SELECT * FROM users');
-    
-    // Send the data to the browser
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -39,6 +40,70 @@ app.get('/users', async (req, res) => {
   }
 });
 
+// UPDATE User (PUT /users/:id) - Handles Contact Update
+app.put('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  // 1. Get 'contact' from the request body along with other fields
+  const { full_name, email, role, status, password, avatar_url, contact } = req.body;
+
+  try {
+    // 2. Check if user exists
+    const [check] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
+    if (check.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 3. Prepare update query
+    // ADDED: "contact = ?" to the SQL string
+    let query = `
+      UPDATE users 
+      SET full_name = ?, email = ?, role = ?, status = ?, avatar_url = ?, contact = ?
+    `;
+    
+    // 4. Add 'contact' to the parameters array (order must match the ?s above)
+    const params = [full_name, email, role, status, avatar_url, contact];
+
+    // Handle Password (only update if provided)
+    if (password && password.trim() !== "") {
+      query += `, password = ?`;
+      params.push(password);
+    }
+
+    query += ` WHERE user_id = ?`;
+    params.push(id);
+
+    // 5. Execute update
+    await pool.query(query, params);
+
+    res.json({ message: 'User updated successfully' });
+
+  } catch (err) {
+    console.error("Error updating user:", err);
+    res.status(500).json({ error: "Failed to update user" });
+  }
+});
+
+// ---------------------------------------------------------
+//  SHIFT DISTRIBUTION ROUTES (From previous tasks)
+// ---------------------------------------------------------
+
+// Get Available Years
+app.get('/available-years', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT DISTINCT YEAR(shift_date) as year FROM shifts ORDER BY year DESC`
+    );
+    const years = rows.map(row => row.year);
+    if (years.length === 0) years.push(new Date().getFullYear());
+    res.json(years);
+  } catch (err) {
+    console.error("Error fetching years:", err);
+    res.status(500).json({ error: "Failed to fetch years" });
+  }
+});
+
+// Get Shift Distribution Stats
 app.get('/shift-distribution', async (req, res) => {
   const { year, shiftType } = req.query;
   const targetYear = year || new Date().getFullYear();
@@ -50,71 +115,47 @@ app.get('/shift-distribution', async (req, res) => {
         u.user_id,
         u.full_name,
         u.role,
-        
-        -- NNJ Count (or whatever shiftType is passed)
-        COALESCE(SUM(CASE 
-          WHEN sd.shift_code = ? THEN 1 
-          ELSE 0 
-        END), 0) AS total_count,
-
-        -- Sun Count (Working Sundays)
-        COALESCE(SUM(CASE 
-          WHEN DAYOFWEEK(s.shift_date) = 1 AND sd.is_work_shift = 'Y' THEN 1 
-          ELSE 0 
-        END), 0) AS sun_count,
-
-        -- PH Count
-        COALESCE(SUM(CASE 
-          WHEN sd.shift_code IN ('PH', 'PHO', 'HOL') THEN 1 
-          ELSE 0 
-        END), 0) AS ph_count
-
+        COALESCE(SUM(CASE WHEN sd.shift_code = ? THEN 1 ELSE 0 END), 0) AS total_count,
+        COALESCE(SUM(CASE WHEN DAYOFWEEK(s.shift_date) = 1 AND sd.is_work_shift = 'Y' THEN 1 ELSE 0 END), 0) AS sun_count,
+        COALESCE(SUM(CASE WHEN sd.shift_code IN ('PH', 'PHO', 'HOL') THEN 1 ELSE 0 END), 0) AS ph_count
       FROM users u
       LEFT JOIN shifts s ON u.user_id = s.user_id AND YEAR(s.shift_date) = ?
       LEFT JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
-      
       WHERE u.role != 'ADMIN'
-      
       GROUP BY u.user_id, u.full_name, u.role
       ORDER BY total_count DESC; 
     `;
-
     const [rows] = await pool.query(query, [targetShiftCode, targetYear]);
     res.json(rows);
-
   } catch (err) {
     console.error("Error calculating distribution:", err);
     res.status(500).json({ error: "Failed to calculate distribution" });
   }
 });
 
+// ---------------------------------------------------------
+//  AUTH ROUTES
+// ---------------------------------------------------------
 
-// LOGIN: POST /api/auth/login
+// LOGIN
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
-
   try {
-    // Adjust column names to match your users table
     const [rows] = await pool.query(
       'SELECT user_id, email, password, role FROM users WHERE email = ?',
       [email]
     );
-
     if (rows.length === 0) {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
-
     const user = rows[0];
-
-    // For now, assume plaintext password in DB (you can upgrade to bcrypt later)
     if (user.password !== password) {
       return res.status(401).json({ success: false, message: 'Incorrect password' });
     }
-
     return res.json({
       success: true,
-      role: user.role || 'user', // must exist in your table
-      userId: user.id,
+      role: user.role || 'user', 
+      userId: user.user_id, // Ensure this matches DB column name
     });
   } catch (err) {
     console.error(err);
