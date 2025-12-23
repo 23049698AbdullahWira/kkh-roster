@@ -2,16 +2,70 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar';
 import AdminNewRoster from './AdminNewRoster';
 
+// --- 1. ICON COMPONENTS (SVG) ---
+const IconView = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const IconEdit = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+
+const IconDownload = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+// New Plus Icon for the button
+const IconPlus = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="12" y1="5" x2="12" y2="19"></line>
+    <line x1="5" y1="12" x2="19" y2="12"></line>
+  </svg>
+);
+
+// --- 2. HELPER BUTTON COMPONENT ---
+const ActionBtn = ({ icon, onClick }) => (
+  <button
+    onClick={(e) => {
+      e.stopPropagation(); 
+      if (onClick) onClick();
+    }}
+    style={{
+      width: 32,
+      height: 32,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#EBF5FF',
+      border: '1px solid #D6E4FF',
+      borderRadius: 8,
+      color: '#2F80ED',
+      cursor: 'pointer',
+      padding: 0,
+    }}
+  >
+    {icon}
+  </button>
+);
+
 function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster }) {
   const [showNewRoster, setShowNewRoster] = useState(false);
-  
-  // 1. STATE: Store the real data here (start empty)
   const [rosterRows, setRosterRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 2. EFFECT: Fetch data from Node.js backend when page loads
+  // --- FETCH DATA ---
   useEffect(() => {
-    fetch('http://localhost:5000/api/rosters') // Make sure port matches your index.js (5000)
+    fetch('http://localhost:5000/api/rosters')
       .then((res) => res.json())
       .then((data) => {
         setRosterRows(data);
@@ -23,12 +77,36 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
       });
   }, []);
 
-  // 3. HELPER: Format Database Dates (YYYY-MM-DD) to Display Format (DD/MM/YYYY)
+  // --- HELPER FUNCTIONS ---
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
-    // Simple formatter: DD/MM/YYYY
     return date.toLocaleDateString('en-GB') + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getStatusStyle = (status) => {
+    switch (status) {
+      case 'Published':
+        return { background: '#E6F6EC', color: '#037847' }; // Green
+      case 'Drafting':
+        return { background: '#FFF8C5', color: '#9A6B00' }; // Yellow
+      case 'Preference Open':
+      default:
+        return { background: '#D9E8F3', color: '#194A93' }; // Blue
+    }
+  };
+
+  // --- ACTION HANDLERS ---
+  const handleNavigateToRoster = (row) => {
+    if (onOpenRoster) onOpenRoster(row.id, row.month, row.year);
+  };
+
+  const handleEditSettings = (row) => {
+    console.log("Edit Settings for:", row.title);
+  };
+
+  const handleDownload = (row) => {
+    console.log("Download:", row.title);
   };
 
   return (
@@ -50,7 +128,6 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
         onGoShift={onGoShift}
       />
 
-      {/* Main content */}
       <main
         style={{
           maxWidth: 1200,
@@ -59,48 +136,44 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
           boxSizing: 'border-box',
         }}
       >
-        {/* Title + New Roster button */}
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 16,
-          }}
-        >
-          <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>
-            All Rosters
-          </h1>
-
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>All Rosters</h1>
+          
+          {/* UPDATED "NEW ROSTER" BUTTON */}
           <button
             type="button"
             onClick={() => setShowNewRoster(true)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '10px 24px',
+              display: 'flex', alignItems: 'center', gap: 12, 
+              padding: '10px 20px', paddingRight: '16px',
               background: '#5091CD', borderRadius: 999, border: 'none', color: 'white',
               fontSize: 16, fontWeight: 600, cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(80, 145, 205, 0.4)'
             }}
           >
             New Roster
-            <span
-              style={{
-                width: 18, height: 18, background: 'white', borderRadius: 4, display: 'inline-block',
-              }}
-            />
+            {/* The Plus Icon */}
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 24, height: 24, 
+                background: 'rgba(255,255,255,0.2)', borderRadius: '50%' 
+            }}>
+                <IconPlus />
+            </div>
           </button>
 
+          {/* THE MODAL COMPONENT */}
           <AdminNewRoster
             open={showNewRoster}
             onCancel={() => setShowNewRoster(false)}
             onConfirm={(data) => {
-              console.log('new roster:', data);
-              // Optional: Reload page to see new roster immediately
+              // This part currently just reloads the page
               window.location.reload(); 
             }}
           />
         </div>
 
-        {/* Table header */}
+        {/* ... TABLE HEADERS AND BODY REMAIN THE SAME ... */}
         <div
           style={{
             background: 'white', borderRadius: '10px 10px 0 0', border: '1px solid #E6E6E6', borderBottom: 'none',
@@ -116,7 +189,6 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
           <div>Actions</div>
         </div>
 
-        {/* Table body */}
         <div
           style={{
             background: 'white', borderRadius: '0 0 10px 10px', border: '1px solid #E6E6E6', borderTop: 'none',
@@ -130,10 +202,8 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
           ) : (
             rosterRows.map((row, idx) => (
               <div
-                key={row.id || idx} // Use DB ID if available
-                onClick={() =>
-                  onOpenRoster && onOpenRoster(row.id, row.month, row.year)
-                }
+                key={row.id || idx}
+                onClick={() => handleNavigateToRoster(row)}
                 style={{
                   display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.4fr 1.7fr 1.2fr 0.8fr', alignItems: 'center',
                   padding: '12px 16px', boxSizing: 'border-box', fontSize: 14,
@@ -142,42 +212,45 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
               >
                 <div>{row.title}</div>
                 <div>{row.generatedBy}</div>
-                {/* 4. Format the dates here */}
                 <div>{formatDate(row.createdOn)}</div>
                 <div>{formatDate(row.deadline)}</div>
                 <div>
-                  <span
-                    style={{
-                      padding: '4px 8px', borderRadius: 8, background: '#D9E8F3',
-                      color: '#194A93', fontWeight: 600, fontSize: 13,
-                    }}
-                  >
-                    {row.status}
-                  </span>
+                  {(() => {
+                    const style = getStatusStyle(row.status);
+                    return (
+                      <span
+                        style={{
+                          padding: '4px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                          backgroundColor: style.background, color: style.color,
+                        }}
+                      >
+                        {row.status}
+                      </span>
+                    );
+                  })()}
                 </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-start' }}>
-                  <div style={{ width: 30, height: 30, background: '#EDF0F5', borderRadius: 8 }} />
-                  <div style={{ width: 30, height: 30, background: '#EDF0F5', borderRadius: 8 }} />
+
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-start' }}>
+                  <ActionBtn icon={<IconView />} onClick={() => handleNavigateToRoster(row)} />
+                  <ActionBtn icon={<IconEdit />} onClick={() => handleEditSettings(row)} />
+                  {row.status === 'Published' && (
+                    <ActionBtn icon={<IconDownload />} onClick={() => handleDownload(row)} />
+                  )}
                 </div>
+
               </div>
             ))
           )}
-
-          {/* Pagination bar (Static for now) */}
-          <div
-            style={{
-              height: 60, background: 'white', borderTop: '1px solid #EEE',
-              borderRadius: '0 0 10px 10px', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', gap: 8,
-            }}
-          >
-             {/* Pagination buttons kept same as your code */}
+          
+          {/* ... PAGINATION ... */}
+           <div style={{ height: 60, background: 'white', borderTop: '1px solid #EEE', borderRadius: '0 0 10px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
              <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'rgba(255,255,255,0.4)' }}>«</button>
              <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>‹</button>
              <span style={{ fontSize: 14, color: '#656575' }}>1–{rosterRows.length} of {rosterRows.length}</span>
              <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>›</button>
              <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>»</button>
           </div>
+
         </div>
       </main>
     </div>

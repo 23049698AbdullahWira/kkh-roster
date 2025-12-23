@@ -56,11 +56,13 @@ function AdminRosterView({
         const userRes = await fetch('http://localhost:5000/users');
         const userData = await userRes.json();
         
+        const nursesOnly = userData.filter(user => user.role === 'APN');
+
         // B. Get the colored cells (The Shifts)
         const shiftRes = await fetch(`http://localhost:5000/api/shifts/${rosterId}`);
         const shiftData = await shiftRes.json();
 
-        setStaffList(userData);
+        setStaffList(nursesOnly);
         setShifts(shiftData);
         setLoading(false);
       } catch (err) {
@@ -136,7 +138,7 @@ function AdminRosterView({
                 <tr key={staff.user_id}>
                   {/* 1. The Sticky Name Column */}
                   <td style={{ position: 'sticky', left: 0, zIndex: 5, background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: 8, fontWeight: 600 }}>
-                    {staff.name || staff.email}
+                    {staff.full_name}
                   </td>
 
                   {/* 2. The 30/31 Day Cells */}

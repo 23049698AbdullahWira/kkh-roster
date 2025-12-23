@@ -52,7 +52,8 @@ app.get('/api/rosters', async (req, res) => {
         r.created_at, 
         r.publish_date, 
         r.remarks,
-        u.email as creator_name 
+        r.status,
+        u.full_name as creator_name 
       FROM rosters r
       LEFT JOIN users u ON r.creator_user_id = u.user_id
       ORDER BY r.year DESC, r.month DESC
@@ -68,10 +69,10 @@ app.get('/api/rosters', async (req, res) => {
     // 3. Transform data for React
     const formattedRosters = rows.map(row => {
         // Calculate Status: If today is past publish_date, it is Published
-        let status = 'Draft';
-        if (row.publish_date && new Date(row.publish_date) <= today) {
-            status = 'Published';
-        }
+        // let status = 'Draft';
+        // if (row.publish_date && new Date(row.publish_date) <= today) {
+        //     status = 'Published';
+        // }
 
         // Convert month number (1-12) to name (January)
         // We subtract 1 because array starts at 0
@@ -83,7 +84,8 @@ app.get('/api/rosters', async (req, res) => {
             generatedBy: row.creator_name || 'Unknown', // This will show their email
             createdOn: row.created_at,
             deadline: row.publish_date,
-            status: status,
+            // status: status,
+            status: row.status,
             month: monthName,
             year: row.year
         };
