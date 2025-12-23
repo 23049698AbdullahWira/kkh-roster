@@ -5,16 +5,13 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// 1. Test Route (To check if server works)
 app.get('/', (req, res) => {
   res.send('Backend is running!');
 });
 
-// 2. Database Connection Test
 app.get('/test-db', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT 1 + 1 AS result');
@@ -25,13 +22,9 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
-// GET Request to fetch all USERS
 app.get('/users', async (req, res) => {
   try {
-    // We changed 'nurses' to 'users' here
     const [rows] = await pool.query('SELECT * FROM users');
-    
-    // Send the data to the browser
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -39,12 +32,52 @@ app.get('/users', async (req, res) => {
   }
 });
 
-// LOGIN: POST /api/auth/login
+// GET roles for dropdown
+app.get('/roles', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT DISTINCT role FROM users WHERE role IS NOT NULL ORDER BY role');
+    const roles = rows.map(row => row.role);
+    res.json(roles);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST register - NO WARD, matches your exact table
+app.post('/api/auth/register', async (req, res) => {
+  const { firstName, lastName, email, phone, password, role } = req.body;
+  
+  try {
+    // Check if email exists
+    const [existing] = await pool.query('SELECT user_id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: 'Email already exists' });
+    }
+
+    // Insert new user - EXACTLY your table columns
+    const fullName = `${firstName} ${lastName}`.trim();
+    const [result] = await pool.query(
+      `INSERT INTO users (full_name, email, contact, role, password, status) 
+       VALUES (?, ?, ?, ?, ?, 'Active')`,
+      [fullName, email, phone, role, password]
+    );
+
+    res.json({ 
+      success: true, 
+      message: 'Staff account created successfully',
+      userId: result.insertId 
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Adjust column names to match your users table
     const [rows] = await pool.query(
       'SELECT user_id, email, password, role FROM users WHERE email = ?',
       [email]
@@ -56,22 +89,20 @@ app.post('/api/auth/login', async (req, res) => {
 
     const user = rows[0];
 
-    // For now, assume plaintext password in DB (you can upgrade to bcrypt later)
     if (user.password !== password) {
       return res.status(401).json({ success: false, message: 'Incorrect password' });
     }
 
     return res.json({
       success: true,
-      role: user.role || 'user', // must exist in your table
-      userId: user.id,
+      role: user.role || 'user',
+      userId: user.user_id,
     });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 });
-
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
