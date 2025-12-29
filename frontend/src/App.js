@@ -42,6 +42,19 @@ function App() {
       />
     );
   }
+  const [currentUserRole, setCurrentUserRole] = useState(null);
+
+  // LOGIN
+  if (page === 'login') {
+  return (
+    <Login
+      onAdminLoginSuccess={() => setPage('home')}
+      onUserLoginSuccess={() => setPage('userHome')}
+      onGoSignup={() => setPage('signup')}   // NEW
+      onSetRole={setCurrentUserRole} // sets ur role for check admin or superadmin or user
+    />
+  );
+}
 
   if (page === 'signup') {
     return (
@@ -92,6 +105,7 @@ function App() {
         {...navProps}
         onGoNewStaffAccounts={() => setPage('newStaff')}
         onGoManageLeave={() => setPage('manageLeave')}
+        currentUserRole={currentUserRole}
       />
     );
   }
