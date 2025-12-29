@@ -32,7 +32,8 @@ app.get('/test-db', async (req, res) => {
 // GET All Users
 app.get('/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM users');
+    // MODIFIED: Added WHERE clause to exclude SUPER ADMIN
+    const [rows] = await pool.query("SELECT * FROM users WHERE role != 'SUPERADMIN'");
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -104,10 +105,11 @@ app.get('/available-years', async (req, res) => {
 });
 
 // Get Shift Distribution Stats
+// Get Shift Distribution Stats (Fixed to show ALL users)
+// Get Shift Distribution Stats (ONLY APN)
 app.get('/shift-distribution', async (req, res) => {
-  const { year, shiftType } = req.query;
+  const { year } = req.query;
   const targetYear = year || new Date().getFullYear();
-  const targetShiftCode = shiftType || 'NNJ'; 
 
   try {
     const query = `
@@ -115,18 +117,35 @@ app.get('/shift-distribution', async (req, res) => {
         u.user_id,
         u.full_name,
         u.role,
-        COALESCE(SUM(CASE WHEN sd.shift_code = ? THEN 1 ELSE 0 END), 0) AS total_count,
-        COALESCE(SUM(CASE WHEN DAYOFWEEK(s.shift_date) = 1 AND sd.is_work_shift = 'Y' THEN 1 ELSE 0 END), 0) AS sun_count,
-        COALESCE(SUM(CASE WHEN sd.shift_code IN ('PH', 'PHO', 'HOL') THEN 1 ELSE 0 END), 0) AS ph_count
+        -- Count Public Holidays
+        COALESCE(SUM(CASE 
+          WHEN sd.shift_code IN ('PH', 'PHO', 'HOL') THEN 1 
+          ELSE 0 
+        END), 0) AS ph_count,
+        
+        -- Count Sundays
+        COALESCE(SUM(CASE 
+          WHEN DAYOFWEEK(s.shift_date) = 1 THEN 1 
+          ELSE 0 
+        END), 0) AS sun_count
+
       FROM users u
+      
+      -- LEFT JOIN ensures APNs appear even if they have 0 shifts this year
       LEFT JOIN shifts s ON u.user_id = s.user_id AND YEAR(s.shift_date) = ?
+      
       LEFT JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
-      WHERE u.role != 'ADMIN'
+      
+      -- CHANGED: Strictly filter for 'APN' role only
+      WHERE u.role = 'APN'
+      
       GROUP BY u.user_id, u.full_name, u.role
-      ORDER BY total_count DESC; 
+      ORDER BY u.full_name ASC;
     `;
-    const [rows] = await pool.query(query, [targetShiftCode, targetYear]);
+
+    const [rows] = await pool.query(query, [targetYear]);
     res.json(rows);
+    
   } catch (err) {
     console.error("Error calculating distribution:", err);
     res.status(500).json({ error: "Failed to calculate distribution" });

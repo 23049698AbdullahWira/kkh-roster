@@ -7,6 +7,10 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
   const [staffRows, setStaffRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+  
   // Modal State
   const [showModal, setShowModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
@@ -38,7 +42,13 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
     fetch('http://localhost:5000/users')
       .then(res => res.json())
       .then(data => {
-        const formattedStaff = data.map(user => {
+        // FILTER: Double-check exclusion of Super Admin (safety net)
+        const filteredData = data.filter(user => {
+            const userRole = user.role ? user.role.toUpperCase() : '';
+            return userRole !== 'SUPER ADMIN'; 
+        });
+
+        const formattedStaff = filteredData.map(user => {
           const style = getStatusStyle(user.status);
           return {
             staffId: user.user_id,
@@ -66,6 +76,20 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
   useEffect(() => {
     fetchStaff();
   }, []);
+
+  // --- PAGINATION LOGIC ---
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentStaff = staffRows.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(staffRows.length / itemsPerPage);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(prev => prev - 1);
+  };
 
   // --- MODAL HANDLERS ---
 
@@ -149,6 +173,7 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
         </div>
 
         <div style={{ background: 'white', borderRadius: 10, border: '1px solid #E6E6E6', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+            {/* Table Header */}
             <div style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '16px', background: 'white', borderBottom: '1px solid #E6E6E6', fontWeight: 600, fontSize: 16, color: '#374151' }}>
               <div>Full Name</div>
               <div>Staff ID</div>
@@ -158,10 +183,11 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
               <div>Actions</div>
             </div>
 
+            {/* Table Body */}
             {isLoading ? (
                <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Loading...</div>
             ) : (
-               staffRows.map((row, idx) => (
+               currentStaff.map((row, idx) => (
                 <div key={row.staffId} style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '12px 16px', alignItems: 'center', borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6', fontSize: 14, color: '#1F2937' }}>
                   <div style={{fontWeight: 500}}>{row.fullName}</div>
                   <div>{row.staffId}</div>
@@ -173,17 +199,64 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
                   <div>{row.role}</div>
                   
                   <div style={{ display: 'flex', gap: 8 }}>
-                    {/* View Button with SVG Icon */}
                     <button onClick={() => handleViewClick(row)} style={iconButtonStyle} title="View Details">
                         <EyeIcon />
                     </button>
-                    {/* Edit Button with SVG Icon */}
                     <button onClick={() => handleEditClick(row)} style={iconButtonStyle} title="Edit Staff">
                         <PencilIcon />
                     </button>
                   </div>
                 </div>
                ))
+            )}
+
+            {/* Pagination Footer (Centered) */}
+            {staffRows.length > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid #E6E6E6', background: 'white' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        
+                        {/* First Page */}
+                        <button 
+                            onClick={() => setCurrentPage(1)} 
+                            disabled={currentPage === 1}
+                            style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}
+                        >
+                            «
+                        </button>
+
+                        {/* Previous Page */}
+                        <button 
+                            onClick={handlePrevPage} 
+                            disabled={currentPage === 1}
+                            style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}
+                        >
+                            ‹
+                        </button>
+
+                        {/* Text Indicator e.g. "1-8 of 12" */}
+                        <span style={{ fontSize: 13, color: '#6B7280', margin: '0 12px', fontWeight: 500, minWidth: 60, textAlign: 'center' }}>
+                             {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, staffRows.length)} of {staffRows.length}
+                        </span>
+
+                        {/* Next Page */}
+                        <button 
+                            onClick={handleNextPage} 
+                            disabled={currentPage === totalPages}
+                            style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}
+                        >
+                            ›
+                        </button>
+
+                        {/* Last Page */}
+                        <button 
+                            onClick={() => setCurrentPage(totalPages)} 
+                            disabled={currentPage === totalPages}
+                            style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}
+                        >
+                            »
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
       </main>
@@ -306,6 +379,7 @@ const PencilIcon = () => (
 // --- STYLES ---
 const buttonStyle = { padding: '10px 24px', background: '#5091CD', borderRadius: 68, border: 'none', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' };
 const iconButtonStyle = { width: 32, height: 32, background: '#F3F4F6', borderRadius: 6, cursor: 'pointer', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' };
+const paginationButtonStyle = { width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, color: '#374151', fontSize: 18, lineHeight: 1, transition: 'all 0.2s', outline: 'none' };
 const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(2px)' };
 const modalContentStyle = { background: 'white', padding: 32, borderRadius: 16, width: 520, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', maxHeight: '90vh', overflowY: 'auto' };
 const labelStyle = { display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' };
