@@ -1,30 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Navbar from '../Nav/navbar';
 
 const pendingAccounts = [
   {
-    fullName: 'Aaron Wong',
+    full_name: 'Aaron Wong',
     contact: '8765 4321',
     email: 'aaron.wong@example.com',
     role: 'APN',
     ward: 'CE',
   },
   {
-    fullName: 'Boris Davies',
+    full_name: 'Boris Davies',
     contact: '8123 4567',
     email: 'boris.davies@example.com',
     role: 'APN',
     ward: '76',
   },
   {
-    fullName: 'Clark Evans',
+    full_name: 'Clark Evans',
     contact: '8899 1122',
     email: 'clark.evans@example.com',
     role: 'APN',
     ward: 'CE',
   },
   {
-    fullName: 'Eva Foster',
+    full_name: 'Eva Foster',
     contact: '9001 2233',
     email: 'eva.foster@example.com',
     role: 'ADMIN',
@@ -33,7 +33,37 @@ const pendingAccounts = [
 ];
 
 function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    full_name: '',
+    contact: '',
+    email: '',
+    role: '',
+    ward: '',
+  });
+
   const totalPending = pendingAccounts.length;
+
+  const handleOpenCreate = () => {
+    setCreateForm({
+      full_name: '',
+      contact: '',
+      email: '',
+      role: '',
+      ward: '',
+    });
+    setShowCreate(true);
+  };
+
+  const handleChange = (field) => (e) => {
+    setCreateForm((prev) => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const handleSubmitCreate = async () => {
+    // plug in your backend POST here later
+    console.log('Creating staff account:', createForm);
+    setShowCreate(false);
+  };
 
   return (
     <div
@@ -62,7 +92,7 @@ function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }
           boxSizing: 'border-box',
         }}
       >
-        {/* Top row: Back, title, count */}
+        {/* Top row: Back, title, count + New button */}
         <div
           style={{
             display: 'flex',
@@ -71,7 +101,6 @@ function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }
             marginBottom: 20,
           }}
         >
-          {/* Back button */}
           <button
             type="button"
             onClick={onBack}
@@ -116,17 +145,43 @@ function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              fontSize: 16,
-              fontWeight: 600,
+              gap: 12,
             }}
           >
-            <span>{totalPending} Accounts Awaiting Approval</span>
-            <img
-              style={{ width: 24, height: 24 }}
-              src="https://placehold.co/24x24"
-              alt=""
-            />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontSize: 16,
+                fontWeight: 600,
+                marginRight: 8,
+              }}
+            >
+              <span>{totalPending} Accounts Awaiting Approval</span>
+              <img
+                style={{ width: 24, height: 24 }}
+                src="https://placehold.co/24x24"
+                alt=""
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              style={{
+                padding: '8px 16px',
+                background: '#5091CD',
+                color: 'white',
+                borderRadius: 20,
+                border: 'none',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              + New Staff
+            </button>
           </div>
         </div>
 
@@ -178,7 +233,7 @@ function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }
                 borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6',
               }}
             >
-              <div>{row.fullName}</div>
+              <div>{row.full_name}</div>
               <div>{row.contact}</div>
               <div>{row.email}</div>
               <div>{row.role}</div>
@@ -191,7 +246,6 @@ function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }
                   alignItems: 'center',
                 }}
               >
-                {/* Approve */}
                 <button
                   type="button"
                   style={{
@@ -217,7 +271,6 @@ function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }
                   />
                 </button>
 
-                {/* Reject */}
                 <button
                   type="button"
                   style={{
@@ -269,7 +322,7 @@ function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }
             </div>
           ))}
 
-          {/* Static pagination footer */}
+          {/* Static pagination */}
           <div
             style={{
               height: 60,
@@ -336,6 +389,218 @@ function AdminNewAccounts({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }
           </div>
         </div>
       </main>
+
+      {/* Popup overlay + form, following your Figma layout but with inputs */}
+      {showCreate && (
+        <div
+          style={{
+            width: '100vw',
+            height: '100vh',
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              width: 630,
+              padding: 38,
+              background: '#EDF0F5',
+              borderRadius: 9.6,
+              display: 'inline-flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: 27,
+              boxSizing: 'border-box',
+            }}
+          >
+            <div
+              style={{
+                alignSelf: 'stretch',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <div
+                style={{
+                  color: 'black',
+                  fontSize: 24,
+                  fontWeight: 600,
+                }}
+              >
+                Create New Staff Account
+              </div>
+            </div>
+
+            <div
+              style={{
+                alignSelf: 'stretch',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <div
+                style={{
+                  color: 'black',
+                  fontSize: 14,
+                  fontWeight: 600,
+                }}
+              >
+                Please enter the details below.
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                gap: 18,
+              }}
+            >
+              {[
+                { label: 'Full name', field: 'full_name', placeholder: '' },
+                { label: 'Contact', field: 'contact', placeholder: '' },
+                { label: 'Email', field: 'email', placeholder: '' },
+                { label: 'Staff Role', field: 'role', placeholder: '' },
+                {
+                  label: 'Staff Ward Designation',
+                  field: 'ward',
+                  placeholder: 'Enter the staff’s appointed ward for duty',
+                },
+              ].map(({ label, field, placeholder }) => (
+                <div
+                  key={field}
+                  style={{
+                    width: 490.1,
+                    display: 'inline-flex',
+                    alignItems: 'flex-start',
+                    gap: 17.93,
+                  }}
+                >
+                  <div
+                    style={{
+                      flex: '1 1 0',
+                      display: 'inline-flex',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      gap: 5.98,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        color: 'black',
+                        fontSize: 16,
+                        fontWeight: 500,
+                        letterSpacing: 0.24,
+                      }}
+                    >
+                      {label}
+                    </div>
+                    <div
+                      style={{
+                        alignSelf: 'stretch',
+                        padding: 11.95,
+                        background: 'white',
+                        borderRadius: 6,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={createForm[field]}
+                        onChange={handleChange(field)}
+                        placeholder={placeholder}
+                        style={{
+                          width: '100%',
+                          border: 'none',
+                          outline: 'none',
+                          fontSize: 11.95,
+                          fontFamily: 'Inter, sans-serif',
+                          fontWeight: 500,
+                          letterSpacing: 0.18,
+                          color: field === 'ward' ? '#8C8C8C' : '#000',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                alignSelf: 'stretch',
+                display: 'inline-flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: 10,
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleSubmitCreate}
+                style={{
+                  width: 121,
+                  paddingTop: 6,
+                  paddingBottom: 6,
+                  background: '#5091CD',
+                  boxShadow:
+                    '0px 2.99px 18.68px rgba(0, 0, 0, 0.25)',
+                  borderRadius: 24,
+                  border: 'none',
+                  display: 'inline-flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  color: 'white',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  letterSpacing: 0.21,
+                }}
+              >
+                Create
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                style={{
+                  width: 121,
+                  paddingTop: 6,
+                  paddingBottom: 6,
+                  background: '#EDF0F5',
+                  boxShadow:
+                    '0px 2.99px 18.68px rgba(0, 0, 0, 0.25)',
+                  borderRadius: 24,
+                  border: 'none',
+                  display: 'inline-flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  color: 'black',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  letterSpacing: 0.21,
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

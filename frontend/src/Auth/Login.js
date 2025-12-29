@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 
+// The onSetRole prop is removed as it's no longer needed
 function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
   const [step, setStep] = useState('identifier'); // 'identifier' | 'password'
   const [identifier, setIdentifier] = useState('');
@@ -15,16 +16,13 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
       setError('Please enter your email.');
       return;
     }
-
-    // For now we just treat whatever they type as email and move to password.
-    // Later you can add a real /check-email endpoint if you want.
     setCurrentEmail(trimmed);
     setPassword('');
     setError('');
     setStep('password');
   };
 
-  // STEP 2: login against backend
+  // STEP 2: login against backend (*** THIS FUNCTION IS FIXED ***)
   const handleLogin = async () => {
     if (!password) {
       setError('Please enter your password.');
@@ -52,12 +50,29 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
         return;
       }
 
-      // Decide where to route based on role from backend
-      if (data.role === 'ADMIN') {
-        onAdminLoginSuccess && onAdminLoginSuccess();
-      } else {
-        onUserLoginSuccess && onUserLoginSuccess();
+      // --- START: CORRECTED LOGIC ---
+
+      // 1. Get the user object from the response data.
+      const userData = data.user;
+
+      // 2. Check if userData exists to be safe.
+      if (!userData) {
+        setError('Login failed: User data not returned from server.');
+        return;
       }
+
+      // 3. Get the role from the userData object.
+      const role = (userData.role || '').toUpperCase();
+
+      // 4. Call the correct success function, passing the userData object back to App.js.
+      if (role === 'ADMIN' || role === 'SUPERADMIN') {
+        onAdminLoginSuccess && onAdminLoginSuccess(userData);
+      } else {
+        onUserLoginSuccess && onUserLoginSuccess(userData);
+      }
+
+      // --- END: CORRECTED LOGIC ---
+
     } catch (err) {
       console.error(err);
       setError('Unable to connect to server. Please try again later.');
@@ -74,6 +89,7 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
     setError('');
   };
 
+  // (The rest of your JSX remains exactly the same, no changes needed there)
   return (
     <div
       style={{

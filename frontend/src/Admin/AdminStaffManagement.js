@@ -1,22 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar.js';
 
-function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onGoNewStaffAccounts, onGoManageLeave }) {
+function AdminStaffManagementPage({
+  onGoHome,
+  onGoRoster,
+  onGoStaff,
+  onGoShift,
+  onGoNewStaffAccounts, // now unused, replaced by internal modal
+  onGoManageLeave,
+  currentUserRole = 'ADMIN', // Defaulting for safety
+}) {
   
-  // 1. STATE
+  // --- 1. STATE ---
+  
+  // Staff List State
   const [staffRows, setStaffRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
+  // Dropdown Options
+  const [roleOptions, setRoleOptions] = useState([]);
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
   
-  // Modal State
+  // EDIT/VIEW Modal State
   const [showModal, setShowModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  
-  // Form State
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
@@ -27,7 +38,17 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
     avatar_url: ''
   });
 
-  // 2. HELPER: Determine colors based on status
+  // CREATE Modal State
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    full_name: '',
+    contact: '',
+    email: '',
+    role: '',
+    profile_picture: null, 
+  });
+
+  // --- 2. HELPER: Status Colors ---
   const getStatusStyle = (status) => {
     const lowerStatus = status ? status.toLowerCase() : '';
     if (lowerStatus === 'on-duty') return { color: '#199325', bg: '#DCFCE7' }; 
@@ -36,63 +57,124 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
     return { color: '#5091CD', bg: '#E1F0FF' }; 
   };
 
-  // 3. FETCH: Get data from Backend
-  const fetchStaff = () => {
+  // --- 3. FETCH DATA ---
+  const fetchInitialData = async () => {
     setIsLoading(true);
-    fetch('http://localhost:5000/users')
-      .then(res => res.json())
-      .then(data => {
-        // FILTER: Double-check exclusion of Super Admin (safety net)
-        const filteredData = data.filter(user => {
-            const userRole = user.role ? user.role.toUpperCase() : '';
-            return userRole !== 'SUPER ADMIN'; 
-        });
+    try {
+      // A. Fetch Users
+      const resUsers = await fetch('http://localhost:5000/users');
+      const dataUsers = await resUsers.json();
 
-        const formattedStaff = filteredData.map(user => {
-          const style = getStatusStyle(user.status);
-          return {
-            staffId: user.user_id,
-            fullName: user.full_name,
-            email: user.email,
-            password: user.password,
-            role: user.role || 'APN',
-            status: user.status || 'On-Duty',
-            avatarUrl: user.avatar_url,
-            contact: user.contact || '',
-            
-            statusColor: style.color,
-            statusBg: style.bg,
-          };
-        });
-        setStaffRows(formattedStaff);
-        setIsLoading(false);
-      })
-      .catch(err => {
-        console.error("Error fetching staff:", err);
-        setIsLoading(false);
+      // Filter: Exclude SUPER ADMIN
+      const filteredData = dataUsers.filter(user => {
+          const userRole = user.role ? user.role.toUpperCase() : '';
+          return userRole !== 'SUPER ADMIN'; 
       });
+
+      // Map to table format
+      const formattedStaff = filteredData.map(user => {
+        const style = getStatusStyle(user.status);
+        return {
+          staffId: user.user_id,
+          fullName: user.full_name,
+          email: user.email,
+          password: user.password,
+          role: user.role || 'APN',
+          status: user.status || 'On-Duty',
+          avatarUrl: user.avatar_url,
+          contact: user.contact || '',
+          
+          statusColor: style.color,
+          statusBg: style.bg,
+        };
+      });
+      setStaffRows(formattedStaff);
+
+      // B. Fetch Roles (for dropdowns)
+      const resRoles = await fetch('http://localhost:5000/roles');
+      const rolesData = await resRoles.json(); 
+      setRoleOptions(rolesData);
+
+    } catch (err) {
+      console.error("Error fetching data:", err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchStaff();
+    fetchInitialData();
   }, []);
 
-  // --- PAGINATION LOGIC ---
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentStaff = staffRows.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(staffRows.length / itemsPerPage);
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
+  // --- 4. HANDLERS: Create Staff ---
+  const handleChangeCreate = (field) => (e) => {
+    if (field === 'profile_picture') {
+      setCreateForm((prev) => ({
+        ...prev,
+        profile_picture: e.target.files[0] || null,
+      }));
+    } else {
+      setCreateForm((prev) => ({ ...prev, [field]: e.target.value }));
+    }
   };
 
-  const handlePrevPage = () => {
-    if (currentPage > 1) setCurrentPage(prev => prev - 1);
+  const handleSubmitCreate = async () => {
+    // Simple name splitting logic
+    const [firstName, ...restName] = createForm.full_name.trim().split(' ');
+    const lastName = restName.join(' ');
+
+    const payload = {
+      firstName: firstName || createForm.full_name,
+      lastName: lastName || '',
+      email: createForm.email,
+      phone: createForm.contact,
+      password: 'Temp1234!', // Default password
+      role: createForm.role || 'staff',
+    };
+
+    try {
+      const res = await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        alert(data.message || 'Failed to create staff account.');
+        return;
+      }
+
+      // Success
+      alert('Staff account created successfully!');
+      setShowCreate(false);
+      setCreateForm({
+        full_name: '',
+        contact: '',
+        email: '',
+        role: '',
+        profile_picture: null,
+      });
+      
+      // Refresh list
+      fetchInitialData();
+
+    } catch (err) {
+      console.error('Error creating staff:', err);
+      alert('Unable to connect to server.');
+    }
   };
 
-  // --- MODAL HANDLERS ---
+  const isCreateValid =
+    createForm.full_name.trim() &&
+    createForm.contact.trim() &&
+    createForm.email.trim() &&
+    createForm.role.trim();
 
+  const canCreateStaff = currentUserRole === 'SUPERADMIN';
+
+  // --- 5. HANDLERS: Edit/View Staff ---
   const handleViewClick = (staff) => {
     setSelectedStaff(staff);
     setFormData({
@@ -137,8 +219,6 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
   };
 
   const handleUpdate = () => {
-    console.log("Sending Update Data:", formData); 
-
     fetch(`http://localhost:5000/users/${selectedStaff.staffId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -148,12 +228,26 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
         if(res.ok) {
             alert("Staff updated successfully!");
             handleCloseModal();
-            fetchStaff(); 
+            fetchInitialData(); 
         } else {
-            alert("Failed to update staff. Please check your backend code.");
+            alert("Failed to update staff.");
         }
     })
     .catch(err => console.error("Error updating:", err));
+  };
+
+  // --- 6. PAGINATION ---
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentStaff = staffRows.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(staffRows.length / itemsPerPage);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(prev => prev - 1);
   };
 
   const gridLayout = '2fr 1.3fr 1.4fr 2.5fr 1fr 0.8fr';
@@ -167,8 +261,27 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, color: '#111827' }}>All Staff Members</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <button onClick={onGoManageLeave} style={buttonStyle}>Manage Leave</button>
-            <button onClick={onGoNewStaffAccounts} style={buttonStyle}>New Staff Account</button>
+            <button
+              type="button"
+              onClick={onGoManageLeave}
+              style={{...buttonStyle, background: '#5091CD'}}
+            >
+              Manage Leave
+            </button>
+            <button
+              type="button"
+              onClick={canCreateStaff ? () => setShowCreate(true) : undefined}
+              disabled={!canCreateStaff}
+              style={{
+                ...buttonStyle,
+                background: canCreateStaff ? '#5091CD' : '#A9C3E0',
+                cursor: canCreateStaff ? 'pointer' : 'not-allowed',
+                opacity: canCreateStaff ? 1 : 0.7,
+              }}
+              title={canCreateStaff ? 'Create a new staff account' : 'Only SUPERADMIN can create staff accounts'}
+            >
+              New Staff Account
+            </button>
           </div>
         </div>
 
@@ -191,13 +304,9 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
                 <div key={row.staffId} style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '12px 16px', alignItems: 'center', borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6', fontSize: 14, color: '#1F2937' }}>
                   <div style={{fontWeight: 500}}>{row.fullName}</div>
                   <div>{row.staffId}</div>
-                  
-                  {/* Shows --- if contact is empty */}
                   <div>{row.contact || '---'}</div>
-
                   <div style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 10}}>{row.email}</div>
                   <div>{row.role}</div>
-                  
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => handleViewClick(row)} style={iconButtonStyle} title="View Details">
                         <EyeIcon />
@@ -210,57 +319,40 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
                ))
             )}
 
-            {/* Pagination Footer (Centered) */}
+            {/* Pagination Footer */}
             {staffRows.length > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid #E6E6E6', background: 'white' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        
-                        {/* First Page */}
                         <button 
                             onClick={() => setCurrentPage(1)} 
                             disabled={currentPage === 1}
                             style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}
-                        >
-                            «
-                        </button>
-
-                        {/* Previous Page */}
+                        >«</button>
                         <button 
                             onClick={handlePrevPage} 
                             disabled={currentPage === 1}
                             style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}
-                        >
-                            ‹
-                        </button>
-
-                        {/* Text Indicator e.g. "1-8 of 12" */}
+                        >‹</button>
                         <span style={{ fontSize: 13, color: '#6B7280', margin: '0 12px', fontWeight: 500, minWidth: 60, textAlign: 'center' }}>
                              {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, staffRows.length)} of {staffRows.length}
                         </span>
-
-                        {/* Next Page */}
                         <button 
                             onClick={handleNextPage} 
                             disabled={currentPage === totalPages}
                             style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}
-                        >
-                            ›
-                        </button>
-
-                        {/* Last Page */}
+                        >›</button>
                         <button 
                             onClick={() => setCurrentPage(totalPages)} 
                             disabled={currentPage === totalPages}
                             style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}
-                        >
-                            »
-                        </button>
+                        >»</button>
                     </div>
                 </div>
             )}
         </div>
       </main>
 
+      {/* MODAL 1: VIEW/EDIT STAFF */}
       {showModal && (
         <div style={modalOverlayStyle}>
             <div style={modalContentStyle}>
@@ -269,83 +361,34 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
                 </h2>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    
                     <div>
                         <label style={labelStyle}>Full Name</label>
-                        <input 
-                            name="full_name"
-                            value={formData.full_name}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            style={inputStyle} 
-                        />
+                        <input name="full_name" value={formData.full_name} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} />
                     </div>
-
                     <div>
                         <label style={labelStyle}>Email</label>
-                        <input 
-                            name="email"
-                            type="email"
-                            value={formData.email}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            style={inputStyle} 
-                        />
+                        <input name="email" type="email" value={formData.email} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} />
                     </div>
-
                     <div>
                         <label style={labelStyle}>Contact Number</label>
-                        <input 
-                            name="contact" 
-                            type="text"
-                            value={formData.contact} 
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            style={inputStyle} 
-                            placeholder="+65 1234 5678"
-                        />
+                        <input name="contact" type="text" value={formData.contact} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} placeholder="+65 1234 5678"/>
                     </div>
-
                     <div>
                         <label style={labelStyle}>Password</label>
-                        <input 
-                            name="password"
-                            type="text"
-                            value={formData.password}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            style={inputStyle} 
-                            placeholder="Enter new password"
-                        />
+                        <input name="password" type="text" value={formData.password} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} placeholder="Enter new password"/>
                     </div>
-                    
                     <div>
                         <label style={labelStyle}>Avatar URL</label>
-                        <input 
-                            name="avatar_url"
-                            type="text"
-                            value={formData.avatar_url}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            style={inputStyle} 
-                            placeholder="https://example.com/avatar.png"
-                        />
+                        <input name="avatar_url" type="text" value={formData.avatar_url} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} placeholder="https://example.com/avatar.png"/>
                     </div>
-
                     <div>
                         <label style={labelStyle}>Role</label>
-                        <select 
-                            name="role"
-                            value={formData.role}
-                            onChange={handleInputChange}
-                            disabled={!isEditing}
-                            style={inputStyle}
-                        >
+                        <select name="role" value={formData.role} onChange={handleInputChange} disabled={!isEditing} style={inputStyle}>
                             <option value="APN">APN</option>
                             <option value="ADMIN">ADMIN</option>
+                            {/* Can map roleOptions here if dynamic roles needed for edit */}
                         </select>
                     </div>
-
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 32 }}>
@@ -355,6 +398,74 @@ function AdminStaffManagementPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, 
                     )}
                 </div>
             </div>
+        </div>
+      )}
+
+      {/* MODAL 2: CREATE STAFF ACCOUNT */}
+      {showCreate && canCreateStaff && (
+        <div style={modalOverlayStyle}>
+          <div style={{ ...modalContentStyle, maxWidth: 720 }}>
+            {/* Header */}
+            <div style={{ marginBottom: 16 }}>
+                <h2 style={{ fontSize: 22, fontWeight: 600, margin: 0, color: 'black' }}>Create New Staff Account</h2>
+                <p style={{ fontSize: 14, fontWeight: 600, color: 'black', margin: '4px 0 0' }}>Please enter the details below.</p>
+            </div>
+
+            {/* Form Fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[
+                  { label: 'Full name', field: 'full_name', type: 'text' },
+                  { label: 'Contact', field: 'contact', type: 'text' },
+                  { label: 'Email', field: 'email', type: 'email' },
+                ].map(({ label, field, type }) => (
+                  <div key={field} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: 'black' }}>{label}</label>
+                    <input type={type} value={createForm[field]} onChange={handleChangeCreate(field)} style={inputStyle} />
+                  </div>
+                ))}
+
+                {/* Role Select */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                   <label style={{ fontSize: 13, fontWeight: 500, color: 'black' }}>Staff Role</label>
+                   <select value={createForm.role} onChange={handleChangeCreate('role')} style={inputStyle}>
+                      <option value="">Select a role</option>
+                      {roleOptions.map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                   </select>
+                </div>
+
+                {/* Profile Picture Mock */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                   <label style={{ fontSize: 13, fontWeight: 500, color: 'black' }}>Profile Picture (optional)</label>
+                   <div style={{ height: 96, padding: 12, background: 'white', border: '1px solid #D1D5DB', borderRadius: 6, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', position: 'relative' }}>
+                       <div style={{ width: 40, height: 40, background: '#E9E9E9', borderRadius: 8 }}></div>
+                       <span style={{ fontSize: 11, fontWeight: 500, color: '#8C8C8C', marginTop: 8 }}>Click to upload</span>
+                       <span style={{ fontSize: 11, fontWeight: 500, color: createForm.profile_picture ? '#2563EB' : '#888' }}>
+                           {createForm.profile_picture ? createForm.profile_picture.name : 'No file selected'}
+                       </span>
+                       <input type="file" accept="image/*" onChange={handleChangeCreate('profile_picture')} style={{ position: 'absolute', opacity: 0, width: '100%', height: '100%', cursor: 'pointer', top: 0, left: 0 }} />
+                   </div>
+                </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+                <button 
+                    onClick={handleSubmitCreate} 
+                    disabled={!isCreateValid}
+                    style={{ ...saveButtonStyle, background: isCreateValid ? '#5091CD' : '#A9C3E0', opacity: isCreateValid ? 1 : 0.6, cursor: isCreateValid ? 'pointer' : 'not-allowed', width: 120, borderRadius: 24 }}
+                >
+                    Create
+                </button>
+                <button 
+                    onClick={() => setShowCreate(false)} 
+                    style={{ ...cancelButtonStyle, background: '#EDF0F5', color: 'black', border: 'none', boxShadow: '0px 3px 19px rgba(0,0,0,0.1)', width: 120, borderRadius: 24 }}
+                >
+                    Cancel
+                </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -377,7 +488,7 @@ const PencilIcon = () => (
 );
 
 // --- STYLES ---
-const buttonStyle = { padding: '10px 24px', background: '#5091CD', borderRadius: 68, border: 'none', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s' };
+const buttonStyle = { padding: '10px 24px', borderRadius: 68, border: 'none', color: 'white', fontSize: 16, fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s', display: 'flex', alignItems: 'center', gap: 8 };
 const iconButtonStyle = { width: 32, height: 32, background: '#F3F4F6', borderRadius: 6, cursor: 'pointer', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' };
 const paginationButtonStyle = { width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, color: '#374151', fontSize: 18, lineHeight: 1, transition: 'all 0.2s', outline: 'none' };
 const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(2px)' };
