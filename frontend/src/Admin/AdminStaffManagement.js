@@ -8,7 +8,7 @@ function AdminStaffManagementPage({
   onGoShift,
   onGoNewStaffAccounts, // now unused
   onGoManageLeave,
-  currentUserRole, // e.g. "SUPERADMIN", "ADMIN", etc.
+  currentUserRole = {currentUserRole}, // e.g. "SUPERADMIN", "ADMIN", etc.
 }) {
   // 1. STATE: staff list
   const [staffRows, setStaffRows] = useState([]);

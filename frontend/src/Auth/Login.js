@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
+function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole }) {
   const [step, setStep] = useState('identifier'); // 'identifier' | 'password'
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -53,7 +53,14 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
       }
 
       // Decide where to route based on role from backend
-      if (data.role === 'ADMIN') {
+      const role = (data.role || '').toUpperCase(); // normalize
+
+      // send role to parent so pages like AdminStaffManagementPage can use it
+      if (onSetRole) {
+        onSetRole(role);
+      }
+
+      if (role === 'ADMIN' || role === 'SUPERADMIN') {
         onAdminLoginSuccess && onAdminLoginSuccess();
       } else {
         onUserLoginSuccess && onUserLoginSuccess();

@@ -21,6 +21,7 @@ function App() {
   const [page, setPage] = useState('login');
   const [rosterMonth, setRosterMonth] = useState('December');
   const [rosterYear, setRosterYear] = useState(2025);
+  const [currentUserRole, setCurrentUserRole] = useState(null);
 
   // LOGIN
   if (page === 'login') {
@@ -29,6 +30,7 @@ function App() {
       onAdminLoginSuccess={() => setPage('home')}
       onUserLoginSuccess={() => setPage('userHome')}
       onGoSignup={() => setPage('signup')}   // NEW
+      onSetRole={setCurrentUserRole} // sets ur role for check admin or superadmin or user
     />
   );
 }
@@ -82,6 +84,7 @@ function App() {
         {...navProps}
         onGoNewStaffAccounts={() => setPage('newStaff')}
         onGoManageLeave={() => setPage('manageLeave')}
+        currentUserRole={currentUserRole}
       />
     );
   }
