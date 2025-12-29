@@ -69,6 +69,11 @@ app.get('/leave_type', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM leave_type');
     res.json(rows);
+  } catch (err) { // It's also good practice to have a catch block
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 // GET roles for dropdown
 app.get('/roles', async (req, res) => {
   try {

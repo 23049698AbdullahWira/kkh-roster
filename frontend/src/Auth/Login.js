@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
-function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole }) {
+// The onSetRole prop is removed as it's no longer needed
+function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
   const [step, setStep] = useState('identifier'); // 'identifier' | 'password'
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -21,7 +22,7 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole 
     setStep('password');
   };
 
-  // STEP 2: login against backend
+  // STEP 2: login against backend (*** THIS FUNCTION IS FIXED ***)
   const handleLogin = async () => {
     if (!password) {
       setError('Please enter your password.');
@@ -49,19 +50,29 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole 
         return;
       }
 
-      // Decide where to route based on role from backend
-      const role = (data.role || '').toUpperCase(); // normalize
+      // --- START: CORRECTED LOGIC ---
 
-      // send role to parent so pages like AdminStaffManagementPage can use it
-      if (onSetRole) {
-        onSetRole(role);
+      // 1. Get the user object from the response data.
+      const userData = data.user;
+
+      // 2. Check if userData exists to be safe.
+      if (!userData) {
+        setError('Login failed: User data not returned from server.');
+        return;
       }
 
+      // 3. Get the role from the userData object.
+      const role = (userData.role || '').toUpperCase();
+
+      // 4. Call the correct success function, passing the userData object back to App.js.
       if (role === 'ADMIN' || role === 'SUPERADMIN') {
-        onAdminLoginSuccess && onAdminLoginSuccess();
+        onAdminLoginSuccess && onAdminLoginSuccess(userData);
       } else {
         onUserLoginSuccess && onUserLoginSuccess(userData);
       }
+
+      // --- END: CORRECTED LOGIC ---
+
     } catch (err) {
       console.error(err);
       setError('Unable to connect to server. Please try again later.');
@@ -78,6 +89,7 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole 
     setError('');
   };
 
+  // (The rest of your JSX remains exactly the same, no changes needed there)
   return (
     <div
       style={{
