@@ -57,7 +57,7 @@ app.get('/test-db', async (req, res) => {
 // ================= Users =================
 app.get('/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM users');
+    const [rows] = await pool.query('SELECT * FROM users WHERE role != "SUPERADMIN"');
     res.json(rows);
   } catch (err) {
     console.error(err);
