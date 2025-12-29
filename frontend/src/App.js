@@ -2,43 +2,63 @@ import React, { useState } from 'react';
 import './App.css';
 import Login from './Auth/Login.js';
 import AdminHomePage from './Admin/AdminHomePage.js';
-import AdminRosterPage from './Admin/AdminRoster.js';          // All Rosters list
-import AdminRosterView from './Admin/AdminRosterView.js';      // Single month sheet
+import AdminRosterPage from './Admin/AdminRoster.js';
+import AdminRosterView from './Admin/AdminRosterView.js';
 import AdminStaffManagementPage from './Admin/AdminStaffManagement.js';
 import AdminShiftDistributionPage from './Admin/AdminShiftDistribution.js';
 import AdminNewAccounts from './Admin/AdminNewStaffAcounts.js';
 import AdminManageLeave from './Admin/AdminManageLeave.js';
-import UserHomePage from './User/UserHomePage.js';            // user home
-import UserRoster from './User/UserRoster.js';                // user roster view
-import UserShiftPref from './User/UserShiftPref.js';         // user shift preference
+import UserHomePage from './User/UserHomePage.js';
+import UserRoster from './User/UserRoster.js';
+import UserShiftPref from './User/UserShiftPref.js';
 import UserApplyLeave from './User/UserApplyLeave.js';
 import UserAccountInformation from './User/UserAccountInformation.js';
 import SignUp from './Auth/SignUp.js';
 
 function App() {
+  // --- All state hooks are now at the top level ---
   const [page, setPage] = useState('login');
   
   // --- NEW STATE: TRACK THE ID ---
   const [rosterId, setRosterId] = useState(null); 
   const [rosterMonth, setRosterMonth] = useState('December');
   const [rosterYear, setRosterYear] = useState(2025);
+  const [loggedInUser, setLoggedInUser] = useState(null);
+  const [currentUserRole, setCurrentUserRole] = useState(null);
 
-  // LOGIN
+  // --- Consolidated login handlers ---
+  const handleAdminLogin = (userData) => {
+    setLoggedInUser(userData);
+    setCurrentUserRole(userData.role); // Set role from user data
+    setPage('home');
+  };
+
+  const handleUserLogin = (userData) => {
+    setLoggedInUser(userData);
+    setCurrentUserRole(userData.role); // Set role from user data
+    setPage('userHome');
+  };
+
+  // --- Render logic ---
+
+  // LOGIN PAGE
   if (page === 'login') {
+    // This is now the single, correct way to render Login
     return (
       <Login
-        onAdminLoginSuccess={() => setPage('home')}
-        onUserLoginSuccess={() => setPage('userHome')}
+        onAdminLoginSuccess={handleAdminLogin}
+        onUserLoginSuccess={handleUserLogin}
         onGoSignup={() => setPage('signup')}
       />
     );
   }
 
+  // SIGNUP PAGE
   if (page === 'signup') {
     return <SignUp onDone={() => setPage('login')} />;
   }
 
-  // Shared navbar navigation for all ADMIN pages
+  // SHARED NAVBAR PROPS FOR ADMIN
   const navProps = {
     onGoHome: () => setPage('home'),
     onGoRoster: () => setPage('rosterList'),
@@ -46,7 +66,7 @@ function App() {
     onGoShift: () => setPage('shift'),
   };
 
-  // --- UPDATED: All Rosters page ---
+  // ROSTER LIST PAGE (ADMIN)
   if (page === 'rosterList') {
     return (
       <AdminRosterPage
@@ -56,13 +76,13 @@ function App() {
           setRosterId(id);       // Save the ID!
           setRosterMonth(month);
           setRosterYear(year);
-          setPage('rosterView'); // Switch to Grid View
+          setPage('rosterView');
         }}
       />
     );
   }
 
-  // --- UPDATED: Single month roster sheet ---
+  // ROSTER VIEW PAGE (ADMIN)
   if (page === 'rosterView') {
     return (
       <AdminRosterView
@@ -75,33 +95,36 @@ function App() {
     );
   }
 
-  // Staff management
+  // STAFF MANAGEMENT PAGE (ADMIN)
   if (page === 'staff') {
     return (
       <AdminStaffManagementPage
         {...navProps}
         onGoNewStaffAccounts={() => setPage('newStaff')}
         onGoManageLeave={() => setPage('manageLeave')}
+        currentUserRole={currentUserRole}
       />
     );
   }
 
-  // Shift distribution
+  // SHIFT DISTRIBUTION PAGE (ADMIN)
   if (page === 'shift') {
     return <AdminShiftDistributionPage {...navProps} />;
   }
 
-  // New staff accounts
+  // NEW STAFF ACCOUNTS PAGE (ADMIN)
   if (page === 'newStaff') {
     return <AdminNewAccounts {...navProps} onBack={() => setPage('staff')} />;
   }
 
-  // Manage leave
+  // MANAGE LEAVE PAGE (ADMIN)
   if (page === 'manageLeave') {
     return <AdminManageLeave {...navProps} onBack={() => setPage('staff')} />;
   }
 
-  // USER PAGES (Unchanged)
+  // --- USER PAGES ---
+
+  // USER HOME PAGE
   if (page === 'userHome') {
     return (
       <UserHomePage
@@ -114,6 +137,7 @@ function App() {
     );
   }
 
+  // USER ROSTER PAGE
   if (page === 'userRoster') {
     return (
       <UserRoster
@@ -127,6 +151,7 @@ function App() {
     );
   }
 
+  // USER SHIFT PREFERENCE PAGE
   if (page === 'userPreference') {
     return (
       <UserShiftPref
@@ -140,9 +165,11 @@ function App() {
     );
   }
 
+  // USER APPLY LEAVE PAGE
   if (page === 'userLeave') {
     return (
       <UserApplyLeave
+        loggedInUser={loggedInUser} // Pass the full loggedInUser object
         onBack={() => setPage('userHome')}
         onGoHome={() => setPage('userHome')}
         onGoRoster={() => setPage('userRoster')}
@@ -153,6 +180,7 @@ function App() {
     );
   }
 
+  // USER ACCOUNT INFO PAGE
   if (page === 'userAccount') {
     return (
       <UserAccountInformation
@@ -165,7 +193,7 @@ function App() {
     );
   }
 
-  // Default: admin home dashboard
+  // DEFAULT FALLBACK: ADMIN HOME PAGE
   return <AdminHomePage {...navProps} />;
 }
 
