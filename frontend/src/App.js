@@ -122,6 +122,7 @@ function App() {
   if (page === 'userHome') {
     return (
       <UserHomePage
+        user={loggedInUser} // Pass the full loggedInUser object
         onGoHome={() => setPage('userHome')}
         onGoRoster={() => setPage('userRoster')}
         onGoShiftPreference={() => setPage('userPreference')}
@@ -191,6 +192,7 @@ function App() {
   return (
   <AdminHomePage
     {...navProps}
+    user={loggedInUser}
     onStartNewRoster={() => setPage('rosterList')}
     onAddNewStaff={() => setPage('staff')}
     onManageLeave={() => setPage('manageLeave')}

@@ -46,6 +46,9 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
         return;
       }
 
+      //save to local storage
+      localStorage.setItem('user', JSON.stringify(userData));
+
       const role = (userData.role || '').toUpperCase();
 
       if (role === 'ADMIN' || role === 'SUPERADMIN') {

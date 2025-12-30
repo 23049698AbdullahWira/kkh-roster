@@ -37,7 +37,7 @@ const userProfile = {
   notes: 'Fluent in Mandarin and Malay.',
 };
 
-function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeave, onGoAccount }) {
+function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeave, onGoAccount }) {
   return (
     <div
       style={{
@@ -84,7 +84,7 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
               marginBottom: 20,
             }}
           >
-            Welcome back, {userProfile.name}!
+            Welcome back, {user?.fullName || 'User'}!
           </div>
 
           {/* 3 columns whose widths sum < 1400 */}
@@ -991,7 +991,7 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
                       fontWeight: 700,
                     }}
                   >
-                    {userProfile.name}
+                    {user?.fullName || 'user'}
                   </div>
                 </div>
 

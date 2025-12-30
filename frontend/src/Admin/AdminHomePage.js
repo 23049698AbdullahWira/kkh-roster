@@ -15,6 +15,7 @@ const todoItems = [
 ];
 
 function AdminHome({
+  user,
   onGoRoster,
   onGoStaff,
   onGoHome,
@@ -60,7 +61,7 @@ function AdminHome({
             marginBottom: 16,
           }}
         >
-          Welcome back, Janet!
+          Welcome back, {user?.fullName || 'Admin'}!
         </h1>
 
         {/* Roster Status card */}
