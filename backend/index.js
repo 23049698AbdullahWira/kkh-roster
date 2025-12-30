@@ -65,31 +65,40 @@ app.get('/users', async (req, res) => {
   }
 });
 
-// UPDATE User (PUT /users/:id) - Handles Contact Update
+app.get('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const { password, ...userProfile } = rows[0];
+    res.json(userProfile);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
   
-  // 1. Get 'contact' from the request body along with other fields
   const { full_name, email, role, status, password, avatar_url, contact } = req.body;
 
   try {
-    // 2. Check if user exists
+
     const [check] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
     if (check.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // 3. Prepare update query
-    // ADDED: "contact = ?" to the SQL string
     let query = `
       UPDATE users 
       SET full_name = ?, email = ?, role = ?, status = ?, avatar_url = ?, contact = ?
     `;
     
-    // 4. Add 'contact' to the parameters array (order must match the ?s above)
     const params = [full_name, email, role, status, avatar_url, contact];
 
-    // Handle Password (only update if provided)
     if (password && password.trim() !== "") {
       query += `, password = ?`;
       params.push(password);
@@ -98,7 +107,6 @@ app.put('/users/:id', async (req, res) => {
     query += ` WHERE user_id = ?`;
     params.push(id);
 
-    // 5. Execute update
     await pool.query(query, params);
 
     res.json({ message: 'User updated successfully' });
@@ -106,6 +114,41 @@ app.put('/users/:id', async (req, res) => {
   } catch (err) {
     console.error("Error updating user:", err);
     res.status(500).json({ error: "Failed to update user" });
+  }
+});
+
+app.post('/users/:id/change-password', async (req, res) => {
+  const { id } = req.params;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'Current password and new password are required.' });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT password FROM users WHERE user_id = ?', [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = rows[0];
+    const storedPassword = user.password;
+
+    if (currentPassword !== storedPassword) {
+      return res.status(401).json({ message: 'Incorrect current password.' });
+    }
+    
+    await pool.query(
+      'UPDATE users SET password = ? WHERE user_id = ?',
+      [newPassword, id]
+    );
+
+    res.json({ message: 'Password changed successfully.' });
+
+  } catch (err) {
+    console.error("Error changing password:", err);
+    res.status(500).json({ error: "Failed to change password." });
   }
 });
 

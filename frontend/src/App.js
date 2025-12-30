@@ -163,7 +163,7 @@ function App() {
   if (page === 'userLeave') {
     return (
       <UserApplyLeave
-        loggedInUser={loggedInUser} // Pass the full loggedInUser object
+        loggedInUser={loggedInUser}
         onBack={() => setPage('userHome')}
         onGoHome={() => setPage('userHome')}
         onGoRoster={() => setPage('userRoster')}
@@ -178,6 +178,7 @@ function App() {
   if (page === 'userAccount') {
     return (
       <UserAccountInformation
+      loggedInUser={loggedInUser}
         onGoHome={() => setPage('userHome')}
         onGoRoster={() => setPage('userRoster')}
         onGoShiftPreference={() => setPage('userPreference')}
