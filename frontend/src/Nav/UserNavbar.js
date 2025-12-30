@@ -61,7 +61,7 @@ function UserNavbar({
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <img
           style={{ width: 180, height: 'auto' }}
-          src="https://placehold.co/180x60"
+          src="kkh.png"
           alt="Logo"
         />
       </div>

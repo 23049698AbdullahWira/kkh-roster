@@ -31,7 +31,7 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
           <img
             style={{ width: 180, height: 'auto' }}
-            src="https://placehold.co/258x105"
+            src="kkh.png"
             alt="Logo"
           />
           <nav

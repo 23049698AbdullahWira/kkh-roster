@@ -42,6 +42,10 @@ function AdminStaffManagementPage({
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]);
 
+  //prevents superadmin from being shown in role options for account creation.
+  const visibleRoles = roleOptions.filter(r => r === 'APN' || r === 'ADMIN');
+
+
   // --- 2. HELPER: Status Colors ---
   const getStatusStyle = (status) => {
     const lowerStatus = status ? status.toLowerCase() : '';
@@ -537,7 +541,7 @@ function AdminStaffManagementPage({
                   }}
                 >
                   <option value="">Select a role</option>
-                  {roleOptions.map((r) => (
+                  {visibleRoles.map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>

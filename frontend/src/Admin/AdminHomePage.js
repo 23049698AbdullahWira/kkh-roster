@@ -1,30 +1,6 @@
 import React from 'react';
 import Navbar from '../Nav/navbar.js';
 
-const activityItems = [
-  '5m ago, November Roster Draft Approved by Admin Janet.',
-  '5m ago, November Roster Draft Approved by Admin Janet.',
-  '5m ago, November Roster Draft Approved by Admin Janet.',
-  '23m ago, New Preference added to December Roster Draft by Tim Smith.',
-  '23m ago, New Preference added to December Roster Draft by Tim Smith.',
-  '23m ago, New Preference added to December Roster Draft by Tim Smith.',
-  '1h 05m ago, December preference window opened by Admin Janet.',
-  '1h 05m ago, December preference window opened by Admin Janet.',
-];
-
-const criticalAlerts = [
-  {
-    title: 'WARNING:',
-    text: 'Understaffed RRT PM Shift on 18 Oct (1 RRT Short)',
-    barColor: '#FF2525',
-  },
-  {
-    title: 'CONTRADICTING SHIFT:',
-    text: 'Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)',
-    barColor: '#F0DC00',
-  },
-];
-
 const todoItems = [
   {
     header: 'New Account Requested – By 23 Oct',
@@ -38,15 +14,16 @@ const todoItems = [
   },
 ];
 
-const quickLinks = [
-  { label: 'Start New\nRoster', disabled: false },
-  { label: 'Add\nNew Staff', disabled: false },
-  { label: 'Manage\nLeave', disabled: false },
-  { label: 'Staff\nPreferences', disabled: false },
-  { label: 'Add New\nLinks', disabled: true },
-];
-
-function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
+function AdminHome({
+  onGoRoster,
+  onGoStaff,
+  onGoHome,
+  onGoShift,
+  onStartNewRoster,
+  onAddNewStaff,
+  onManageLeave,
+  onStaffPreferences,
+}) {
   return (
     <div
       style={{
@@ -117,7 +94,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
             }}
           >
             <span style={{ fontSize: 14, fontWeight: 800 }}>Preference Open</span>
-            <img style={{ width: 24, height: 24 }} src="https://placehold.co/24x24" alt="" />
+            <img style={{ width: 24, height: 24 }} src="greenCheckMark.png" alt="" />
             <div
               style={{
                 flex: 1,
@@ -128,7 +105,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
               }}
             />
             <span style={{ fontSize: 14, fontWeight: 800 }}>Reviewing Draft</span>
-            <img style={{ width: 24, height: 24 }} src="https://placehold.co/24x24" alt="" />
+            <img style={{ width: 24, height: 24 }} src="greenCheckMark.png" alt="" />
             <div
               style={{
                 flex: 1,
@@ -139,7 +116,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
               }}
             />
             <span style={{ fontSize: 14, fontWeight: 800 }}>Published Roster</span>
-            <img style={{ width: 24, height: 24 }} src="https://placehold.co/24x24" alt="" />
+            <img style={{ width: 24, height: 24 }} src="loadingCircle.png" alt="" />
           </div>
         </section>
 
@@ -154,85 +131,121 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
           {/* LEFT COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Critical Staffing Shortage */}
-            <section
-              style={{
-                background: 'white',
-                borderRadius: 10,
-                padding: 18,
-                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 12,
-                }}
-              >
-                <div style={{ fontSize: 18, fontWeight: 800 }}>
-                  Critical Staffing Shortage
-                </div>
-                <div style={{ display: 'flex', gap: 16, fontSize: 14, fontWeight: 600 }}>
-                  <span>Urgent</span>
-                  <div
-                    style={{
-                      width: 6,
-                      height: 20,
-                      background: '#FF2525',
-                      borderRadius: 12,
-                    }}
-                  />
-                  <span>Action Needed</span>
-                  <div
-                    style={{
-                      width: 6,
-                      height: 20,
-                      background: '#F0DC00',
-                      borderRadius: 12,
-                    }}
-                  />
-                </div>
-              </div>
+            {/* Critical Staffing Shortage */}
+<section
+  style={{
+    background: 'white',
+    borderRadius: 10,
+    padding: 18,
+    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+  }}
+>
+  <div
+    style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    }}
+  >
+    <div style={{ fontSize: 18, fontWeight: 800 }}>
+      Critical Staffing Shortage
+    </div>
+    <div style={{ display: 'flex', gap: 16, fontSize: 14, fontWeight: 600 }}>
+      <span>Urgent</span>
+      <div
+        style={{
+          width: 6,
+          height: 20,
+          background: '#FF2525',
+          borderRadius: 12,
+        }}
+      />
+      <span>Action Needed</span>
+      <div
+        style={{
+          width: 6,
+          height: 20,
+          background: '#F0DC00',
+          borderRadius: 12,
+        }}
+      />
+    </div>
+  </div>
 
-              {criticalAlerts.map((item, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: '#EDF0F5',
-                    borderRadius: 8,
-                    padding: '12px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    position: 'relative',
-                    marginTop: idx === 0 ? 0 : 8,
-                  }}
-                >
-                  <img
-                    style={{ width: 30, height: 30, marginRight: 20 }}
-                    src="https://placehold.co/35x35"
-                    alt=""
-                  />
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>
-                    {item.title}
-                    <br />
-                    {item.text}
-                  </div>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: 10,
-                      background: item.barColor,
-                      borderTopRightRadius: 8,
-                      borderBottomRightRadius: 8,
-                    }}
-                  />
-                </div>
-              ))}
-            </section>
+  {/* Card 1: WARNING */}
+  <div
+    style={{
+      background: '#EDF0F5',
+      borderRadius: 8,
+      padding: '12px 20px',
+      display: 'flex',
+      alignItems: 'center',
+      position: 'relative',
+      marginTop: 0,
+    }}
+  >
+    <img
+      style={{ width: 30, height: 30, marginRight: 20 }}
+      src="redWarning.png"
+      alt="Warning"
+    />
+    <div style={{ fontSize: 14, fontWeight: 700 }}>
+      WARNING:
+      <br />
+      Understaffed RRT PM Shift on 18 Oct (1 RRT Short)
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: 10,
+        background: '#FF2525',
+        borderTopRightRadius: 8,
+        borderBottomRightRadius: 8,
+      }}
+    />
+  </div>
+
+  {/* Card 2: CONTRADICTING SHIFT */}
+  <div
+    style={{
+      background: '#EDF0F5',
+      borderRadius: 8,
+      padding: '12px 20px',
+      display: 'flex',
+      alignItems: 'center',
+      position: 'relative',
+      marginTop: 8,
+    }}
+  >
+    <img
+      style={{ width: 30, height: 30, marginRight: 20 }}
+      src="yellowWarning.png"
+      alt="Contradicting Shift"
+    />
+    <div style={{ fontSize: 14, fontWeight: 700 }}>
+      CONTRADICTING SHIFT:
+      <br />
+      Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)
+    </div>
+    <div
+      style={{
+        position: 'absolute',
+        right: 0,
+        top: 0,
+        bottom: 0,
+        width: 10,
+        background: '#F0DC00',
+        borderTopRightRadius: 8,
+        borderBottomRightRadius: 8,
+      }}
+    />
+  </div>
+</section>
+
 
             {/* To-Do List / Action Items */}
             <section
@@ -342,139 +355,492 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  gap: 12,
+                  gap: 24,
                 }}
               >
-                {quickLinks.map((link, idx) => (
+                {/* 1. Start New Roster */}
+                <button
+                  type="button"
+                  onClick={onStartNewRoster}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    width: 80,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
                   <div
-                    key={idx}
                     style={{
+                      width: 78,
+                      height: 78,
+                      background: '#5091CD',
+                      borderRadius: 8,
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
-                      gap: 6,
-                      width: 80,
+                      justifyContent: 'center',
                     }}
                   >
-                    <div
-                      style={{
-                        width: 78,
-                        height: 78,
-                        background: link.disabled ? '#8C8C8C' : '#5091CD',
-                        borderRadius: 8,
-                      }}
-                    />
                     <img
-                      style={{ width: 40, height: 40 }}
-                      src="https://placehold.co/47x47"
-                      alt=""
+                      style={{ width: 50, height: 50 }}
+                      src="startNewRoster.png"
+                      alt="Start New Roster"
                     />
-                    <div
-                      style={{
-                        textAlign: 'center',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        whiteSpace: 'pre-line',
-                      }}
-                    >
-                      {link.label}
-                    </div>
                   </div>
-                ))}
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {'Start New\nRoster'}
+                  </div>
+                </button>
+
+                {/* 2. Add New Staff */}
+                <button
+                  type="button"
+                  onClick={onAddNewStaff}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    width: 80,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 78,
+                      height: 78,
+                      background: '#5091CD',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <img
+                      style={{ width: 50, height: 50 }}
+                      src="addNewStaff.png"
+                      alt="Add New Staff"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {'Add\nNew Staff'}
+                  </div>
+                </button>
+
+                {/* 3. Manage Leave */}
+                <button
+                  type="button"
+                  onClick={onManageLeave}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    width: 80,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 78,
+                      height: 78,
+                      background: '#5091CD',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <img
+                      style={{ width: 50, height: 50 }}
+                      src="manageLeave.png"
+                      alt="Manage Leave"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {'Manage\nLeave'}
+                  </div>
+                </button>
+
+                {/* 4. Staff Preferences */}
+                <button
+                  type="button"
+                  onClick={onStaffPreferences}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    width: 80,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 78,
+                      height: 78,
+                      background: '#5091CD',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <img
+                      style={{ width: 50, height: 50 }}
+                      src="staffPref.png"
+                      alt="Staff Preferences"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {'Staff\nPreferences'}
+                  </div>
+                </button>
               </div>
             </section>
 
             {/* Admin Activity Log */}
-            <section
-              style={{
-                background: 'white',
-                borderRadius: 10,
-                padding: 18,
-                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-                display: 'flex',
-                flexDirection: 'column',
-                height: 360,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 800,
-                  marginBottom: 8,
-                }}
-              >
-                Admin Activity Log
-              </div>
+<section
+  style={{
+    background: 'white',
+    borderRadius: 10,
+    padding: 18,
+    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+    display: 'flex',
+    flexDirection: 'column',
+    height: 360,
+  }}
+>
+  <div
+    style={{
+      fontSize: 18,
+      fontWeight: 800,
+      marginBottom: 8,
+    }}
+  >
+    Admin Activity Log
+  </div>
 
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 4,
-                  overflow: 'hidden',
-                }}
-              >
-                {activityItems.map((text, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 16,
-                      padding: '6px 0',
-                      borderTop: '1px solid #E0E0E0',
-                    }}
-                  >
-                    <img
-                      style={{ width: 26, height: 26 }}
-                      src="https://placehold.co/33x33"
-                      alt=""
-                    />
-                    <div
-                      style={{
-                        flex: 1,
-                        fontSize: 14,
-                      }}
-                    >
-                      {text}
-                    </div>
-                    <div
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 14,
-                        background: '#EDF0F5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 12,
-                          height: 10,
-                          border: '1px solid #5091CD',
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+  <div
+    style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+      overflow: 'hidden',
+    }}
+  >
+    {/* 1 */}
+<div
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    padding: '6px 0',
+    borderTop: '1px solid #E0E0E0',
+  }}
+>
+  <img
+    style={{ width: 26, height: 26 }}
+    src="calendar.png"
+    alt=""
+  />
+  <div
+    style={{
+      flex: 1,
+      fontSize: 14,
+    }}
+  >
+    5m ago, November Roster Draft Approved by Admin Janet.
+  </div>
+  <div
+    style={{
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      background: '#EDF0F5',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    <img
+      style={{ width: 15, height: 15 }}
+      src="group.svg"
+      alt=""
+    />
+  </div>
+</div>
 
-              <div
-                style={{
-                  textAlign: 'center',
-                  marginTop: 4,
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: '#5091CD',
-                  cursor: 'pointer',
-                }}
-              >
-                View All
-              </div>
-            </section>
+
+    {/* 2 */}
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: '6px 0',
+        borderTop: '1px solid #E0E0E0',
+      }}
+    >
+      <img
+        style={{ width: 26, height: 26 }}
+        src="calendar.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          fontSize: 14,
+        }}
+      >
+        5m ago, November Roster Draft Approved by Admin Janet.
+      </div>
+      <div
+    style={{
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      background: '#EDF0F5',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    <img
+      style={{ width: 15, height: 15 }}
+      src="group.svg"
+      alt=""
+    />
+  </div>
+    </div>
+
+    {/* 3 */}
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: '6px 0',
+        borderTop: '1px solid #E0E0E0',
+      }}
+    >
+      <img
+        style={{ width: 26, height: 26 }}
+        src="calendar.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          fontSize: 14,
+        }}
+      >
+        5m ago, November Roster Draft Approved by Admin Janet.
+      </div>
+      <div
+    style={{
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      background: '#EDF0F5',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    <img
+      style={{ width: 15, height: 15 }}
+      src="group.svg"
+      alt=""
+    />
+  </div>
+    </div>
+
+    {/* 4 */}
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: '6px 0',
+        borderTop: '1px solid #E0E0E0',
+      }}
+    >
+      <img
+        style={{ width: 26, height: 26 }}
+        src="userMale.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          fontSize: 14,
+        }}
+      >
+        23m ago, New Preference added to December Roster Draft by Tim Smith.
+      </div>
+      <div
+    style={{
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      background: '#EDF0F5',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    <img
+      style={{ width: 15, height: 15 }}
+      src="group.svg"
+      alt=""
+    />
+  </div>
+    </div>
+
+    {/* 5 */}
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: '6px 0',
+        borderTop: '1px solid #E0E0E0',
+      }}
+    >
+      <img
+        style={{ width: 26, height: 26 }}
+        src="userMale.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          fontSize: 14,
+        }}
+      >
+        23m ago, New Preference added to December Roster Draft by Tim Smith.
+      </div>
+      <div
+    style={{
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      background: '#EDF0F5',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    <img
+      style={{ width: 15, height: 15 }}
+      src="group.svg"
+      alt=""
+    />
+  </div>
+    </div>
+
+    {/* 6 */}
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        padding: '6px 0',
+        borderTop: '1px solid #E0E0E0',
+      }}
+    >
+      <img
+        style={{ width: 26, height: 26 }}
+        src="clock.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          fontSize: 14,
+        }}
+      >
+        1h 05m ago, December preference window opened by Admin Janet.
+      </div>
+      <div
+    style={{
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      background: '#EDF0F5',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}
+  >
+    <img
+      style={{ width: 15, height: 15 }}
+      src="group.svg"
+      alt=""
+    />
+  </div>
+    </div>
+
+    
+  </div>
+
+  <div
+    style={{
+      textAlign: 'center',
+      marginTop: 4,
+      fontSize: 13,
+      fontWeight: 700,
+      color: '#5091CD',
+      cursor: 'pointer',
+    }}
+  >
+    View All
+  </div>
+</section>
+
           </div>
         </div>
       </main>
@@ -483,5 +849,3 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
 }
 
 export default AdminHome;
-
-//comment1

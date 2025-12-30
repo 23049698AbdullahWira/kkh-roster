@@ -188,7 +188,15 @@ function App() {
   }
 
   // DEFAULT FALLBACK: ADMIN HOME PAGE
-  return <AdminHomePage {...navProps} />;
+  return (
+  <AdminHomePage
+    {...navProps}
+    onStartNewRoster={() => setPage('rosterList')}
+    onAddNewStaff={() => setPage('staff')}
+    onManageLeave={() => setPage('manageLeave')}
+    onStaffPreferences={() => setPage('shift')} // or another page
+  />
+);
 }
 
 export default App;

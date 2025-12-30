@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 
 // onSetRole removed; parent now gets full user via onAdminLoginSuccess/onUserLoginSuccess
 function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
@@ -6,6 +6,8 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
 
   // Single-step login: email + password on same screen
   const handleLogin = async () => {
@@ -98,11 +100,11 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
           }}
         >
           <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>
-            Lorum Ipsum
+            Welcome 
           </div>
           <div style={{ fontSize: 14, maxWidth: 320, lineHeight: 1.5 }}>
-            Lorum Ipsum dolor sit amet, consectetur adipiscing elit, sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua.
+            KK Women's and Children's Hospital Rostering System
+            
           </div>
         </div>
       </div>
@@ -172,60 +174,74 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
             }}
           >
             {/* Email */}
-            <div
-              style={{
-                width: '100%',
-                padding: 8,
-                borderRadius: 6,
-                border: '1px solid #8C8C8C',
-                display: 'flex',
-                alignItems: 'center',
-                background: '#FFF',
-              }}
-            >
-              <input
-                type="email"
-                placeholder="Email"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  outline: 'none',
-                  fontSize: 16,
-                  fontWeight: 500,
-                  color: '#000',
-                }}
-              />
-            </div>
+<div
+  style={{
+    width: '100%',
+    padding: 8,
+    borderRadius: 6,
+    border: '1px solid #8C8C8C',
+    display: 'flex',
+    alignItems: 'center',
+    background: '#FFF',
+  }}
+>
+  <input
+    ref={emailRef}
+    type="email"
+    placeholder="Email"
+    value={identifier}
+    onChange={(e) => setIdentifier(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        passwordRef.current && passwordRef.current.focus();
+      }
+    }}
+    style={{
+      width: '100%',
+      border: 'none',
+      outline: 'none',
+      fontSize: 16,
+      fontWeight: 500,
+      color: '#000',
+    }}
+  />
+</div>
 
-            {/* Password */}
-            <div
-              style={{
-                width: '100%',
-                padding: 8,
-                borderRadius: 6,
-                border: '1px solid #8C8C8C',
-                display: 'flex',
-                alignItems: 'center',
-                background: '#FFF',
-              }}
-            >
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  outline: 'none',
-                  fontSize: 16,
-                  fontWeight: 500,
-                  color: '#000',
-                }}
-              />
-            </div>
+{/* Password */}
+<div
+  style={{
+    width: '100%',
+    padding: 8,
+    borderRadius: 6,
+    border: '1px solid #8C8C8C',
+    display: 'flex',
+    alignItems: 'center',
+    background: '#FFF',
+  }}
+>
+  <input
+    ref={passwordRef}
+    type="password"
+    placeholder="Password"
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleLogin();
+      }
+    }}
+    style={{
+      width: '100%',
+      border: 'none',
+      outline: 'none',
+      fontSize: 16,
+      fontWeight: 500,
+      color: '#000',
+    }}
+  />
+</div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center' }}>
