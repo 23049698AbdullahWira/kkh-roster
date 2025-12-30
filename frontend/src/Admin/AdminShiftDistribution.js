@@ -14,7 +14,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  const itemsPerPage = 5;
 
   // --- 2. HELPER: Workload Calculation ---
   const getWorkloadStatus = (total, targetVal) => {

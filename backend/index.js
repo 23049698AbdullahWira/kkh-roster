@@ -65,6 +65,29 @@ app.get('/users', async (req, res) => {
   }
 });
 
+// GET User by ID - For Navbar
+app.get('/users/:id', async (req, res) => {
+    const userId = req.params.id;
+  
+    try {
+      const [rows] = await pool.query(
+        `SELECT full_name, avatar_url FROM users WHERE user_id = ?`, 
+        [userId]
+      );
+  
+      if (rows.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+  
+      // Send back the data
+      res.json(rows[0]);
+  
+    } catch (err) {
+      console.error("Error fetching user for navbar:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 // UPDATE User (PUT /users/:id) - Handles Contact Update
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
@@ -341,7 +364,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      'SELECT user_id, email, password, role, full_name FROM users WHERE email = ?',
+      'SELECT user_id, email, password, role, full_name, avatar_url FROM users WHERE email = ?',
       [email]
     );
     if (rows.length === 0) {
@@ -363,7 +386,8 @@ app.post('/api/auth/login', async (req, res) => {
         userId: user.user_id,
         fullName: user.full_name,
         email: user.email,
-        role: user.role || 'user'
+        role: user.role || 'user',
+        avatar: user.avatar_url || "https://placehold.co/50x50"
       }
     });
   } catch (err) {
