@@ -65,6 +65,23 @@ app.get('/users', async (req, res) => {
   }
 });
 
+// Add this new route to get a single user by their ID
+app.get('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    // IMPORTANT: Do not send the password back to the frontend
+    const { password, ...userProfile } = rows[0];
+    res.json(userProfile);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET Request to fetch ROSTERS with Creator Name
 app.get('/api/rosters', async (req, res) => {
   try {
@@ -124,7 +141,62 @@ app.get('/api/rosters', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// -------
+
+// POST /api/rosters
+app.post('/api/rosters', async (req, res) => {
+  // 1. GET USER ID FROM BODY
+  const { title, month, year, notes, status, userId } = req.body; 
+
+  if (!title || !month || !year) {
+    return res.status(400).json({ message: 'Title, Month, and Year are required.' });
+  }
+
+  try {
+    const monthMap = {
+      "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6,
+      "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12
+    };
+    const monthInt = monthMap[month] || month; 
+    const finalRemarks = notes ? `${title} | ${notes}` : title;
+    const rosterStatus = status || 'Preference Open';
+
+    // 2. USE THE RECEIVED ID (Or fallback to 1 if missing)
+    const creatorId = userId || 1; 
+
+    const sql = `
+      INSERT INTO rosters (month, year, remarks, status, created_at, creator_user_id) 
+      VALUES (?, ?, ?, ?, NOW(), ?)
+    `;
+
+    const [result] = await pool.query(sql, [
+      monthInt, 
+      year, 
+      finalRemarks, 
+      rosterStatus, 
+      creatorId // <--- NOW USING DYNAMIC ID
+    ]);
+
+    res.status(201).json({ 
+      message: 'Roster created successfully', 
+      rosterId: result.insertId 
+    });
+
+  } catch (err) {
+    console.error("Error creating roster:", err);
+    res.status(500).json({ message: 'Database error creating roster' });
+  }
+});
+
+// GET: Fetch all available shift types from the database
+app.get('/api/shift-types', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT shift_code, shift_color_hex FROM shift_desc');
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET Request to fetch SHIFTS with detailed info (Color & Code)
 app.get('/api/shifts/:rosterId', async (req, res) => {
@@ -139,9 +211,11 @@ app.get('/api/shifts/:rosterId', async (req, res) => {
         s.user_id, 
         sd.shift_code,       
         sd.shift_color_hex,  
-        sd.is_work_shift
+        sd.is_work_shift,
+        w.ward_name
       FROM shifts s
       JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
+      LEFT JOIN ward w ON s.ward_id = w.ward_id
       WHERE s.roster_id = ?
     `;
     

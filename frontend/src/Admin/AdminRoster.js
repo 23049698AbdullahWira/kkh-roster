@@ -37,7 +37,7 @@ const IconPlus = () => (
 const ActionBtn = ({ icon, onClick }) => (
   <button
     onClick={(e) => {
-      e.stopPropagation(); 
+      e.stopPropagation();
       if (onClick) onClick();
     }}
     style={{
@@ -62,6 +62,26 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
   const [showNewRoster, setShowNewRoster] = useState(false);
   const [rosterRows, setRosterRows] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchRosters = () => {
+    setLoading(true);
+    fetch('http://localhost:5000/api/rosters')
+      .then((res) => res.json())
+      .then((data) => {
+        setRosterRows(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch rosters:", err);
+        setLoading(false);
+      });
+  };
+  // -----------------------------
+
+  // --- INITIAL FETCH ---
+  useEffect(() => {
+    fetchRosters(); // <--- We call it here when page loads
+  }, []);
 
   // --- FETCH DATA ---
   useEffect(() => {
@@ -138,13 +158,13 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>All Rosters</h1>
-          
+
           {/* UPDATED "NEW ROSTER" BUTTON */}
           <button
             type="button"
             onClick={() => setShowNewRoster(true)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 12, 
+              display: 'flex', alignItems: 'center', gap: 12,
               padding: '10px 20px', paddingRight: '16px',
               background: '#5091CD', borderRadius: 999, border: 'none', color: 'white',
               fontSize: 16, fontWeight: 600, cursor: 'pointer',
@@ -154,11 +174,11 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
             New Roster
             {/* The Plus Icon */}
             <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 24, height: 24, 
-                background: 'rgba(255,255,255,0.2)', borderRadius: '50%' 
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 24, height: 24,
+              background: 'rgba(255,255,255,0.2)', borderRadius: '50%'
             }}>
-                <IconPlus />
+              <IconPlus />
             </div>
           </button>
 
@@ -166,9 +186,9 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
           <AdminNewRoster
             open={showNewRoster}
             onCancel={() => setShowNewRoster(false)}
-            onConfirm={(data) => {
-              // This part currently just reloads the page
-              window.location.reload(); 
+            onConfirm={() => {
+              setShowNewRoster(false); // 1. Close the modal manually
+              fetchRosters();          // 2. Just re-fetch the data list
             }}
           />
         </div>
@@ -196,9 +216,9 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
           }}
         >
           {loading ? (
-             <div style={{ padding: '20px', textAlign: 'center' }}>Loading rosters...</div>
+            <div style={{ padding: '20px', textAlign: 'center' }}>Loading rosters...</div>
           ) : rosterRows.length === 0 ? (
-             <div style={{ padding: '20px', textAlign: 'center' }}>No rosters found.</div>
+            <div style={{ padding: '20px', textAlign: 'center' }}>No rosters found.</div>
           ) : (
             rosterRows.map((row, idx) => (
               <div
@@ -241,14 +261,14 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
               </div>
             ))
           )}
-          
+
           {/* ... PAGINATION ... */}
-           <div style={{ height: 60, background: 'white', borderTop: '1px solid #EEE', borderRadius: '0 0 10px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-             <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'rgba(255,255,255,0.4)' }}>«</button>
-             <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>‹</button>
-             <span style={{ fontSize: 14, color: '#656575' }}>1–{rosterRows.length} of {rosterRows.length}</span>
-             <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>›</button>
-             <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>»</button>
+          <div style={{ height: 60, background: 'white', borderTop: '1px solid #EEE', borderRadius: '0 0 10px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'rgba(255,255,255,0.4)' }}>«</button>
+            <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>‹</button>
+            <span style={{ fontSize: 14, color: '#656575' }}>1–{rosterRows.length} of {rosterRows.length}</span>
+            <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>›</button>
+            <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>»</button>
           </div>
 
         </div>

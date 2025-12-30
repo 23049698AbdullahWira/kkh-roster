@@ -142,6 +142,17 @@ function AdminNewRoster({ open, onConfirm, onCancel }) {
     setIsSubmitting(true);
     setError('');
 
+    // --- CHANGED PART START: Get User ID ---
+    let currentUserId = 1; // Default fallback
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      // Use the stored ID, or fallback to 101 (Janet) if testing
+      currentUserId = storedUser.userId || storedUser.id || 101; 
+    } catch (e) {
+      console.warn("Could not read user from local storage", e);
+    }
+    // --- CHANGED PART END ---
+
     try {
       const response = await fetch('http://localhost:5000/api/rosters', {
         method: 'POST',
@@ -151,7 +162,8 @@ function AdminNewRoster({ open, onConfirm, onCancel }) {
           month: month,
           year: year,
           notes: notes,
-          status: 'Preference Open' // Default status per your schema
+          status: 'Preference Open', // Default status per your schema
+          userId: currentUserId
         }),
       });
 

@@ -61,6 +61,9 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
         return;
       }
 
+      //save to localstorage
+      localStorage.setItem('user', JSON.stringify(userData));
+
       // 3. Get the role from the userData object.
       const role = (userData.role || '').toUpperCase();
 
