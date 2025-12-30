@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 
-function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole }) {
+// onSetRole removed; parent now gets full user via onAdminLoginSuccess/onUserLoginSuccess
+function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Single-step login: email + password on same screen
   const handleLogin = async () => {
     const trimmedEmail = identifier.trim().toLowerCase();
 
@@ -21,6 +23,7 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole 
     try {
       setLoading(true);
       setError('');
+
       const res = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,16 +37,19 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole 
         return;
       }
 
-      const role = (data.role || '').toUpperCase();
-
-      if (onSetRole) {
-        onSetRole(role);
+      // Expect backend to return { success: true, user: { ... } }
+      const userData = data.user;
+      if (!userData) {
+        setError('Login failed: User data not returned from server.');
+        return;
       }
 
+      const role = (userData.role || '').toUpperCase();
+
       if (role === 'ADMIN' || role === 'SUPERADMIN') {
-        onAdminLoginSuccess && onAdminLoginSuccess();
+        onAdminLoginSuccess && onAdminLoginSuccess(userData);
       } else {
-        onUserLoginSuccess && onUserLoginSuccess();
+        onUserLoginSuccess && onUserLoginSuccess(userData);
       }
     } catch (err) {
       console.error(err);
@@ -64,42 +70,42 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole 
       }}
     >
       {/* LEFT HALF: image panel */}
-<div
-  style={{
-    flex: 0.55,                         // slightly less than half
-    backgroundImage: 'url("loginImageBackground.jpg")',
-    backgroundPosition: 'center',
-    position: 'relative',
-  }}
->
-  {/* subtle dark gradient for contrast */}
-  <div
-  style={{
-    position: 'absolute',
-    inset: 0,
-    background:
-      'linear-gradient(to right, rgba(0,0,0,0.45), rgba(0,0,0,0.10))',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'flex-start', // top
-    alignItems: 'flex-start',     // left
-    paddingLeft: '8%',
-    paddingRight: '14%',
-    paddingTop: '8%',             // distance from top
-    boxSizing: 'border-box',
-    color: 'white',
-  }}
->
-  <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>
-    Lorum Ipsum
-  </div>
-  <div style={{ fontSize: 14, maxWidth: 320, lineHeight: 1.5 }}>
-    Lorum Ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-  </div>
-</div>
-
-
-</div>
+      <div
+        style={{
+          flex: 0.55, // slightly less than half
+          backgroundImage: 'url("loginImageBackground.jpg")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: 'relative',
+        }}
+      >
+        {/* subtle dark gradient for contrast */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(to right, rgba(0,0,0,0.45), rgba(0,0,0,0.10))',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-start', // top
+            alignItems: 'flex-start', // left
+            paddingLeft: '8%',
+            paddingRight: '14%',
+            paddingTop: '8%', // distance from top
+            boxSizing: 'border-box',
+            color: 'white',
+          }}
+        >
+          <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>
+            Lorum Ipsum
+          </div>
+          <div style={{ fontSize: 14, maxWidth: 320, lineHeight: 1.5 }}>
+            Lorum Ipsum dolor sit amet, consectetur adipiscing elit, sed do
+            eiusmod tempor incididunt ut labore et dolore magna aliqua.
+          </div>
+        </div>
+      </div>
 
       {/* RIGHT HALF: centered login card */}
       <div
@@ -111,27 +117,27 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole 
         }}
       >
         <div
-  style={{
-    width: 520,
-    padding: '40px 48px',
-    background: 'white',
-    borderRadius: 8,
-    boxShadow: '0 18px 40px rgba(0,0,0,0.16)',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'stretch',
-    boxSizing: 'border-box',
-    gap: 20,
-  }}
->
-  {/* Logo left-aligned */}
-  <div style={{ display: 'flex', justifyContent: 'center' }}>
-    <img
-      style={{ width: 200, height: 'auto' }}
-      src="kkh.png"
-      alt="Logo"
-    />
-  </div>
+          style={{
+            width: 520,
+            padding: '40px 48px',
+            background: 'white',
+            borderRadius: 8,
+            boxShadow: '0 18px 40px rgba(0,0,0,0.16)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            boxSizing: 'border-box',
+            gap: 20,
+          }}
+        >
+          {/* Logo (currently centered; change justifyContent to 'flex-start' if you want left) */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <img
+              style={{ width: 200, height: 'auto' }}
+              src="kkh.png"
+              alt="Logo"
+            />
+          </div>
 
           <div
             style={{
@@ -221,26 +227,27 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup, onSetRole 
               />
             </div>
           </div>
-                <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <button
-            type="button"
-            onClick={handleLogin}
-            disabled={loading}
-            style={{
-              width: 260,
-              height: 42,
-              marginTop: 4,
-              background: loading ? '#9BBEE5' : '#5091CD',
-              borderRadius: 6,
-              border: 'none',
-              color: 'white',
-              fontSize: 18,
-              fontWeight: 800,
-              cursor: loading ? 'default' : 'pointer',
-            }}
-          >
-            {loading ? 'Logging in...' : 'Log in'}
-          </button>
+
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <button
+              type="button"
+              onClick={handleLogin}
+              disabled={loading}
+              style={{
+                width: 260,
+                height: 42,
+                marginTop: 4,
+                background: loading ? '#9BBEE5' : '#5091CD',
+                borderRadius: 6,
+                border: 'none',
+                color: 'white',
+                fontSize: 18,
+                fontWeight: 800,
+                cursor: loading ? 'default' : 'pointer',
+              }}
+            >
+              {loading ? 'Logging in...' : 'Log in'}
+            </button>
           </div>
         </div>
       </div>
