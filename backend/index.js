@@ -190,8 +190,50 @@ app.post('/api/rosters', async (req, res) => {
 // GET: Fetch all available shift types from the database
 app.get('/api/shift-types', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT shift_code, shift_color_hex FROM shift_desc');
+    // --- CHANGED: Added 'shift_type_id' ---
+    const [rows] = await pool.query('SELECT shift_type_id, shift_code, shift_color_hex, is_work_shift FROM shift_desc');
     res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET: Fetch all wards
+app.get('/api/wards', async (req, res) => {
+  try {
+    // We select ward_name (the code) and ward_comments (the full name)
+    const [rows] = await pool.query('SELECT ward_id, ward_name, ward_comments FROM ward'); 
+    res.json(rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST: Create or Update a Shift
+app.post('/api/shifts/update', async (req, res) => {
+  const { userId, date, shiftTypeId, rosterId, wardId } = req.body;
+
+  try {
+    // If shiftTypeId is missing or "OFF", delete the shift
+    if (!shiftTypeId || shiftTypeId === 'OFF') {
+      await pool.query('DELETE FROM shifts WHERE user_id = ? AND shift_date = ?', [userId, date]);
+      return res.json({ message: 'Shift removed' });
+    }
+
+    // Insert or Update (Upsert)
+    const sql = `
+      INSERT INTO shifts (user_id, shift_date, shift_type_id, roster_id, ward_id)
+      VALUES (?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE 
+        shift_type_id = VALUES(shift_type_id), 
+        ward_id = VALUES(ward_id)
+    `;
+    
+    await pool.query(sql, [userId, date, shiftTypeId, rosterId, wardId]);
+    
+    res.json({ message: 'Shift updated' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -208,7 +250,9 @@ app.get('/api/shifts/:rosterId', async (req, res) => {
       SELECT 
         s.shift_id, 
         s.shift_date, 
-        s.user_id, 
+        s.user_id,
+        s.ward_id,
+        s.shift_type_id,
         sd.shift_code,       
         sd.shift_color_hex,  
         sd.is_work_shift,
