@@ -3,6 +3,7 @@ const cors = require('cors');
 const pool = require('./db');
 const multer = require('multer');
 const path = require('path');
+const { generateRoster } = require('./services/rosterEngine');
 require('dotenv').config();
 
 const app = express();
@@ -271,6 +272,35 @@ app.get('/api/shifts/:rosterId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Update Roster Status
+app.post('/api/rosters/update-status', async (req, res) => {
+  const { rosterId, status } = req.body;
+  try {
+    // Assuming your table is named 'roster' and has a 'status' column
+    await pool.query('UPDATE rosters SET status = ? WHERE roster_id = ?', [status, rosterId]);
+    res.json({ success: true, status });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get Roster Details (To know the current status)
+app.get('/api/rosters/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await pool.query('SELECT * FROM rosters WHERE roster_id = ?', [id]);
+    if (rows.length > 0) {
+      res.json(rows[0]);
+    } else {
+      res.status(404).json({ message: 'Roster not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // UPDATE User (PUT /users/:id) - Handles Contact Update
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
@@ -575,6 +605,95 @@ app.post('/api/auth/login', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// --- AUTO-FILL ROSTER ROUTE (Optimized: Bulk Insert) ---
+app.post('/api/rosters/auto-fill', async (req, res) => {
+  const { rosterId, month, year } = req.body;
+
+  const connection = await pool.getConnection();
+  await connection.beginTransaction();
+
+  try {
+    // 1. Fetch Data
+    const [users] = await connection.query("SELECT * FROM users WHERE role = 'APN'");
+    const [existingShifts] = await connection.query(
+      `SELECT s.*, sd.shift_code 
+       FROM shifts s 
+       JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id 
+       WHERE s.roster_id = ?`,
+      [rosterId]
+    );
+    const [shiftTypes] = await connection.query("SELECT shift_type_id, shift_code FROM shift_desc");
+
+    // 2. Map Codes -> IDs
+    const typeMap = {};
+    shiftTypes.forEach(t => typeMap[t.shift_code] = t.shift_type_id);
+
+    // 3. Run Engine (Fast in-memory calculation)
+    const newAssignments = await generateRoster(month, year, users, existingShifts);
+
+    // 4. Prepare Data for Bulk Insert
+    const valuesToInsert = [];
+    const newlyAddedSet = new Set(); // Internal Duplicate Guard
+
+    for (const item of newAssignments) {
+      // Create a unique key for this batch (User + Date)
+      const shiftKey = `${item.user_id}-${item.shift_date}`;
+
+      // Check 1: Does it exist in DB? (JS Check)
+      const existsInDB = existingShifts.find(e => {
+        const dbDate = new Date(e.shift_date);
+        const dbDateStr = dbDate.toLocaleDateString('en-CA');
+        return e.user_id === item.user_id && dbDateStr === item.shift_date;
+      });
+
+      // Check 2: Did we already add it to the 'valuesToInsert' list in this loop?
+      const existsInBatch = newlyAddedSet.has(shiftKey);
+
+      if (!existsInDB && !existsInBatch) {
+        const typeId = typeMap[item.shift_code];
+        const finalWardId = item.ward_id || null;
+
+        if (typeId) {
+          valuesToInsert.push([
+            item.user_id,
+            rosterId,
+            typeId,
+            item.shift_date,
+            finalWardId
+          ]);
+
+          // Mark this slot as 'filled' for this batch
+          newlyAddedSet.add(shiftKey);
+        }
+      }
+    }
+
+    // 5. Execute ONE Big Query (With Safety)
+    let addedCount = 0;
+    if (valuesToInsert.length > 0) {
+      // FIX: Use 'INSERT IGNORE' to safely skip any database duplicates
+      const [result] = await connection.query(
+        `INSERT IGNORE INTO shifts 
+        (user_id, roster_id, shift_type_id, shift_date, ward_id) 
+        VALUES ?`,
+        [valuesToInsert]
+      );
+      addedCount = result.affectedRows;
+    }
+
+    await connection.commit();
+    connection.release();
+
+    res.json({ success: true, message: `Auto-fill complete! Added ${addedCount} shifts.` });
+
+  } catch (err) {
+    await connection.rollback();
+    connection.release();
+    console.error("Auto-Fill Error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
