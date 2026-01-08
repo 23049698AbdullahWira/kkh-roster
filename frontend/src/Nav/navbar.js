@@ -1,7 +1,7 @@
 // src/Navbar.jsx
 import React from 'react';
 
-function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
+function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }) {
   const linkStyle = (tab) => ({
     cursor: 'pointer',
     borderBottom: active === tab ? '2px #5091CD solid' : 'none',
@@ -31,7 +31,7 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
           <img
             style={{ width: 180, height: 'auto' }}
-            src="https://placehold.co/258x105"
+            src="kkh.png"
             alt="Logo"
           />
           <nav
@@ -54,6 +54,9 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
             </div>
             <div style={linkStyle('shift')} onClick={onGoShift}>
               Shift Distribution
+            </div>
+            <div style={linkStyle('logout')} onClick={onLogout}>
+              Logout
             </div>
           </nav>
         </div>

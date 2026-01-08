@@ -8,6 +8,8 @@ function AdminStaffManagementPage({
   onGoShift,
   onGoManageLeave, // Now unused (replaced by modal)
   currentUserRole = 'SUPERADMIN', // Default for testing
+  onLogout,
+  loggedInUser,
 }) {
 
   // --- 1. STATE ---
@@ -41,6 +43,10 @@ function AdminStaffManagementPage({
   // MODAL 3: MANAGE LEAVE (NEW)
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]);
+
+  //prevents superadmin from being shown in role options for account creation.
+  const visibleRoles = roleOptions.filter(r => r === 'APN' || r === 'ADMIN');
+
 
   // --- 2. HELPER: Status Colors ---
   const getStatusStyle = (status) => {
@@ -159,42 +165,45 @@ function AdminStaffManagementPage({
   };
 
   const handleSubmitCreate = async () => {
-    const [firstName, ...restName] = createForm.full_name.trim().split(' ');
-    const lastName = restName.join(' ');
+  const [firstName, ...restName] = createForm.full_name.trim().split(' ');
+  const lastName = restName.join(' ');
 
-    const payload = {
-      firstName: firstName || createForm.full_name,
-      lastName: lastName || '',
-      email: createForm.email,
-      phone: createForm.contact,
-      password: 'Temp1234!',
-      role: createForm.role || 'staff',
-    };
-
-    try {
-      const res = await fetch('http://localhost:5000/api/auth/register', { //
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        alert(data.message || 'Failed to create staff account.');
-        return;
-      }
-
-      alert('Staff account created successfully!');
-      setShowCreate(false);
-      setCreateForm({ full_name: '', contact: '', email: '', role: '', profile_picture: null });
-      fetchInitialData();
-
-    } catch (err) {
-      console.error('Error creating staff:', err);
-      alert('Unable to connect to server.');
-    }
+  const payload = {
+    firstName: firstName || createForm.full_name,
+    lastName: lastName || '',
+    email: createForm.email,
+    phone: createForm.contact,
+    password: 'Temp1234!',
+    role: createForm.role || 'staff',
+    createdByUserId: loggedInUser?.userId,
+    createdByName: loggedInUser?.fullName,
+    createdByRole: loggedInUser?.role,
   };
+
+  try {
+    const res = await fetch('http://localhost:5000/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      alert(data.message || 'Failed to create staff account.');
+      return;
+    }
+
+    alert('Staff account created successfully!');
+    setShowCreate(false);
+    setCreateForm({ full_name: '', contact: '', email: '', role: '', profile_picture: null });
+    fetchInitialData();
+  } catch (err) {
+    console.error('Error creating staff:', err);
+    alert('Unable to connect to server.');
+  }
+};
+
 
   const isCreateValid = createForm.full_name.trim() && createForm.contact.trim() && createForm.email.trim() && createForm.role.trim();
   const canCreateStaff = currentUserRole === 'SUPERADMIN';
@@ -271,7 +280,7 @@ function AdminStaffManagementPage({
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', fontFamily: 'Inter, sans-serif' }}>
-      <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} />
+      <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout} />
 
       <main style={{ maxWidth: 1200, margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' }}>
 
@@ -537,7 +546,7 @@ function AdminStaffManagementPage({
                   }}
                 >
                   <option value="">Select a role</option>
-                  {roleOptions.map((r) => (
+                  {visibleRoles.map((r) => (
                     <option key={r} value={r}>
                       {r}
                     </option>

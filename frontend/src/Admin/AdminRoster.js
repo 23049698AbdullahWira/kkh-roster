@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Navbar from '../Nav/navbar';
 import AdminNewRoster from './AdminNewRoster';
 
-function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster }) {
+function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster, onLogout }) {
   const [showNewRoster, setShowNewRoster] = useState(false);
   const rosterRows = [
     {
@@ -51,6 +51,7 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
         onGoRoster={onGoRoster}
         onGoStaff={onGoStaff}
         onGoShift={onGoShift}
+        onLogout={onLogout}
       />
 
       {/* Main content */}

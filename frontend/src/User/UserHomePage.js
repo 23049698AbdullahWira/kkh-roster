@@ -29,24 +29,6 @@ const next7Days = [
   },
 ];
 
-const quickLinks = [
-  { label: 'View\nMonthly Roster' },
-  { label: 'Shifts\nPreference' },
-  { label: 'Apply\nLeave' },
-  { label: 'Edit\nProfile' },
-  { label: 'Add New\nLinks', disabled: true },
-];
-
-const notifications = [
-  '21min ago, Shift preference auto-approved.',
-  '38m ago, Shift preference approved by Admin.',
-  '59m ago, Shift preference rejected by Admin.',
-  '1day ago, January 2025 preference window is now opened.',
-  '1day ago, New December 2025 roster has been published.',
-  '1month ago, You’ve updated your profile.',
-  '1month ago, Your account has been successfully created.',
-];
-
 const userProfile = {
   name: 'Vanessa',
   joined: '20 Oct 2025',
@@ -55,7 +37,7 @@ const userProfile = {
   notes: 'Fluent in Mandarin and Malay.',
 };
 
-function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeave, onGoAccount }) {
+function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeave, onGoAccount, onLogout}) {
   return (
     <div
       style={{
@@ -74,6 +56,7 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
         onGoShiftPreference={onGoShiftPreference}
         onGoApplyLeave={onGoApplyLeave}
         onGoAccount={onGoAccount}
+        onLogout={onLogout}
       />
 
       <main
@@ -102,7 +85,7 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
               marginBottom: 20,
             }}
           >
-            Welcome back, {userProfile.name}!
+            Welcome back, {user?.fullName || 'User'}!
           </div>
 
           {/* 3 columns whose widths sum < 1400 */}
@@ -369,188 +352,601 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
               }}
             >
               {/* Quick Links */}
-              <section
-                style={{
-                  padding: 20,
-                  background: 'white',
-                  boxShadow: '0 1.66px 1.33px rgba(0, 0, 0, 0.02)',
-                  borderRadius: 9.6,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 18,
-                }}
-              >
-                <div
-                  style={{
-                    color: 'black',
-                    fontSize: 20,
-                    fontWeight: 800,
-                  }}
-                >
-                  Quick Links
-                </div>
+<section
+  style={{
+    padding: 20,
+    background: 'white',
+    boxShadow: '0 1.66px 1.33px rgba(0, 0, 0, 0.02)',
+    borderRadius: 9.6,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 18,
+  }}
+>
+  <div
+    style={{
+      color: 'black',
+      fontSize: 20,
+      fontWeight: 800,
+    }}
+  >
+    Quick Links
+  </div>
 
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
-                >
-                  {quickLinks.map((link, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 6,
-                        width: 88,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 78,
-                          height: 78,
-                          background: link.disabled ? '#8C8C8C' : '#5091CD',
-                          borderRadius: 8,
-                        }}
-                      />
-                      <img
-                        style={{ width: 40, height: 40 }}
-                        src="https://placehold.co/47x47"
-                        alt=""
-                      />
-                      <div
-                        style={{
-                          textAlign: 'center',
-                          color: 'black',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          whiteSpace: 'pre-line',
-                        }}
-                      >
-                        {link.label}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
+  <div
+    style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 8,
+    }}
+  >
+    {/* 1. View Monthly Roster */}
+    <button
+      type="button"
+      onClick={onGoRoster}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+        width: 88,
+        border: 'none',
+        padding: 0,
+        background: 'transparent',
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          width: 78,
+          height: 78,
+          background: '#5091CD',
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <img
+          style={{ width: 40, height: 40 }}
+          src="userViewRoster.png"
+          alt="View Monthly Roster"
+        />
+      </div>
+      <div
+        style={{
+          textAlign: 'center',
+          color: 'black',
+          fontSize: 12,
+          fontWeight: 600,
+          whiteSpace: 'pre-line',
+        }}
+      >
+        {'View\nMonthly Roster'}
+      </div>
+    </button>
+
+    {/* 2. Shifts Preference */}
+    <button
+      type="button"
+      onClick={onGoShiftPreference}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+        width: 88,
+        border: 'none',
+        padding: 0,
+        background: 'transparent',
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          width: 78,
+          height: 78,
+          background: '#5091CD',
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <img
+          style={{ width: 40, height: 40 }}
+          src="userShiftPref.png"
+          alt="Shifts Preference"
+        />
+      </div>
+      <div
+        style={{
+          textAlign: 'center',
+          color: 'black',
+          fontSize: 12,
+          fontWeight: 600,
+          whiteSpace: 'pre-line',
+        }}
+      >
+        {'Shifts\nPreference'}
+      </div>
+    </button>
+
+    {/* 3. Apply Leave */}
+    <button
+      type="button"
+      onClick={onGoApplyLeave}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+        width: 88,
+        border: 'none',
+        padding: 0,
+        background: 'transparent',
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          width: 78,
+          height: 78,
+          background: '#5091CD',
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <img
+          style={{ width: 40, height: 40 }}
+          src="userApplyLeave.png"
+          alt="Apply Leave"
+        />
+      </div>
+      <div
+        style={{
+          textAlign: 'center',
+          color: 'black',
+          fontSize: 12,
+          fontWeight: 600,
+          whiteSpace: 'pre-line',
+        }}
+      >
+        {'Apply\nLeave'}
+      </div>
+    </button>
+
+    {/* 4. Edit Profile */}
+    <button
+      type="button"
+      onClick={onGoAccount}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 6,
+        width: 88,
+        border: 'none',
+        padding: 0,
+        background: 'transparent',
+        cursor: 'pointer',
+      }}
+    >
+      <div
+        style={{
+          width: 78,
+          height: 78,
+          background: '#5091CD',
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <img
+          style={{ width: 40, height: 40 }}
+          src="userEditProfile.png"
+          alt="Edit Profile"
+        />
+      </div>
+      <div
+        style={{
+          textAlign: 'center',
+          color: 'black',
+          fontSize: 12,
+          fontWeight: 600,
+          whiteSpace: 'pre-line',
+        }}
+      >
+        {'Edit\nProfile'}
+      </div>
+    </button>
+  </div>
+</section>
+
+
 
               {/* Notifications */}
-              <section
-                style={{
-                  padding: 18,
-                  background: 'white',
-                  boxShadow: '0 1.66px 1.33px rgba(0, 0, 0, 0.02)',
-                  borderRadius: 9.6,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 9,
-                  position: 'relative',
-                  minHeight: 320,
-                }}
-              >
-                <div
-                  style={{
-                    color: 'black',
-                    fontSize: 20,
-                    fontWeight: 800,
-                  }}
-                >
-                  Notifications
-                </div>
+<section
+  style={{
+    padding: 18,
+    background: 'white',
+    boxShadow: '0 1.66px 1.33px rgba(0, 0, 0, 0.02)',
+    borderRadius: 9.6,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 9,
+    position: 'relative',
+    minHeight: 320,
+  }}
+>
+  <div
+    style={{
+      color: 'black',
+      fontSize: 20,
+      fontWeight: 800,
+    }}
+  >
+    Notifications
+  </div>
 
-                <div
-                  style={{
-                    paddingBottom: 45,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 7,
-                  }}
-                >
-                  {notifications.map((text, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        paddingTop: 6,
-                        paddingBottom: 6,
-                        borderTop: '1px #8C8C8C solid',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 16,
-                      }}
-                    >
-                      <img
-                        style={{ width: 33, height: 33 }}
-                        src="https://placehold.co/33x33"
-                        alt=""
-                      />
-                      <div
-                        style={{
-                          flex: 1,
-                          color: 'black',
-                          fontSize: 14,
-                          fontWeight: 400,
-                        }}
-                      >
-                        {text}
-                      </div>
-                      <div
-                        style={{
-                          width: 32,
-                          height: 32,
-                          padding: 8,
-                          background: '#EDF0F5',
-                          borderRadius: 16,
-                          display: 'flex',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          gap: 4,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 12,
-                            height: 11,
-                            border: '1px solid #5091CD',
-                          }}
-                        />
-                        <div
-                          style={{
-                            width: 8,
-                            height: 7,
-                            border: '1px solid #5091CD',
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+  <div
+    style={{
+      paddingBottom: 45,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 7,
+    }}
+  >
+    {/* 1 */}
+    <div
+      style={{
+        paddingTop: 6,
+        paddingBottom: 6,
+        borderTop: '1px #8C8C8C solid',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <img
+        style={{ width: 33, height: 33 }}
+        src="calendar.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          color: 'black',
+          fontSize: 14,
+          fontWeight: 400,
+        }}
+      >
+        21min ago, Shift preference auto-approved.
+      </div>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          padding: 8,
+          background: '#EDF0F5',
+          borderRadius: 16,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <img
+          style={{ width: 17, height: 17 }}
+          src="group.svg"
+          alt=""
+        />
+      </div>
+    </div>
 
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    bottom: 0,
-                    width: '100%',
-                    height: 40,
-                    background: 'white',
-                    boxShadow: '0 -2px 4px rgba(0,0,0,0.15)',
-                    borderBottomLeftRadius: 9.6,
-                    borderBottomRightRadius: 9.6,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: '#5091CD',
-                  }}
-                >
-                  View All
-                </div>
-              </section>
+    {/* 2 */}
+    <div
+      style={{
+        paddingTop: 6,
+        paddingBottom: 6,
+        borderTop: '1px #8C8C8C solid',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <img
+        style={{ width: 33, height: 33 }}
+        src="calendar.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          color: 'black',
+          fontSize: 14,
+          fontWeight: 400,
+        }}
+      >
+        38m ago, Shift preference approved by Admin.
+      </div>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          padding: 8,
+          background: '#EDF0F5',
+          borderRadius: 16,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <img
+          style={{ width: 17, height: 17 }}
+          src="group.svg"
+          alt=""
+        />
+      </div>
+    </div>
+
+    {/* 3 */}
+    <div
+      style={{
+        paddingTop: 6,
+        paddingBottom: 6,
+        borderTop: '1px #8C8C8C solid',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <img
+        style={{ width: 33, height: 33 }}
+        src="calendar.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          color: 'black',
+          fontSize: 14,
+          fontWeight: 400,
+        }}
+      >
+        59m ago, Shift preference rejected by Admin.
+      </div>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          padding: 8,
+          background: '#EDF0F5',
+          borderRadius: 16,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <img
+          style={{ width: 17, height: 17 }}
+          src="group.svg"
+          alt=""
+        />
+      </div>
+    </div>
+
+    {/* 4 */}
+    <div
+      style={{
+        paddingTop: 6,
+        paddingBottom: 6,
+        borderTop: '1px #8C8C8C solid',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <img
+        style={{ width: 33, height: 33 }}
+        src="clock.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          color: 'black',
+          fontSize: 14,
+          fontWeight: 400,
+        }}
+      >
+        1day ago, January 2025 preference window is now opened.
+      </div>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          padding: 8,
+          background: '#EDF0F5',
+          borderRadius: 16,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <img
+          style={{ width: 17, height: 17 }}
+          src="group.svg"
+          alt=""
+        />
+      </div>
+    </div>
+
+    {/* 5 */}
+    <div
+      style={{
+        paddingTop: 6,
+        paddingBottom: 6,
+        borderTop: '1px #8C8C8C solid',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <img
+        style={{ width: 33, height: 33 }}
+        src="clock.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          color: 'black',
+          fontSize: 14,
+          fontWeight: 400,
+        }}
+      >
+        1day ago, New December 2025 roster has been published.
+      </div>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          padding: 8,
+          background: '#EDF0F5',
+          borderRadius: 16,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <img
+          style={{ width: 17, height: 17 }}
+          src="group.svg"
+          alt=""
+        />
+      </div>
+    </div>
+
+    {/* 6 */}
+    <div
+      style={{
+        paddingTop: 6,
+        paddingBottom: 6,
+        borderTop: '1px #8C8C8C solid',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <img
+        style={{ width: 33, height: 33 }}
+        src="userMale.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          color: 'black',
+          fontSize: 14,
+          fontWeight: 400,
+        }}
+      >
+        1month ago, You’ve updated your profile.
+      </div>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          padding: 8,
+          background: '#EDF0F5',
+          borderRadius: 16,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <img
+          style={{ width: 17, height: 17 }}
+          src="group.svg"
+          alt=""
+        />
+      </div>
+    </div>
+
+    {/* 7 */}
+    <div
+      style={{
+        paddingTop: 6,
+        paddingBottom: 6,
+        borderTop: '1px #8C8C8C solid',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+      }}
+    >
+      <img
+        style={{ width: 33, height: 33 }}
+        src="userMale.png"
+        alt=""
+      />
+      <div
+        style={{
+          flex: 1,
+          color: 'black',
+          fontSize: 14,
+          fontWeight: 400,
+        }}
+      >
+        1month ago, Your account has been successfully created.
+      </div>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          padding: 8,
+          background: '#EDF0F5',
+          borderRadius: 16,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+        }}
+      >
+        <img
+          style={{ width: 17, height: 17 }}
+          src="group.svg"
+          alt=""
+        />
+      </div>
+    </div>
+  </div>
+
+  <div
+    style={{
+      position: 'absolute',
+      left: 0,
+      bottom: 0,
+      width: '100%',
+      height: 40,
+      background: 'white',
+      boxShadow: '0 -2px 4px rgba(0,0,0,0.15)',
+      borderBottomLeftRadius: 9.6,
+      borderBottomRightRadius: 9.6,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: 13,
+      fontWeight: 700,
+      color: '#5091CD',
+    }}
+  >
+    View All
+  </div>
+</section>
+
             </div>
 
             {/* RIGHT COLUMN: Profile card */}
@@ -596,7 +992,7 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
                       fontWeight: 700,
                     }}
                   >
-                    {userProfile.name}
+                    {user?.fullName || 'user'}
                   </div>
                 </div>
 
@@ -618,7 +1014,7 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
                   >
                     <img
                       style={{ width: 20, height: 20 }}
-                      src="https://placehold.co/24x24"
+                      src="blueCalendar.png"
                       alt=""
                     />
                     <span>Date Joined:&nbsp;</span>
@@ -641,7 +1037,7 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
                         transform: 'rotate(180deg)',
                         transformOrigin: 'center',
                       }}
-                      src="https://placehold.co/24x24"
+                      src="blueClock.png"
                       alt=""
                     />
                     <span>Time Preference:&nbsp;</span>
@@ -659,7 +1055,7 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
                   >
                     <img
                       style={{ width: 20, height: 20 }}
-                      src="https://placehold.co/24x24"
+                      src="blueCert.png"
                       alt=""
                     />
                     <span>Certification:&nbsp;</span>
@@ -677,7 +1073,7 @@ function UserHomePage({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeav
                   >
                     <img
                       style={{ width: 20, height: 20 }}
-                      src="https://placehold.co/24x24"
+                      src="blueNotes.png"
                       alt=""
                     />
                     <div>

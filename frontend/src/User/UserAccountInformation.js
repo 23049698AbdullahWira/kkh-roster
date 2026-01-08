@@ -17,6 +17,7 @@ function UserAccountInformation({
   onGoShiftPreference,
   onGoApplyLeave,
   onGoAccount,
+  onLogout
 }) {
   return (
     <div
@@ -30,12 +31,13 @@ function UserAccountInformation({
       }}
     >
       <UserNavbar
-        active="home" // or 'profile' if you add a separate tab later
+        active="account" // or 'profile' if you add a separate tab later
         onGoHome={onGoHome}
         onGoRoster={onGoRoster}
         onGoShiftPreference={onGoShiftPreference}
         onGoApplyLeave={onGoApplyLeave}
         onGoAccount={onGoAccount}
+        onLogout={onLogout}
       />
 
       {/* Page title */}
