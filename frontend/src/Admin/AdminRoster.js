@@ -65,7 +65,7 @@ const ActionBtn = ({ icon, onClick, bg = '#EBF5FF', border = '#D6E4FF', color = 
   </button>
 );
 
-function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster }) {
+function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster, onLogout }) {
   const [showNewRoster, setShowNewRoster] = useState(false);
   const [rosterRows, setRosterRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -174,6 +174,7 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
         onGoRoster={onGoRoster}
         onGoStaff={onGoStaff}
         onGoShift={onGoShift}
+        onLogout={onLogout}
       />
 
       <main

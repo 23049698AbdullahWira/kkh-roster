@@ -27,7 +27,7 @@ const getStatusStyle = (status) => {
 };
 
 // --- Main Component ---
-function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
+function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout, }) {
   const [allLeaveRequests, setAllLeaveRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -127,7 +127,7 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift }
   // --- Render ---
   return (
     <div style={styles.page}>
-      <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} />
+      <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout}/>
       
       <main style={styles.mainContent}>
         <header style={styles.header}>

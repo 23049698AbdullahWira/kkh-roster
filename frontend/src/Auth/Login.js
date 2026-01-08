@@ -1,46 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 
-// The onSetRole prop is removed as it's no longer needed
+// onSetRole removed; parent now gets full user via onAdminLoginSuccess/onUserLoginSuccess
 function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
-  const [step, setStep] = useState('identifier'); // 'identifier' | 'password'
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
-  const [currentEmail, setCurrentEmail] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
 
-  // STEP 1: check identifier (email) exists
-  const handleContinueIdentifier = async () => {
-    const trimmed = identifier.trim().toLowerCase();
-    if (!trimmed) {
+  // Single-step login: email + password on same screen
+  const handleLogin = async () => {
+    const trimmedEmail = identifier.trim().toLowerCase();
+
+    if (!trimmedEmail) {
       setError('Please enter your email.');
       return;
     }
-    setCurrentEmail(trimmed);
-    setPassword('');
-    setError('');
-    setStep('password');
-  };
-
-  // STEP 2: login against backend (*** THIS FUNCTION IS FIXED ***)
-  const handleLogin = async () => {
     if (!password) {
       setError('Please enter your password.');
-      return;
-    }
-    if (!currentEmail) {
-      setError('Missing email. Please go back and enter your email again.');
-      setStep('identifier');
       return;
     }
 
     try {
       setLoading(true);
       setError('');
+
       const res = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentEmail, password }),
+        body: JSON.stringify({ email: trimmedEmail, password }),
       });
 
       const data = await res.json();
@@ -50,32 +39,23 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
         return;
       }
 
-      // --- START: CORRECTED LOGIC ---
-
-      // 1. Get the user object from the response data.
+      // Expect backend to return { success: true, user: { ... } }
       const userData = data.user;
-
-      // 2. Check if userData exists to be safe.
       if (!userData) {
         setError('Login failed: User data not returned from server.');
         return;
       }
 
-      //save to localstorage
+      //save to local storage
       localStorage.setItem('user', JSON.stringify(userData));
 
-      // 3. Get the role from the userData object.
       const role = (userData.role || '').toUpperCase();
 
-      // 4. Call the correct success function, passing the userData object back to App.js.
       if (role === 'ADMIN' || role === 'SUPERADMIN') {
         onAdminLoginSuccess && onAdminLoginSuccess(userData);
       } else {
         onUserLoginSuccess && onUserLoginSuccess(userData);
       }
-
-      // --- END: CORRECTED LOGIC ---
-
     } catch (err) {
       console.error(err);
       setError('Unable to connect to server. Please try again later.');
@@ -84,353 +64,198 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
     }
   };
 
-  const handleSwitchAccount = () => {
-    setStep('identifier');
-    setIdentifier('');
-    setPassword('');
-    setCurrentEmail('');
-    setError('');
-  };
-
-  // (The rest of your JSX remains exactly the same, no changes needed there)
   return (
     <div
       style={{
         width: '100vw',
         height: '100vh',
-        position: 'relative',
-        background: '#EDF0F5',
-        overflow: 'hidden',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         fontFamily: 'Inter, sans-serif',
+        background: '#E5E9F0',
       }}
     >
+      {/* LEFT HALF: image panel */}
       <div
         style={{
-          width: 474,
-          padding: 38,
-          background: 'white',
-          borderRadius: 12,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 26,
-          boxSizing: 'border-box',
+          flex: 0.55, // slightly less than half
+          backgroundImage: 'url("loginImageBackground.jpg")',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          position: 'relative',
         }}
       >
-        <img
-          style={{ width: 234, height: 'auto' }}
-          src="https://placehold.co/234x95"
-          alt="Logo"
-        />
-
-        {/* Header depending on step */}
-        {step === 'identifier' ? (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            <div
-              style={{
-                color: 'black',
-                fontSize: 24,
-                fontWeight: 900,
-              }}
-            >
-              Log in
-            </div>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 16,
-              }}
-            >
-              <span>New to KKH Roster? </span>
-              <button
-                type="button"
-                onClick={onGoSignup}
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  color: '#2424FF',
-                  fontSize: 16,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                Sign up
-              </button>
-            </div>
+        {/* subtle dark gradient for contrast */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background:
+              'linear-gradient(to right, rgba(0,0,0,0.45), rgba(0,0,0,0.10))',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-start', // top
+            alignItems: 'flex-start', // left
+            paddingLeft: '8%',
+            paddingRight: '14%',
+            paddingTop: '8%', // distance from top
+            boxSizing: 'border-box',
+            color: 'white',
+          }}
+        >
+          <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>
+            Welcome 
           </div>
-        ) : (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 10,
-            }}
-          >
-            <div
-              style={{
-                color: 'black',
-                fontSize: 24,
-                fontWeight: 900,
-              }}
-            >
-              Welcome back
-            </div>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 16,
-              }}
-            >
-              <span>{currentEmail}</span>
-              <button
-                type="button"
-                onClick={handleSwitchAccount}
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  color: '#2424FF',
-                  fontSize: 16,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  padding: 0,
-                }}
-              >
-                Switch account
-              </button>
-            </div>
+          <div style={{ fontSize: 14, maxWidth: 320, lineHeight: 1.5 }}>
+            KK Women's and Children's Hospital Rostering System
+            
           </div>
-        )}
+        </div>
+      </div>
 
-        {/* Error */}
-        {error && (
+      {/* RIGHT HALF: centered login card */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <div
+          style={{
+            width: 520,
+            padding: '40px 48px',
+            background: 'white',
+            borderRadius: 8,
+            boxShadow: '0 18px 40px rgba(0,0,0,0.16)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'stretch',
+            boxSizing: 'border-box',
+            gap: 20,
+          }}
+        >
+          {/* Logo (currently centered; change justifyContent to 'flex-start' if you want left) */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <img
+              style={{ width: 200, height: 'auto' }}
+              src="kkh.png"
+              alt="Logo"
+            />
+          </div>
+
           <div
             style={{
-              width: '100%',
-              color: '#B91C1C',
-              fontSize: 14,
+              fontSize: 24,
+              fontWeight: 900,
+              color: '#000',
               textAlign: 'center',
             }}
           >
-            {error}
+            Log in
           </div>
-        )}
 
-        {/* Identifier or password section */}
-        {step === 'identifier' ? (
-          <>
-            {/* Identifier UI */}
+          {error && (
             <div
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 6,
                 width: '100%',
+                color: '#B91C1C',
+                fontSize: 14,
+                textAlign: 'center',
               }}
             >
-              <div
-                style={{
-                  width: 372,
-                  padding: 8,
-                  borderRadius: 6,
-                  outline: '1px #8C8C8C solid',
-                  outlineOffset: '-1px',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    outline: 'none',
-                    fontSize: 16,
-                    fontWeight: 500,
-                    color: '#000',
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  width: 362,
-                  color: '#2424FF',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-              >
-                Forgot email?
-              </div>
+              {error}
             </div>
+          )}
 
-            <button
-              type="button"
-              onClick={handleContinueIdentifier}
-              disabled={loading}
-              style={{
-                width: 278,
-                height: 41,
-                padding: 8,
-                background: loading ? '#9BBEE5' : '#5091CD',
-                borderRadius: 6,
-                border: '1px solid #8C8C8C',
-                color: 'white',
-                fontSize: 18,
-                fontWeight: 800,
-                cursor: loading ? 'default' : 'pointer',
-              }}
-            >
-              {loading ? 'Please wait...' : 'Continue'}
-            </button>
+          <div
+            style={{
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}
+          >
+            {/* Email */}
+<div
+  style={{
+    width: '100%',
+    padding: 8,
+    borderRadius: 6,
+    border: '1px solid #8C8C8C',
+    display: 'flex',
+    alignItems: 'center',
+    background: '#FFF',
+  }}
+>
+  <input
+    ref={emailRef}
+    type="email"
+    placeholder="Email"
+    value={identifier}
+    onChange={(e) => setIdentifier(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        passwordRef.current && passwordRef.current.focus();
+      }
+    }}
+    style={{
+      width: '100%',
+      border: 'none',
+      outline: 'none',
+      fontSize: 16,
+      fontWeight: 500,
+      color: '#000',
+    }}
+  />
+</div>
 
-            {/* The rest of your OR + SSO icons stay the same */}
-            <div
-              style={{
-                width: 277,
-                display: 'inline-flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  width: 104,
-                  height: 0,
-                  borderTop: '2px solid #8C8C8C',
-                }}
-              />
-              <div
-                style={{
-                  width: 21,
-                  height: 18,
-                  textAlign: 'center',
-                  color: '#8C8C8C',
-                  fontSize: 14,
-                  fontWeight: 800,
-                }}
-              >
-                OR
-              </div>
-              <div
-                style={{
-                  width: 104,
-                  height: 0,
-                  borderTop: '2px solid #8C8C8C',
-                }}
-              />
-            </div>
+{/* Password */}
+<div
+  style={{
+    width: '100%',
+    padding: 8,
+    borderRadius: 6,
+    border: '1px solid #8C8C8C',
+    display: 'flex',
+    alignItems: 'center',
+    background: '#FFF',
+  }}
+>
+  <input
+    ref={passwordRef}
+    type="password"
+    placeholder="Password"
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleLogin();
+      }
+    }}
+    style={{
+      width: '100%',
+      border: 'none',
+      outline: 'none',
+      fontSize: 16,
+      fontWeight: 500,
+      color: '#000',
+    }}
+  />
+</div>
+          </div>
 
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 26,
-              }}
-            >
-              <img
-                style={{
-                  width: 42,
-                  height: 42,
-                  boxShadow: '0 10px 17.3px -2px rgba(0,0,0,0.25)',
-                  borderRadius: '50%',
-                }}
-                src="https://placehold.co/42x42"
-                alt="SsoIcon1"
-              />
-              <img
-                style={{
-                  width: 42,
-                  height: 42,
-                  boxShadow: '0 10px 17.3px rgba(0,0,0,0.25)',
-                  borderRadius: '50%',
-                }}
-                src="https://placehold.co/42x42"
-                alt="SsoIcon2"
-              />
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Password UI */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 6,
-                width: '100%',
-              }}
-            >
-              <div
-                style={{
-                  width: 372,
-                  padding: 8,
-                  borderRadius: 6,
-                  outline: '1px #8C8C8C solid',
-                  outlineOffset: '-1px',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    outline: 'none',
-                    fontSize: 16,
-                    fontWeight: 500,
-                    color: '#000',
-                  }}
-                />
-              </div>
-              <div
-                style={{
-                  width: 362,
-                  color: '#2424FF',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                }}
-              >
-                Forgot password?
-              </div>
-            </div>
-
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
             <button
               type="button"
               onClick={handleLogin}
               disabled={loading}
               style={{
-                width: 278,
-                height: 41,
-                padding: 8,
+                width: 260,
+                height: 42,
+                marginTop: 4,
                 background: loading ? '#9BBEE5' : '#5091CD',
                 borderRadius: 6,
                 border: 'none',
@@ -442,62 +267,8 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
             >
               {loading ? 'Logging in...' : 'Log in'}
             </button>
-
-            <div
-              style={{
-                width: 277,
-                display: 'inline-flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  width: 104,
-                  height: 0,
-                  borderTop: '2px solid #8C8C8C',
-                }}
-              />
-              <div
-                style={{
-                  width: 21,
-                  height: 18,
-                  textAlign: 'center',
-                  color: '#8C8C8C',
-                  fontSize: 14,
-                  fontWeight: 800,
-                }}
-              >
-                OR
-              </div>
-              <div
-                style={{
-                  width: 104,
-                  height: 0,
-                  borderTop: '2px solid #8C8C8C',
-                }}
-              />
-            </div>
-
-            <div
-              style={{
-                width: 166,
-                height: 28,
-                padding: 8,
-                borderRadius: 6,
-                border: '1px solid #8C8C8C',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                fontSize: 14,
-                color: '#8C8C8C',
-              }}
-            >
-              One-Time Passcode
-            </div>
-          </>
-        )}
+          </div>
+        </div>
       </div>
     </div>
   );

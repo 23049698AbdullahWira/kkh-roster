@@ -1,29 +1,6 @@
-import React from 'react';
+// src/Admin/AdminHomePage.js (or AdminHome.js)
+import React, { useEffect, useState } from 'react';
 import Navbar from '../Nav/navbar.js';
-
-const activityItems = [
-  '5m ago, November Roster Draft Approved by Admin Janet.',
-  '5m ago, November Roster Draft Approved by Admin Janet.',
-  '5m ago, November Roster Draft Approved by Admin Janet.',
-  '23m ago, New Preference added to December Roster Draft by Tim Smith.',
-  '23m ago, New Preference added to December Roster Draft by Tim Smith.',
-  '23m ago, New Preference added to December Roster Draft by Tim Smith.',
-  '1h 05m ago, December preference window opened by Admin Janet.',
-  '1h 05m ago, December preference window opened by Admin Janet.',
-];
-
-const criticalAlerts = [
-  {
-    title: 'WARNING:',
-    text: 'Understaffed RRT PM Shift on 18 Oct (1 RRT Short)',
-    barColor: '#FF2525',
-  },
-  {
-    title: 'CONTRADICTING SHIFT:',
-    text: 'Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)',
-    barColor: '#F0DC00',
-  },
-];
 
 const todoItems = [
   {
@@ -38,15 +15,65 @@ const todoItems = [
   },
 ];
 
-const quickLinks = [
-  { label: 'Start New\nRoster', disabled: false },
-  { label: 'Add\nNew Staff', disabled: false },
-  { label: 'Manage\nLeave', disabled: false },
-  { label: 'Staff\nPreferences', disabled: false },
-  { label: 'Add New\nLinks', disabled: true },
-];
+function AdminHome({
+  user,
+  onGoRoster,
+  onGoStaff,
+  onGoHome,
+  onGoShift,
+  onStartNewRoster,
+  onAddNewStaff,
+  onManageLeave,
+  onStaffPreferences,
+  onLogout,
+}) {
+  // ---- NEW: activity log state ----
+  const [logs, setLogs] = useState([]);
 
-function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
+  useEffect(() => {
+    async function fetchLogs() {
+      try {
+        const res = await fetch('http://localhost:5000/actionlogs?limit=6');
+        const data = await res.json();
+        setLogs(data || []);
+      } catch (err) {
+        console.error('Failed to fetch action logs:', err);
+      }
+    }
+    fetchLogs();
+  }, []);
+
+  // ---- NEW: helper for "5m ago" etc. using log_datetime ----
+  const formatTimeAgo = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `${diffH}h ${diffMin % 60}m ago`;
+    const diffD = Math.floor(diffH / 24);
+    return `${diffD}d ago`;
+  };
+
+  // ---- NEW: decide left icon & right-click behaviour based on log_type ----
+  const getLogIcon = (type) => {
+    if (type === 'ROSTER') return 'calendar.png';
+    if (type === 'PREFERENCE') return 'userMale.png';
+    if (type === 'WINDOW') return 'clock.png';
+    if (type === 'ACCOUNT') return 'userMale.png';
+    return 'calendar.png';
+  };
+
+  const getLogClickHandler = (type) => {
+    if (type === 'ROSTER') return onGoRoster;
+    if (type === 'PREFERENCE') return onStaffPreferences;
+    if (type === 'ACCOUNT') return onGoStaff;
+    if (type === 'WINDOW') return onGoShift;
+    return () => {};
+  };
+
   return (
     <div
       style={{
@@ -64,6 +91,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
         onGoRoster={onGoRoster}
         onGoStaff={onGoStaff}
         onGoShift={onGoShift}
+        onLogout={onLogout}
       />
 
       {/* MAIN CONTENT */}
@@ -83,7 +111,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
             marginBottom: 16,
           }}
         >
-          Welcome back, Janet!
+          Welcome back, {user?.fullName || 'Admin'}!
         </h1>
 
         {/* Roster Status card */}
@@ -117,7 +145,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
             }}
           >
             <span style={{ fontSize: 14, fontWeight: 800 }}>Preference Open</span>
-            <img style={{ width: 24, height: 24 }} src="https://placehold.co/24x24" alt="" />
+            <img style={{ width: 24, height: 24 }} src="greenCheckMark.png" alt="" />
             <div
               style={{
                 flex: 1,
@@ -128,7 +156,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
               }}
             />
             <span style={{ fontSize: 14, fontWeight: 800 }}>Reviewing Draft</span>
-            <img style={{ width: 24, height: 24 }} src="https://placehold.co/24x24" alt="" />
+            <img style={{ width: 24, height: 24 }} src="greenCheckMark.png" alt="" />
             <div
               style={{
                 flex: 1,
@@ -139,7 +167,7 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
               }}
             />
             <span style={{ fontSize: 14, fontWeight: 800 }}>Published Roster</span>
-            <img style={{ width: 24, height: 24 }} src="https://placehold.co/24x24" alt="" />
+            <img style={{ width: 24, height: 24 }} src="loadingCircle.png" alt="" />
           </div>
         </section>
 
@@ -195,43 +223,77 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                 </div>
               </div>
 
-              {criticalAlerts.map((item, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: '#EDF0F5',
-                    borderRadius: 8,
-                    padding: '12px 20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    position: 'relative',
-                    marginTop: idx === 0 ? 0 : 8,
-                  }}
-                >
-                  <img
-                    style={{ width: 30, height: 30, marginRight: 20 }}
-                    src="https://placehold.co/35x35"
-                    alt=""
-                  />
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>
-                    {item.title}
-                    <br />
-                    {item.text}
-                  </div>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: 10,
-                      background: item.barColor,
-                      borderTopRightRadius: 8,
-                      borderBottomRightRadius: 8,
-                    }}
-                  />
+              {/* Card 1: WARNING */}
+              <div
+                style={{
+                  background: '#EDF0F5',
+                  borderRadius: 8,
+                  padding: '12px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  position: 'relative',
+                  marginTop: 0,
+                }}
+              >
+                <img
+                  style={{ width: 30, height: 30, marginRight: 20 }}
+                  src="redWarning.png"
+                  alt="Warning"
+                />
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  WARNING:
+                  <br />
+                  Understaffed RRT PM Shift on 18 Oct (1 RRT Short)
                 </div>
-              ))}
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 10,
+                    background: '#FF2525',
+                    borderTopRightRadius: 8,
+                    borderBottomRightRadius: 8,
+                  }}
+                />
+              </div>
+
+              {/* Card 2: CONTRADICTING SHIFT */}
+              <div
+                style={{
+                  background: '#EDF0F5',
+                  borderRadius: 8,
+                  padding: '12px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  position: 'relative',
+                  marginTop: 8,
+                }}
+              >
+                <img
+                  style={{ width: 30, height: 30, marginRight: 20 }}
+                  src="yellowWarning.png"
+                  alt="Contradicting Shift"
+                />
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  CONTRADICTING SHIFT:
+                  <br />
+                  Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)
+                </div>
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 10,
+                    background: '#F0DC00',
+                    borderTopRightRadius: 8,
+                    borderBottomRightRadius: 8,
+                  }}
+                />
+              </div>
             </section>
 
             {/* To-Do List / Action Items */}
@@ -342,45 +404,188 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
-                  gap: 12,
+                  gap: 24,
                 }}
               >
-                {quickLinks.map((link, idx) => (
+                {/* 1. Start New Roster */}
+                <button
+                  type="button"
+                  onClick={onStartNewRoster}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    width: 80,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
                   <div
-                    key={idx}
                     style={{
+                      width: 78,
+                      height: 78,
+                      background: '#5091CD',
+                      borderRadius: 8,
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
-                      gap: 6,
-                      width: 80,
+                      justifyContent: 'center',
                     }}
                   >
-                    <div
-                      style={{
-                        width: 78,
-                        height: 78,
-                        background: link.disabled ? '#8C8C8C' : '#5091CD',
-                        borderRadius: 8,
-                      }}
-                    />
                     <img
-                      style={{ width: 40, height: 40 }}
-                      src="https://placehold.co/47x47"
-                      alt=""
+                      style={{ width: 50, height: 50 }}
+                      src="startNewRoster.png"
+                      alt="Start New Roster"
                     />
-                    <div
-                      style={{
-                        textAlign: 'center',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        whiteSpace: 'pre-line',
-                      }}
-                    >
-                      {link.label}
-                    </div>
                   </div>
-                ))}
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {'Start New\nRoster'}
+                  </div>
+                </button>
+
+                {/* 2. Add New Staff */}
+                <button
+                  type="button"
+                  onClick={onAddNewStaff}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    width: 80,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 78,
+                      height: 78,
+                      background: '#5091CD',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <img
+                      style={{ width: 50, height: 50 }}
+                      src="addNewStaff.png"
+                      alt="Add New Staff"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {'Add\nNew Staff'}
+                  </div>
+                </button>
+
+                {/* 3. Manage Leave */}
+                <button
+                  type="button"
+                  onClick={onManageLeave}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    width: 80,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 78,
+                      height: 78,
+                      background: '#5091CD',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <img
+                      style={{ width: 50, height: 50 }}
+                      src="manageLeave.png"
+                      alt="Manage Leave"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {'Manage\nLeave'}
+                  </div>
+                </button>
+
+                {/* 4. Staff Preferences */}
+                <button
+                  type="button"
+                  onClick={onStaffPreferences}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 6,
+                    width: 80,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 78,
+                      height: 78,
+                      background: '#5091CD',
+                      borderRadius: 8,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <img
+                      style={{ width: 50, height: 50 }}
+                      src="staffPref.png"
+                      alt="Staff Preferences"
+                    />
+                  </div>
+                  <div
+                    style={{
+                      textAlign: 'center',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: 'pre-line',
+                    }}
+                  >
+                    {'Staff\nPreferences'}
+                  </div>
+                </button>
               </div>
             </section>
 
@@ -415,51 +620,36 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
                   overflow: 'hidden',
                 }}
               >
-                {activityItems.map((text, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 16,
-                      padding: '6px 0',
-                      borderTop: '1px solid #E0E0E0',
-                    }}
-                  >
-                    <img
-                      style={{ width: 26, height: 26 }}
-                      src="https://placehold.co/33x33"
-                      alt=""
-                    />
+                {logs.map((log) => {
+                  const onClick = getLogClickHandler(log.log_type);
+                  return (
                     <div
+                      key={log.log_id}
                       style={{
-                        flex: 1,
-                        fontSize: 14,
-                      }}
-                    >
-                      {text}
-                    </div>
-                    <div
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 14,
-                        background: '#EDF0F5',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
+                        gap: 16,
+                        padding: '6px 0',
+                        borderTop: '1px solid #E0E0E0',
                       }}
                     >
+                      <img
+                        style={{ width: 26, height: 26 }}
+                        src={getLogIcon(log.log_type)}
+                        alt=""
+                      />
                       <div
                         style={{
-                          width: 12,
-                          height: 10,
-                          border: '1px solid #5091CD',
+                          flex: 1,
+                          fontSize: 14,
                         }}
-                      />
+                      >
+                        {formatTimeAgo(log.log_datetime)}, {log.log_details}
+                      </div>
+                      
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div
@@ -483,5 +673,3 @@ function AdminHome({ onGoRoster, onGoStaff, onGoHome, onGoShift }) {
 }
 
 export default AdminHome;
-
-//comment1

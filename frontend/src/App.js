@@ -39,6 +39,15 @@ function App() {
     setPage('userHome');
   };
 
+    const handleLogout = () => {
+    // Clear stored user
+    localStorage.removeItem('user');
+    setLoggedInUser(null);
+    setCurrentUserRole(null);
+    setPage('login');
+  };
+
+
   // --- Render logic ---
 
   // LOGIN PAGE
@@ -64,6 +73,7 @@ function App() {
     onGoRoster: () => setPage('rosterList'),
     onGoStaff: () => setPage('staff'),
     onGoShift: () => setPage('shift'),
+    onLogout: handleLogout,
   };
 
   // ROSTER LIST PAGE (ADMIN)
@@ -103,6 +113,7 @@ function App() {
         onGoNewStaffAccounts={() => setPage('newStaff')}
         onGoManageLeave={() => setPage('manageLeave')}
         currentUserRole={currentUserRole}
+        loggedInUser={loggedInUser}
       />
     );
   }
@@ -128,11 +139,13 @@ function App() {
   if (page === 'userHome') {
     return (
       <UserHomePage
+        user={loggedInUser} // Pass the full loggedInUser object
         onGoHome={() => setPage('userHome')}
         onGoRoster={() => setPage('userRoster')}
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }
@@ -147,6 +160,7 @@ function App() {
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }
@@ -161,6 +175,7 @@ function App() {
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }
@@ -176,6 +191,7 @@ function App() {
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }
@@ -189,12 +205,22 @@ function App() {
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }
 
   // DEFAULT FALLBACK: ADMIN HOME PAGE
-  return <AdminHomePage {...navProps} />;
+  return (
+  <AdminHomePage
+    {...navProps}
+    user={loggedInUser}
+    onStartNewRoster={() => setPage('rosterList')}
+    onAddNewStaff={() => setPage('staff')}
+    onManageLeave={() => setPage('manageLeave')}
+    onStaffPreferences={() => setPage('shift')} // or another page
+  />
+);
 }
 
 export default App;

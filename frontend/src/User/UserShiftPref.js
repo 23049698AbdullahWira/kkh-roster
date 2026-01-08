@@ -36,6 +36,7 @@ function UserShiftPref({
   onGoShiftPreference,
   onGoApplyLeave,
   onGoAccount,
+  onLogout,
 }) {
   return (
     <div
@@ -55,6 +56,7 @@ function UserShiftPref({
         onGoShiftPreference={onGoShiftPreference}
         onGoApplyLeave={onGoApplyLeave}
         onGoAccount={onGoAccount}
+        onLogout={onLogout}
       />
 
       {/* Header row: Back + title */}
