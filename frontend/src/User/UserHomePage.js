@@ -37,7 +37,7 @@ const userProfile = {
   notes: 'Fluent in Mandarin and Malay.',
 };
 
-function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeave, onGoAccount }) {
+function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeave, onGoAccount, onLogout}) {
   return (
     <div
       style={{
@@ -56,6 +56,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
         onGoShiftPreference={onGoShiftPreference}
         onGoApplyLeave={onGoApplyLeave}
         onGoAccount={onGoAccount}
+        onLogout={onLogout}
       />
 
       <main

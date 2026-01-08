@@ -36,6 +36,15 @@ function App() {
     setPage('userHome');
   };
 
+    const handleLogout = () => {
+    // Clear stored user
+    localStorage.removeItem('user');
+    setLoggedInUser(null);
+    setCurrentUserRole(null);
+    setPage('login');
+  };
+
+
   // --- Render logic ---
 
   // LOGIN PAGE
@@ -61,6 +70,7 @@ function App() {
     onGoRoster: () => setPage('rosterList'),
     onGoStaff: () => setPage('staff'),
     onGoShift: () => setPage('shift'),
+    onLogout: handleLogout,
   };
 
   // ROSTER LIST PAGE (ADMIN)
@@ -128,6 +138,7 @@ function App() {
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }
@@ -142,6 +153,7 @@ function App() {
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }
@@ -156,6 +168,7 @@ function App() {
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }
@@ -171,6 +184,7 @@ function App() {
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }
@@ -184,6 +198,7 @@ function App() {
         onGoShiftPreference={() => setPage('userPreference')}
         onGoApplyLeave={() => setPage('userLeave')}
         onGoAccount={() => setPage('userAccount')}
+        onLogout={handleLogout}
       />
     );
   }

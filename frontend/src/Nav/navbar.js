@@ -1,7 +1,7 @@
 // src/Navbar.jsx
 import React from 'react';
 
-function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
+function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }) {
   const linkStyle = (tab) => ({
     cursor: 'pointer',
     borderBottom: active === tab ? '2px #5091CD solid' : 'none',
@@ -54,6 +54,9 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
             </div>
             <div style={linkStyle('shift')} onClick={onGoShift}>
               Shift Distribution
+            </div>
+            <div style={linkStyle('logout')} onClick={onLogout}>
+              Logout
             </div>
           </nav>
         </div>

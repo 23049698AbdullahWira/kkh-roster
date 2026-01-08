@@ -8,6 +8,7 @@ function AdminStaffManagementPage({
   onGoShift,
   onGoManageLeave, // Now unused (replaced by modal)
   currentUserRole = 'SUPERADMIN', // Default for testing
+  onLogout,
 }) {
 
   // --- 1. STATE ---
@@ -275,7 +276,7 @@ function AdminStaffManagementPage({
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', fontFamily: 'Inter, sans-serif' }}>
-      <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} />
+      <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout} />
 
       <main style={{ maxWidth: 1200, margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' }}>
 

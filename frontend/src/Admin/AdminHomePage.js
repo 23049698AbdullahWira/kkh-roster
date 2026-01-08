@@ -24,6 +24,7 @@ function AdminHome({
   onAddNewStaff,
   onManageLeave,
   onStaffPreferences,
+  onLogout,
 }) {
   return (
     <div
@@ -42,6 +43,7 @@ function AdminHome({
         onGoRoster={onGoRoster}
         onGoStaff={onGoStaff}
         onGoShift={onGoShift}
+        onLogout={onLogout}
       />
 
       {/* MAIN CONTENT */}

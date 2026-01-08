@@ -7,103 +7,89 @@ function UserNavbar({
   onGoRoster,
   onGoShiftPreference,
   onGoApplyLeave,
-  onGoAccount,              // NEW
+  onGoAccount,
+  onLogout,
 }) {
-  const tabBaseStyle = {
-    height: 37,
-    paddingLeft: 8,
-    paddingRight: 8,
-    display: 'flex',
-    alignItems: 'center',
+  const linkStyle = (tab) => ({
     cursor: 'pointer',
-  };
-
-  const renderTab = (key, label, onClick) => {
-    const isActive = active === key;
-    return (
-      <div
-        onClick={onClick}
-        style={{
-          ...tabBaseStyle,
-          borderBottom: isActive ? '2px #5091CD solid' : '2px transparent solid',
-        }}
-      >
-        <div
-          style={{
-            color: 'black',
-            fontSize: 18,
-            fontFamily: 'Inter, sans-serif',
-            fontWeight: 800,
-          }}
-        >
-          {label}
-        </div>
-      </div>
-    );
-  };
+    borderBottom: active === tab ? '2px #5091CD solid' : 'none',
+    paddingBottom: active === tab ? 4 : 0,
+  });
 
   return (
     <header
       style={{
         width: '100%',
-        height: 80,
-        paddingLeft: 96,
-        paddingRight: 96,
         background: 'white',
         boxSizing: 'border-box',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        boxShadow: '0 0 2px rgba(0,0,0,0.15)',
+        borderBottom: '1px solid #ddd',
       }}
     >
-      {/* Logo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <img
-          style={{ width: 180, height: 'auto' }}
-          src="kkh.png"
-          alt="Logo"
-        />
-      </div>
-
-      {/* Center tabs */}
-      <nav
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 40,
-        }}
-      >
-        {renderTab('home', 'Home', onGoHome)}
-        {renderTab('roster', 'Roster', onGoRoster)}
-        {renderTab('preference', 'Shifts Preference', onGoShiftPreference)}
-        {renderTab('leave', 'Apply Leave', onGoApplyLeave)}
-      </nav>
-
-      {/* Right side: date/time + avatar */}
       <div
         style={{
+          maxWidth: 1200,
+          margin: '0 auto',
+          padding: '16px 32px',
           display: 'flex',
           alignItems: 'center',
-          gap: 16,
+          justifyContent: 'space-between',
+          gap: 32,
         }}
       >
-        <div
-          style={{
-            color: 'black',
-            fontSize: 14,
-            fontFamily: 'Inter, sans-serif',
-            fontWeight: 600,
-          }}
-        >
-          30 Oct, Thursday, 07:23 AM
+        {/* Left: logo + nav */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
+          <img
+            style={{ width: 180, height: 'auto' }}
+            src="kkh.png"
+            alt="Logo"
+          />
+          <nav
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 32,
+              fontSize: 16,
+              fontWeight: 800,
+            }}
+          >
+            <div style={linkStyle('home')} onClick={onGoHome}>
+              Home
+            </div>
+            <div style={linkStyle('roster')} onClick={onGoRoster}>
+              Roster
+            </div>
+            <div
+              style={linkStyle('preference')}
+              onClick={onGoShiftPreference}
+            >
+              Shifts Preference
+            </div>
+            <div style={linkStyle('leave')} onClick={onGoApplyLeave}>
+              Apply Leave
+            </div>
+            <div style={linkStyle('logout')} onClick={onLogout}>
+              Logout
+            </div>
+          </nav>
         </div>
-        <img
-          style={{ width: 40, height: 40, borderRadius: '50%', cursor: 'pointer' }}
-          src="https://placehold.co/40x40"
-          alt="User avatar"
-          onClick={onGoAccount}     // NEW: go to account page
-        />
+
+        {/* Right: date/time + avatar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+            }}
+          >
+            30 Oct, Thursday, 07:23 AM
+          </div>
+          <img
+            style={{ width: 40, height: 40, borderRadius: '50%', cursor: 'pointer' }}
+            src="https://placehold.co/40x40"
+            alt="User avatar"
+            onClick={onGoAccount}
+          />
+        </div>
       </div>
     </header>
   );
