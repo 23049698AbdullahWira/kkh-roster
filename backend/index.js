@@ -3,6 +3,7 @@ const cors = require('cors');
 const pool = require('./db');
 const multer = require('multer');
 const path = require('path');
+const axios = require('axios'); 
 require('dotenv').config();
 
 const app = express();
@@ -12,8 +13,7 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 1. Test Route
-// ================= Multer Config =================
+// ================= Multer Config (File Uploads) =================
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, 'uploads/');
@@ -54,7 +54,9 @@ app.get('/test-db', async (req, res) => {
   }
 });
 
-// ================= Users =================
+// ================= User Routes =================
+
+// GET All Users (excluding Superadmin)
 app.get('/users', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM users WHERE role != "SUPERADMIN"');
@@ -65,54 +67,47 @@ app.get('/users', async (req, res) => {
   }
 });
 
-// GET User by ID - For Navbar
+// GET User by ID (For Navbar/Profile)
 app.get('/users/:id', async (req, res) => {
     const userId = req.params.id;
-  
     try {
+      // USE ALIASES (AS) TO MATCH FRONTEND KEYS
       const [rows] = await pool.query(
-        `SELECT full_name, avatar_url FROM users WHERE user_id = ?`, 
+        `SELECT full_name AS fullName, avatar_url AS avatar FROM users WHERE user_id = ?`, 
         [userId]
       );
   
       if (rows.length === 0) {
         return res.status(404).json({ error: "User not found" });
       }
-  
-      // Send back the data
       res.json(rows[0]);
-  
     } catch (err) {
-      console.error("Error fetching user for navbar:", err);
+      console.error("Error fetching user:", err);
       res.status(500).json({ error: err.message });
     }
-  });
+});
 
-// UPDATE User (PUT /users/:id) - Handles Contact Update
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Make sure the folder name 'uploads' matches your actual folder
+app.use('/uploads', express.static('uploads'));
+
+// UPDATE User Profile
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
-  
-  // 1. Get 'contact' from the request body along with other fields
   const { full_name, email, role, status, password, avatar_url, contact } = req.body;
 
   try {
-    // 2. Check if user exists
     const [check] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
     if (check.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // 3. Prepare update query
-    // ADDED: "contact = ?" to the SQL string
     let query = `
       UPDATE users 
       SET full_name = ?, email = ?, role = ?, status = ?, avatar_url = ?, contact = ?
     `;
-    
-    // 4. Add 'contact' to the parameters array (order must match the ?s above)
     const params = [full_name, email, role, status, avatar_url, contact];
 
-    // Handle Password (only update if provided)
     if (password && password.trim() !== "") {
       query += `, password = ?`;
       params.push(password);
@@ -121,9 +116,7 @@ app.put('/users/:id', async (req, res) => {
     query += ` WHERE user_id = ?`;
     params.push(id);
 
-    // 5. Execute update
     await pool.query(query, params);
-
     res.json({ message: 'User updated successfully' });
 
   } catch (err) {
@@ -133,16 +126,17 @@ app.put('/users/:id', async (req, res) => {
 });
 
 // ---------------------------------------------------------
-//  SHIFT DISTRIBUTION ROUTES (From previous tasks)
+//  SHIFT DISTRIBUTION ROUTES (FIXED & TIMEZONE SAFE)
 // ---------------------------------------------------------
 
-// Get Available Years
+// 1. Get Available Years
 app.get('/available-years', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT DISTINCT YEAR(shift_date) as year FROM shifts ORDER BY year DESC`
     );
     const years = rows.map(row => row.year);
+    // Ensure current year is always an option even if empty
     if (years.length === 0) years.push(new Date().getFullYear());
     res.json(years);
   } catch (err) {
@@ -151,69 +145,121 @@ app.get('/available-years', async (req, res) => {
   }
 });
 
-// Get Shift Distribution Stats
-// Get Shift Distribution Stats (Fixed to show ALL users)
-// Get Shift Distribution Stats (ONLY APN)
+// 2. Main Distribution Logic
 app.get('/shift-distribution', async (req, res) => {
-  const { year } = req.query;
+  const { year, shiftType } = req.query;
   const targetYear = year || new Date().getFullYear();
+  // Ensure we search for "NNJ" regardless of casing or extra spaces
+  const targetShiftType = (shiftType || 'NNJ').trim().toUpperCase();
 
   try {
+    // A. Fetch Public Holidays (External API)
+    let phSet = new Set();
+    try {
+        const url = `https://date.nager.at/api/v3/publicholidays/${targetYear}/SG`;
+        const response = await axios.get(url);
+        response.data.forEach(item => phSet.add(item.date));
+    } catch (apiErr) {
+        console.error("Warning: Holiday API failed.", apiErr.message);
+    }
+
+    // B. Fetch All Shifts for APNs in that Year
     const query = `
       SELECT 
-        u.user_id,
-        u.full_name,
-        u.role,
-        -- Count Public Holidays
-        COALESCE(SUM(CASE 
-          WHEN sd.shift_code IN ('PH', 'PHO', 'HOL') THEN 1 
-          ELSE 0 
-        END), 0) AS ph_count,
-        
-        -- Count Sundays
-        COALESCE(SUM(CASE 
-          WHEN DAYOFWEEK(s.shift_date) = 1 THEN 1 
-          ELSE 0 
-        END), 0) AS sun_count
-
+        u.user_id, 
+        u.full_name, 
+        u.role, 
+        s.shift_date,
+        sd.shift_code
       FROM users u
-      
-      -- LEFT JOIN ensures APNs appear even if they have 0 shifts this year
-      LEFT JOIN shifts s ON u.user_id = s.user_id AND YEAR(s.shift_date) = ?
-      
-      LEFT JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
-      
-      -- CHANGED: Strictly filter for 'APN' role only
+      LEFT JOIN shifts s 
+        ON u.user_id = s.user_id 
+        AND YEAR(s.shift_date) = ?
+      LEFT JOIN shift_desc sd
+        ON s.shift_type_id = sd.shift_type_id
       WHERE u.role = 'APN'
-      
-      GROUP BY u.user_id, u.full_name, u.role
-      ORDER BY u.full_name ASC;
+      ORDER BY u.full_name ASC
     `;
 
     const [rows] = await pool.query(query, [targetYear]);
-    res.json(rows);
+
+    // C. Logic Loop (Timezone Safe)
+    const userMap = new Map();
+
+    rows.forEach(row => {
+      // 1. Initialize User Stats
+      if (!userMap.has(row.user_id)) {
+        userMap.set(row.user_id, {
+          user_id: row.user_id,
+          name: row.full_name || 'Unknown', // This key 'name' is what frontend expects
+          role: row.role,
+          ph_count: 0,
+          sun_count: 0,
+          total: 0
+        });
+      }
+
+      const stats = userMap.get(row.user_id);
+
+      // 2. Analyze Shift
+      if (row.shift_date) {
+        const dbShiftCode = (row.shift_code || 'UNKNOWN').trim().toUpperCase();
+
+        // --- TIMEZONE SAFE DATE EXTRACTION ---
+        // Instead of .toISOString() which converts to UTC (and shifts date back in SG),
+        // we use getFullYear/Month/Date to keep the local date from the DB.
+        const rawDate = new Date(row.shift_date);
+        const yyyy = rawDate.getFullYear();
+        const mm = String(rawDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(rawDate.getDate()).padStart(2, '0');
+        const dateStr = `${yyyy}-${mm}-${dd}`; // e.g., "2025-12-25"
+
+        // Only count if shift code matches target (e.g., 'NNJ')
+        if (dbShiftCode === targetShiftType) {
+            
+            // Check Sunday (0 = Sunday)
+            if (rawDate.getDay() === 0) {
+                stats.sun_count += 1;
+            }
+            
+            // Check Public Holiday (Compare String vs String)
+            if (phSet.has(dateStr)) {
+                stats.ph_count += 1;
+            }
+        }
+      }
+    });
+
+    // D. Finalize Results
+    const results = Array.from(userMap.values()).map(u => ({
+        ...u,
+        total: u.ph_count + u.sun_count
+    }));
     
+    res.json(results);
+
   } catch (err) {
-    console.error("Error calculating distribution:", err);
+    console.error("Server Error (Distribution):", err);
     res.status(500).json({ error: "Failed to calculate distribution" });
   }
 });
 
 // ---------------------------------------------------------
-//  AUTH ROUTES
+//  AUTH & LEAVE ROUTES
 // ---------------------------------------------------------
 
-// ================= Leave Types =================
+// GET Leave Types
 app.get('/leave_type', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM leave_type');
     res.json(rows);
-  } catch (err) { // It's also good practice to have a catch block
+  } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
-// GET roles for dropdown
+
+// GET Roles
 app.get('/roles', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT DISTINCT role FROM users WHERE role IS NOT NULL ORDER BY role');
@@ -225,7 +271,7 @@ app.get('/roles', async (req, res) => {
   }
 });
 
-// ================= Leave Applications =================
+// GET Leave Applications
 app.get('/leave_has_users', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM leave_has_users');
@@ -236,27 +282,16 @@ app.get('/leave_has_users', async (req, res) => {
   }
 });
 
-// ================= Create Leave (With Upload) =================
+// POST Create Leave
 app.post(
   '/leave_has_users',
   upload.single('leave_document'),
   async (req, res) => {
-    const {
-      user_id,
-      leave_type_id,
-      start_date,
-      end_date,
-      ward_designation
-    } = req.body;
-
-    const leave_url = req.file
-      ? `/uploads/${req.file.filename}`
-      : null;
+    const { user_id, leave_type_id, start_date, end_date, ward_designation } = req.body;
+    const leave_url = req.file ? `/uploads/${req.file.filename}` : null;
 
     if (!user_id || !leave_type_id || !start_date || !end_date) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'Missing required fields.' });
+      return res.status(400).json({ success: false, message: 'Missing required fields.' });
     }
 
     try {
@@ -265,82 +300,50 @@ app.post(
         (user_id, leave_id, leave_start, leave_end, remarks, leave_url)
         VALUES (?, ?, ?, ?, ?, ?)
       `;
+      await pool.query(query, [user_id, leave_type_id, start_date, end_date, ward_designation, leave_url]);
 
-      await pool.query(query, [
-        user_id,
-        leave_type_id,
-        start_date,
-        end_date,
-        ward_designation,
-        leave_url
-      ]);
-
-      res.status(201).json({
-        success: true,
-        message: 'Leave request submitted successfully.'
-      });
+      res.status(201).json({ success: true, message: 'Leave request submitted successfully.' });
     } catch (err) {
       console.error('Error submitting leave request:', err);
-      res.status(500).json({
-        success: false,
-        message: 'Server error during leave submission.'
-      });
+      res.status(500).json({ success: false, message: 'Server error during leave submission.' });
     }
   }
 );
 
-// ================= Update Leave Status =================
+// PATCH Leave Status
 app.patch('/leave_has_users/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
   if (!status || !['Approved', 'Rejected'].includes(status)) {
-    return res
-      .status(400)
-      .json({ success: false, message: 'Invalid status provided.' });
+    return res.status(400).json({ success: false, message: 'Invalid status provided.' });
   }
 
   try {
-    const query = `
-      UPDATE leave_has_users
-      SET status = ?
-      WHERE leave_data_id = ? 
-    `;
-
+    const query = `UPDATE leave_has_users SET status = ? WHERE leave_data_id = ?`;
     const [result] = await pool.query(query, [status, id]);
 
     if (result.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ success: false, message: 'Leave request not found.' });
+      return res.status(404).json({ success: false, message: 'Leave request not found.' });
     }
+    res.json({ success: true, message: `Leave status updated to ${status}.` });
 
-    res.json({
-      success: true,
-      message: `Leave status updated to ${status}.`
-    });
   } catch (err) {
     console.error('Error updating leave status:', err);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while updating status.'
-    });
+    res.status(500).json({ success: false, message: 'Server error while updating status.' });
   }
 });
 
-// ================= Login =================
-// POST register - NO WARD, matches your exact table
+// POST Register
 app.post('/api/auth/register', async (req, res) => {
   const { firstName, lastName, email, phone, password, role } = req.body;
   
   try {
-    // Check if email exists
     const [existing] = await pool.query('SELECT user_id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
 
-    // Insert new user - EXACTLY your table columns
     const fullName = `${firstName} ${lastName}`.trim();
     const [result] = await pool.query(
       `INSERT INTO users (full_name, email, contact, role, password, status) 
@@ -348,17 +351,14 @@ app.post('/api/auth/register', async (req, res) => {
       [fullName, email, phone, role, password]
     );
 
-    res.json({ 
-      success: true, 
-      message: 'Staff account created successfully',
-      userId: result.insertId 
-    });
+    res.json({ success: true, message: 'Staff account created successfully', userId: result.insertId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
+// POST Login
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -368,16 +368,12 @@ app.post('/api/auth/login', async (req, res) => {
       [email]
     );
     if (rows.length === 0) {
-      return res
-        .status(401)
-        .json({ success: false, message: 'User not found' });
+      return res.status(401).json({ success: false, message: 'User not found' });
     }
     const user = rows[0];
 
     if (user.password !== password) {
-      return res
-        .status(401)
-        .json({ success: false, message: 'Incorrect password' });
+      return res.status(401).json({ success: false, message: 'Incorrect password' });
     }
 
     res.json({
@@ -396,7 +392,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// ================= Server =================
+// ================= Server Start =================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -1,126 +1,159 @@
 import React, { useState, useEffect } from 'react';
 
+// --- CONFIGURATION ---
+const API_BASE_URL = "http://localhost:5000";
+const DEFAULT_AVATAR = "https://i.pinimg.com/736x/9e/83/75/9e837528f01cf3f42119c5aeeed1b336.jpg";
+
 function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
-  // --- STATE ---
-  const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // --- HELPERS (defined outside or inside, but before state) ---
 
-  // 1. INITIALIZE STATE FROM LOCAL STORAGE
-  const [avatarUrl, setAvatarUrl] = useState(() => {
-    // FIX: Read 'avatar' because that is what is currently in your LocalStorage
-    const stored = localStorage.getItem('avatar');
-
-    // If it exists, clean it up (remove quotes " " and extra spaces)
-    if (stored) {
-      return stored.replace(/['"]+/g, '').trim();
+  // 1. Safe LocalStorage Parser
+  const getStoredData = () => {
+    // Try to get the bundled 'user' object first
+    let userObj = {};
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) userObj = JSON.parse(stored);
+    } catch (e) {
+      console.error("Error parsing user object", e);
     }
 
-    // Fallback
-    return "https://placehold.co/50x50";
-  });
+    // Resolve Name: Priority = Loose Key -> User Object
+    const name = localStorage.getItem('userName') || userObj.fullName || userObj.full_name || "";
 
-  const [userName, setUserName] = useState(
-    localStorage.getItem('userName') || ""
-  );
+    // Resolve Avatar: Priority = Loose Key -> User Object
+      const avatar = localStorage.getItem('avatar') || userObj.avatar || userObj.avatar_url || null;
 
-  // --- EFFECT 1: Live Clock ---
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentDate(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    // Resolve ID: Priority = Loose Key -> User Object
+    const id = localStorage.getItem('userId') || userObj.userId || userObj.user_id || userObj.id;
 
-  // --- EFFECT 2: Fetch User Data (To keep it fresh) ---
+    return { name, avatar, id };
+  };
+
+  // 2. URL Cleaner / Generator
+  const generateAvatarUrl = (url) => {
+    if (!url || url === "null" || url === "undefined") return DEFAULT_AVATAR;
+
+    let clean = String(url).replace(/['"]+/g, '').trim();
+    
+    // Fix Windows file paths if present
+    clean = clean.replace(/\\/g, '/');
+
+    // If it's already a web link, return it
+    if (clean.startsWith('http') || clean.startsWith('blob:')) return clean;
+
+    // If it's a local path, prepend the API base URL
+    if (!clean.startsWith('/')) clean = `/${clean}`;
+    
+    return `${API_BASE_URL}${clean}`;
+  };
+
+  // --- STATE ---
+  const initialData = getStoredData();
+  const [currentDate] = useState(new Date()); // No set needed if it doesn't tick
+  const [userName, setUserName] = useState(initialData.name);
+  const [avatarUrl, setAvatarUrl] = useState(initialData.avatar);
+
+  // --- EFFECTS ---
+
+  // Sync Data with Backend
   useEffect(() => {
     const fetchUserData = async () => {
-      const userId = localStorage.getItem('userId');
+      const userId = initialData.id;
 
-      if (!userId) return;
+      if (!userId) {
+        console.warn("[Navbar] No User ID found, skipping fetch.");
+        return;
+      }
 
       try {
-        const response = await fetch(`http://localhost:5000/users/${userId}`);
-
+        const response = await fetch(`${API_BASE_URL}/users/${userId}`);
         if (response.ok) {
           const userData = await response.json();
-          
-          // Update Name if changed
-          if (userData.full_name) {
-            setUserName(userData.full_name);
-            localStorage.setItem('userName', userData.full_name);
+
+          // 1. Handle Name Update
+          const newName = userData.fullName || userData.full_name;
+          if (newName) {
+            setUserName(newName);
+            localStorage.setItem('userName', newName);
           }
 
-          // Update Avatar if changed
-          // Note: The DB column is 'avatar_url', but we save it to LS as 'avatar'
-          if (userData.avatar_url) {
-            const cleanUrl = userData.avatar_url.replace(/['"]+/g, '').trim();
-            setAvatarUrl(cleanUrl);
-            
-            // FIX: Ensure we save it with the same key name we read from ('avatar')
-            localStorage.setItem('avatar', cleanUrl);
+          // 2. Handle Avatar Update (THE FIX)
+          const rawAvatar = userData.avatar || userData.avatar_url;
+          
+          if (rawAvatar) {
+            // Case A: User has an avatar
+            const cleanAvatar = String(rawAvatar).replace(/['"]+/g, '').trim();
+            setAvatarUrl(cleanAvatar);
+            localStorage.setItem('avatar', cleanAvatar);
+          } else {
+            // Case B: User has NO avatar (null/empty)
+            // We must explicitly clear the state and storage
+            setAvatarUrl(null);
+            localStorage.removeItem('avatar');
           }
         }
       } catch (error) {
-        console.error("Navbar: Fetch failed", error);
+        console.error("[Navbar] Failed to sync user data:", error);
       }
     };
 
     fetchUserData();
-  }, []);
+  }, [initialData.id]);
 
-  // --- FORMATTER ---
+  // --- FORMATTING ---
   const formattedDate = new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    weekday: 'long',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
+    day: 'numeric', month: 'short', weekday: 'long', 
+    hour: '2-digit', minute: '2-digit', hour12: true,
   }).format(currentDate);
 
-  const linkStyle = (tab) => ({
+  const getLinkStyle = (tabName) => ({
     cursor: 'pointer',
-    borderBottom: active === tab ? '2px #5091CD solid' : 'none',
-    paddingBottom: active === tab ? 4 : 0,
+    borderBottom: active === tabName ? '3px solid #5091CD' : '3px solid transparent',
+    paddingBottom: '4px',
     color: '#374151',
-    textDecoration: 'none'
+    textDecoration: 'none',
+    transition: 'border-color 0.2s'
   });
 
   return (
-    <header style={{ width: '100%', background: 'white', boxSizing: 'border-box', borderBottom: '1px solid #ddd' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 32px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 32 }}>
-
-        {/* LEFT: Logo & Navigation */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
-          <img
-            onClick={onGoHome}
-            style={{ marginRight: 28, width: 180, height: 'auto', cursor: 'pointer' }}
-            src="https://www.kkh.com.sg/adobe/dynamicmedia/deliver/dm-p-oid--JqCZpr4gmYKfeMnlqRVD8oOf_e248huXQTjXYCcI8k1uSp-cJhQpzmoCZcP8BsW3koppbJXk5tMVBnByC2Fqk0ac3yBuu61hzuoDJezaFc0OzrSjNuilO1-vIf6pzIUX/kkh.jpg?preferwebp=true"
-            alt="Logo"
+    <header style={styles.header}>
+      <div style={styles.container}>
+        
+        {/* Left Side: Logo & Navigation */}
+        <div style={styles.leftSection}>
+          <img 
+            onClick={onGoHome} 
+            style={styles.logo} 
+            src="https://www.kkh.com.sg/adobe/dynamicmedia/deliver/dm-p-oid--JqCZpr4gmYKfeMnlqRVD8oOf_e248huXQTjXYCcI8k1uSp-cJhQpzmoCZcP8BsW3koppbJXk5tMVBnByC2Fqk0ac3yBuu61hzuoDJezaFc0OzrSjNuilO1-vIf6pzIUX/kkh.jpg?preferwebp=true" 
+            alt="KKH Logo" 
           />
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 32, fontSize: 16, fontWeight: 800 }}>
-            <div style={linkStyle('home')} onClick={onGoHome}>Home</div>
-            <div style={linkStyle('roster')} onClick={onGoRoster}>Roster</div>
-            <div style={linkStyle('staff')} onClick={onGoStaff}>Staff</div>
-            <div style={linkStyle('shift')} onClick={onGoShift}>Shift Distribution</div>
+          
+          <nav style={styles.nav}>
+            <div style={getLinkStyle('home')} onClick={onGoHome}>Home</div>
+            <div style={getLinkStyle('roster')} onClick={onGoRoster}>Roster</div>
+            <div style={getLinkStyle('staff')} onClick={onGoStaff}>Staff</div>
+            <div style={getLinkStyle('shift')} onClick={onGoShift}>Shift Distribution</div>
           </nav>
         </div>
 
-        {/* RIGHT: Info & Avatar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <div style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>{formattedDate}</div>
-            {userName && (
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>Welcome, {userName}</div>
-            )}
+        {/* Right Side: Date & User Profile */}
+        <div style={styles.rightSection}>
+          <div style={styles.userInfo}>
+            <div style={styles.dateText}>{formattedDate}</div>
+            {userName && <div style={styles.userName}>{userName}</div>}
           </div>
 
-          <div style={{ position: 'relative', cursor: 'pointer' }} >
+          <div style={styles.avatarWrapper}>
             <img
-              style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '1px solid #ddd' }}
-              src={avatarUrl}
+              style={styles.avatarImg}
+              src={generateAvatarUrl(avatarUrl)}
               alt="Profile"
               referrerPolicy="no-referrer"
               onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "https://placehold.co/50x50";
+                e.target.onerror = null; 
+                e.target.src = DEFAULT_AVATAR;
               }}
             />
           </div>
@@ -130,5 +163,71 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
     </header>
   );
 }
+
+// --- STYLES OBJECT (Cleaner than inline spaghetti) ---
+const styles = {
+  header: {
+    width: '100%',
+    backgroundColor: 'white',
+    borderBottom: '1px solid #ddd',
+    boxSizing: 'border-box'
+  },
+  container: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+    padding: '16px 32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  leftSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '32px'
+  },
+  logo: {
+    width: '180px',
+    height: 'auto',
+    cursor: 'pointer'
+  },
+  nav: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '32px',
+    fontSize: '16px',
+    fontWeight: '800'
+  },
+  rightSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px'
+  },
+  userInfo: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-end'
+  },
+  dateText: {
+    fontSize: '12px',
+    color: '#6B7280',
+    fontWeight: '600'
+  },
+  userName: {
+    fontSize: '14px',
+    fontWeight: '700',
+    color: '#111827'
+  },
+  avatarWrapper: {
+    position: 'relative',
+    cursor: 'pointer'
+  },
+  avatarImg: {
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+    border: '1px solid #ddd'
+  }
+};
 
 export default Navbar;

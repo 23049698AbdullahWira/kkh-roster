@@ -22,7 +22,7 @@ function AdminStaffManagementPage({
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  const itemsPerPage = 9;
 
   // MODAL 1: EDIT/VIEW STAFF
   const [showModal, setShowModal] = useState(false);
