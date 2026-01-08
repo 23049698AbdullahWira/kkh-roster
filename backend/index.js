@@ -145,36 +145,52 @@ app.get('/api/rosters', async (req, res) => {
 
 // POST /api/rosters
 app.post('/api/rosters', async (req, res) => {
-  // 1. GET USER ID FROM BODY
-  const { title, month, year, notes, status, userId } = req.body; 
+  // 1. EXTRACT DATA
+  // We no longer need 'title' or 'notes' from the body
+  const { month, year, userId } = req.body; 
 
-  if (!title || !month || !year) {
-    return res.status(400).json({ message: 'Title, Month, and Year are required.' });
+  if (!month || !year) {
+    return res.status(400).json({ message: 'Month and Year are required.' });
   }
 
   try {
+    // 2. PREPARE DATA
+    // Convert "January" -> 1 (if your DB stores months as Integers)
     const monthMap = {
       "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6,
       "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12
     };
     const monthInt = monthMap[month] || month; 
-    const finalRemarks = notes ? `${title} | ${notes}` : title;
-    const rosterStatus = status || 'Preference Open';
-
-    // 2. USE THE RECEIVED ID (Or fallback to 1 if missing)
+    
+    // Auto-Generate the Title (Remarks)
+    const autoRemarks = `${month} ${year} Roster`;
+    
+    // Fallback ID
     const creatorId = userId || 1; 
 
+    // --- 3. DUPLICATE CHECK ---
+    // Before inserting, check if this month/year combo exists
+    const [existing] = await pool.query(
+      "SELECT roster_id FROM rosters WHERE month = ? AND year = ?",
+      [monthInt, year]
+    );
+
+    if (existing.length > 0) {
+      // Return 409 Conflict so the frontend knows to show the red error box
+      return res.status(409).json({ message: `A roster for ${month} ${year} already exists.` });
+    }
+
+    // --- 4. INSERT ---
     const sql = `
       INSERT INTO rosters (month, year, remarks, status, created_at, creator_user_id) 
-      VALUES (?, ?, ?, ?, NOW(), ?)
+      VALUES (?, ?, ?, 'Preference Open', NOW(), ?)
     `;
 
     const [result] = await pool.query(sql, [
       monthInt, 
       year, 
-      finalRemarks, 
-      rosterStatus, 
-      creatorId // <--- NOW USING DYNAMIC ID
+      autoRemarks, // Use the auto-generated title
+      creatorId
     ]);
 
     res.status(201).json({ 
@@ -694,6 +710,61 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
     connection.release();
     console.error("Auto-Fill Error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// --- UPDATE ROSTER SETTINGS ROUTE (FIXED FIELD NAMES) ---
+app.put('/api/rosters/:id/settings', async (req, res) => {
+  const { id } = req.params;
+  const { remarks, publish_date } = req.body; // <--- Reading correct DB column names
+
+  try {
+    const [result] = await pool.query(
+      "UPDATE rosters SET remarks = ?, publish_date = ? WHERE roster_id = ?",
+      [remarks, publish_date, id] // <--- Mapping to correct DB columns
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Roster not found" });
+    }
+
+    res.json({ success: true, message: "Roster updated successfully" });
+  } catch (err) {
+    console.error("Update Roster Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- DELETE ROSTER ROUTE ---
+app.delete('/api/rosters/:id', async (req, res) => {
+  const rosterId = req.params.id;
+  
+  const connection = await pool.getConnection();
+  await connection.beginTransaction();
+
+  try {
+    // 1. First, delete all shifts belonging to this roster
+    // (We must do this first, or the database will block us for safety)
+    await connection.query('DELETE FROM shifts WHERE roster_id = ?', [rosterId]);
+
+    // 2. Now it is safe to delete the roster itself
+    const [result] = await connection.query('DELETE FROM rosters WHERE roster_id = ?', [rosterId]);
+
+    if (result.affectedRows === 0) {
+      // If no rows were deleted, the ID didn't exist
+      await connection.rollback();
+      return res.status(404).json({ error: "Roster not found" });
+    }
+
+    await connection.commit();
+    res.json({ success: true, message: 'Roster and all associated shifts deleted.' });
+
+  } catch (err) {
+    await connection.rollback();
+    console.error("Delete Roster Error:", err);
+    res.status(500).json({ error: "Failed to delete roster" });
+  } finally {
+    connection.release();
   }
 });
 

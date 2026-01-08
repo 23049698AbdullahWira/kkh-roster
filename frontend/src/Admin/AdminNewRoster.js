@@ -1,24 +1,24 @@
 import React, { useState } from 'react';
 
-// --- STYLES OBJECT (Keeps JSX clean) ---
+// --- STYLES OBJECT ---
 const styles = {
   overlay: {
     position: 'fixed',
     inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Slightly darker overlay for focus
-    backdropFilter: 'blur(2px)', // Optional: adds a nice blur to background
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backdropFilter: 'blur(2px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
   },
   modal: {
-    backgroundColor: '#EDF0F5', // Pure white background
+    backgroundColor: '#EDF0F5',
     width: '100%',
-    maxWidth: '500px', // Limits width so it doesn't look stretched
+    maxWidth: '500px',
     padding: '32px',
-    borderRadius: '16px', // Smooth rounded corners
-    boxShadow: '0 20px 40px rgba(0,0,0,0.1)', // Soft shadow for depth
+    borderRadius: '16px',
+    boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
     display: 'flex',
     flexDirection: 'column',
     gap: '20px',
@@ -38,18 +38,18 @@ const styles = {
     marginBottom: '8px',
     display: 'block',
   },
-  input: {
+  readOnlyInput: {
     width: '100%',
     padding: '12px 16px',
     fontSize: '14px',
+    fontWeight: 600,
     borderRadius: '8px',
-    border: '1px solid #E0E0E0', // Subtle light gray border
-    outline: 'none',
+    border: '1px solid #E0E0E0',
     boxSizing: 'border-box',
     fontFamily: 'Inter, sans-serif',
-    color: '#333',
-    backgroundColor: '#FAFAFA', // Very light gray inside input
-    transition: 'border-color 0.2s',
+    color: '#555',
+    backgroundColor: '#EBEBEB', // darker grey to indicate disabled
+    cursor: 'not-allowed',
   },
   select: {
     width: '100%',
@@ -62,26 +62,12 @@ const styles = {
     fontFamily: 'Inter, sans-serif',
     color: '#333',
     backgroundColor: '#FAFAFA',
-    appearance: 'none', // Removes default browser arrow for cleaner look
+    appearance: 'none',
     backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
     backgroundRepeat: 'no-repeat',
     backgroundPosition: 'right 16px center',
     backgroundSize: '16px',
     cursor: 'pointer',
-  },
-  textarea: {
-    width: '100%',
-    padding: '12px 16px',
-    fontSize: '14px',
-    borderRadius: '8px',
-    border: '1px solid #E0E0E0',
-    outline: 'none',
-    boxSizing: 'border-box',
-    fontFamily: 'Inter, sans-serif',
-    color: '#333',
-    backgroundColor: '#FAFAFA',
-    minHeight: '100px',
-    resize: 'vertical',
   },
   buttonGroup: {
     display: 'flex',
@@ -91,10 +77,10 @@ const styles = {
   },
   btnConfirm: {
     padding: '10px 24px',
-    backgroundColor: '#5091CD', // Your theme blue
+    backgroundColor: '#5091CD',
     color: 'white',
     border: 'none',
-    borderRadius: '50px', // Pill shape
+    borderRadius: '50px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
@@ -105,7 +91,7 @@ const styles = {
     backgroundColor: '#F5F5F5',
     color: '#333',
     border: '1px solid #E0E0E0',
-    borderRadius: '50px', // Pill shape
+    borderRadius: '50px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
@@ -121,58 +107,54 @@ const styles = {
 };
 
 function AdminNewRoster({ open, onConfirm, onCancel }) {
-  // State
-  const [title, setTitle] = useState('');
   const [month, setMonth] = useState('');
   const [year, setYear] = useState('');
-  const [notes, setNotes] = useState('');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   if (!open) return null;
 
+  // Auto-Generate Title Logic
+  const autoTitle = (month && year) ? `${month} ${year} Roster` : '(Select Month & Year)';
+
   const handleSubmit = async () => {
-    // Basic Validation
-    if (!title || !month || !year) {
-      setError("Please fill in the Title, Month, and Year.");
+    if (!month || !year) {
+      setError("Please select both a Month and Year.");
       return;
     }
 
     setIsSubmitting(true);
     setError('');
 
-    // --- CHANGED PART START: Get User ID ---
-    let currentUserId = 1; // Default fallback
+    let currentUserId = 1; 
     try {
       const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      // Use the stored ID, or fallback to 101 (Janet) if testing
       currentUserId = storedUser.userId || storedUser.id || 101; 
     } catch (e) {
       console.warn("Could not read user from local storage", e);
     }
-    // --- CHANGED PART END ---
+
+    // STRICT Auto Title
+    const finalTitle = `${month} ${year} Roster`;
 
     try {
       const response = await fetch('http://localhost:5000/api/rosters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: title,
+          title: finalTitle, // Uses the auto-generated title
           month: month,
           year: year,
-          notes: notes,
-          status: 'Preference Open', // Default status per your schema
+          status: 'Preference Open', 
           userId: currentUserId
         }),
       });
 
       if (response.ok) {
         setIsSubmitting(false);
-        setTitle('');
         setMonth('');
         setYear('');
-        setNotes('');
         if (onConfirm) onConfirm();
       } else {
         const errData = await response.json();
@@ -188,28 +170,13 @@ function AdminNewRoster({ open, onConfirm, onCancel }) {
 
   return (
     <div style={styles.overlay} onClick={onCancel}>
-      {/* Stop click propagation so clicking inside doesn't close modal */}
       <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
         
-        {/* Header */}
         <div style={styles.header}>Add New Roster</div>
 
-        {/* Error Message */}
         {error && <div style={styles.errorBox}>{error}</div>}
 
-        {/* Form Group: Title */}
-        <div>
-          <label style={styles.label}>Roster Title</label>
-          <input
-            type="text"
-            placeholder="Enter new roster title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            style={styles.input}
-          />
-        </div>
-
-        {/* Form Group: Roster Period (Stacked) */}
+        {/* 1. Roster Period Selectors */}
         <div>
           <label style={styles.label}>Roster Period</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -237,15 +204,12 @@ function AdminNewRoster({ open, onConfirm, onCancel }) {
           </div>
         </div>
 
-        {/* Form Group: Notes */}
+        {/* 2. Auto-Generated Title (Read Only) */}
         <div>
-          <label style={styles.label}>Notes (Optional)</label>
-          <textarea
-            placeholder="Enter notes for this roster (e.g. public holiday)"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            style={styles.textarea}
-          />
+          <label style={styles.label}>Roster Name (Auto-Generated)</label>
+          <div style={styles.readOnlyInput}>
+            {autoTitle}
+          </div>
         </div>
 
         {/* Buttons */}
