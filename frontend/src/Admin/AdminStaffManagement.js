@@ -9,6 +9,7 @@ function AdminStaffManagementPage({
   onGoManageLeave, // Now unused (replaced by modal)
   currentUserRole = 'SUPERADMIN', // Default for testing
   onLogout,
+  loggedInUser,
 }) {
 
   // --- 1. STATE ---
@@ -164,42 +165,45 @@ function AdminStaffManagementPage({
   };
 
   const handleSubmitCreate = async () => {
-    const [firstName, ...restName] = createForm.full_name.trim().split(' ');
-    const lastName = restName.join(' ');
+  const [firstName, ...restName] = createForm.full_name.trim().split(' ');
+  const lastName = restName.join(' ');
 
-    const payload = {
-      firstName: firstName || createForm.full_name,
-      lastName: lastName || '',
-      email: createForm.email,
-      phone: createForm.contact,
-      password: 'Temp1234!',
-      role: createForm.role || 'staff',
-    };
-
-    try {
-      const res = await fetch('http://localhost:5000/api/auth/register', { //
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        alert(data.message || 'Failed to create staff account.');
-        return;
-      }
-
-      alert('Staff account created successfully!');
-      setShowCreate(false);
-      setCreateForm({ full_name: '', contact: '', email: '', role: '', profile_picture: null });
-      fetchInitialData();
-
-    } catch (err) {
-      console.error('Error creating staff:', err);
-      alert('Unable to connect to server.');
-    }
+  const payload = {
+    firstName: firstName || createForm.full_name,
+    lastName: lastName || '',
+    email: createForm.email,
+    phone: createForm.contact,
+    password: 'Temp1234!',
+    role: createForm.role || 'staff',
+    createdByUserId: loggedInUser?.userId,
+    createdByName: loggedInUser?.fullName,
+    createdByRole: loggedInUser?.role,
   };
+
+  try {
+    const res = await fetch('http://localhost:5000/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      alert(data.message || 'Failed to create staff account.');
+      return;
+    }
+
+    alert('Staff account created successfully!');
+    setShowCreate(false);
+    setCreateForm({ full_name: '', contact: '', email: '', role: '', profile_picture: null });
+    fetchInitialData();
+  } catch (err) {
+    console.error('Error creating staff:', err);
+    alert('Unable to connect to server.');
+  }
+};
+
 
   const isCreateValid = createForm.full_name.trim() && createForm.contact.trim() && createForm.email.trim() && createForm.role.trim();
   const canCreateStaff = currentUserRole === 'SUPERADMIN';

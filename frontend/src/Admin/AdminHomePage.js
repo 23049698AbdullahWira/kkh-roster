@@ -1,4 +1,5 @@
-import React from 'react';
+// src/Admin/AdminHomePage.js (or AdminHome.js)
+import React, { useEffect, useState } from 'react';
 import Navbar from '../Nav/navbar.js';
 
 const todoItems = [
@@ -26,6 +27,53 @@ function AdminHome({
   onStaffPreferences,
   onLogout,
 }) {
+  // ---- NEW: activity log state ----
+  const [logs, setLogs] = useState([]);
+
+  useEffect(() => {
+    async function fetchLogs() {
+      try {
+        const res = await fetch('http://localhost:5000/actionlogs?limit=6');
+        const data = await res.json();
+        setLogs(data || []);
+      } catch (err) {
+        console.error('Failed to fetch action logs:', err);
+      }
+    }
+    fetchLogs();
+  }, []);
+
+  // ---- NEW: helper for "5m ago" etc. using log_datetime ----
+  const formatTimeAgo = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `${diffH}h ${diffMin % 60}m ago`;
+    const diffD = Math.floor(diffH / 24);
+    return `${diffD}d ago`;
+  };
+
+  // ---- NEW: decide left icon & right-click behaviour based on log_type ----
+  const getLogIcon = (type) => {
+    if (type === 'ROSTER') return 'calendar.png';
+    if (type === 'PREFERENCE') return 'userMale.png';
+    if (type === 'WINDOW') return 'clock.png';
+    if (type === 'ACCOUNT') return 'userMale.png';
+    return 'calendar.png';
+  };
+
+  const getLogClickHandler = (type) => {
+    if (type === 'ROSTER') return onGoRoster;
+    if (type === 'PREFERENCE') return onStaffPreferences;
+    if (type === 'ACCOUNT') return onGoStaff;
+    if (type === 'WINDOW') return onGoShift;
+    return () => {};
+  };
+
   return (
     <div
       style={{
@@ -134,121 +182,119 @@ function AdminHome({
           {/* LEFT COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Critical Staffing Shortage */}
-            {/* Critical Staffing Shortage */}
-<section
-  style={{
-    background: 'white',
-    borderRadius: 10,
-    padding: 18,
-    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-  }}
->
-  <div
-    style={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: 12,
-    }}
-  >
-    <div style={{ fontSize: 18, fontWeight: 800 }}>
-      Critical Staffing Shortage
-    </div>
-    <div style={{ display: 'flex', gap: 16, fontSize: 14, fontWeight: 600 }}>
-      <span>Urgent</span>
-      <div
-        style={{
-          width: 6,
-          height: 20,
-          background: '#FF2525',
-          borderRadius: 12,
-        }}
-      />
-      <span>Action Needed</span>
-      <div
-        style={{
-          width: 6,
-          height: 20,
-          background: '#F0DC00',
-          borderRadius: 12,
-        }}
-      />
-    </div>
-  </div>
+            <section
+              style={{
+                background: 'white',
+                borderRadius: 10,
+                padding: 18,
+                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ fontSize: 18, fontWeight: 800 }}>
+                  Critical Staffing Shortage
+                </div>
+                <div style={{ display: 'flex', gap: 16, fontSize: 14, fontWeight: 600 }}>
+                  <span>Urgent</span>
+                  <div
+                    style={{
+                      width: 6,
+                      height: 20,
+                      background: '#FF2525',
+                      borderRadius: 12,
+                    }}
+                  />
+                  <span>Action Needed</span>
+                  <div
+                    style={{
+                      width: 6,
+                      height: 20,
+                      background: '#F0DC00',
+                      borderRadius: 12,
+                    }}
+                  />
+                </div>
+              </div>
 
-  {/* Card 1: WARNING */}
-  <div
-    style={{
-      background: '#EDF0F5',
-      borderRadius: 8,
-      padding: '12px 20px',
-      display: 'flex',
-      alignItems: 'center',
-      position: 'relative',
-      marginTop: 0,
-    }}
-  >
-    <img
-      style={{ width: 30, height: 30, marginRight: 20 }}
-      src="redWarning.png"
-      alt="Warning"
-    />
-    <div style={{ fontSize: 14, fontWeight: 700 }}>
-      WARNING:
-      <br />
-      Understaffed RRT PM Shift on 18 Oct (1 RRT Short)
-    </div>
-    <div
-      style={{
-        position: 'absolute',
-        right: 0,
-        top: 0,
-        bottom: 0,
-        width: 10,
-        background: '#FF2525',
-        borderTopRightRadius: 8,
-        borderBottomRightRadius: 8,
-      }}
-    />
-  </div>
+              {/* Card 1: WARNING */}
+              <div
+                style={{
+                  background: '#EDF0F5',
+                  borderRadius: 8,
+                  padding: '12px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  position: 'relative',
+                  marginTop: 0,
+                }}
+              >
+                <img
+                  style={{ width: 30, height: 30, marginRight: 20 }}
+                  src="redWarning.png"
+                  alt="Warning"
+                />
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  WARNING:
+                  <br />
+                  Understaffed RRT PM Shift on 18 Oct (1 RRT Short)
+                </div>
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 10,
+                    background: '#FF2525',
+                    borderTopRightRadius: 8,
+                    borderBottomRightRadius: 8,
+                  }}
+                />
+              </div>
 
-  {/* Card 2: CONTRADICTING SHIFT */}
-  <div
-    style={{
-      background: '#EDF0F5',
-      borderRadius: 8,
-      padding: '12px 20px',
-      display: 'flex',
-      alignItems: 'center',
-      position: 'relative',
-      marginTop: 8,
-    }}
-  >
-    <img
-      style={{ width: 30, height: 30, marginRight: 20 }}
-      src="yellowWarning.png"
-      alt="Contradicting Shift"
-    />
-    <div style={{ fontSize: 14, fontWeight: 700 }}>
-      CONTRADICTING SHIFT:
-      <br />
-      Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)
-    </div>
-    <div
-      style={{
-        position: 'absolute',
-        right: 0,
-        top: 0,
-        bottom: 0,
-        width: 10,
-        background: '#F0DC00',
-        borderTopRightRadius: 8,
-        borderBottomRightRadius: 8,
-      }}
-    />
-  </div>
-</section>
-
+              {/* Card 2: CONTRADICTING SHIFT */}
+              <div
+                style={{
+                  background: '#EDF0F5',
+                  borderRadius: 8,
+                  padding: '12px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  position: 'relative',
+                  marginTop: 8,
+                }}
+              >
+                <img
+                  style={{ width: 30, height: 30, marginRight: 20 }}
+                  src="yellowWarning.png"
+                  alt="Contradicting Shift"
+                />
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  CONTRADICTING SHIFT:
+                  <br />
+                  Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)
+                </div>
+                <div
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: 10,
+                    background: '#F0DC00',
+                    borderTopRightRadius: 8,
+                    borderBottomRightRadius: 8,
+                  }}
+                />
+              </div>
+            </section>
 
             {/* To-Do List / Action Items */}
             <section
@@ -544,306 +590,81 @@ function AdminHome({
             </section>
 
             {/* Admin Activity Log */}
-<section
-  style={{
-    background: 'white',
-    borderRadius: 10,
-    padding: 18,
-    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-    display: 'flex',
-    flexDirection: 'column',
-    height: 360,
-  }}
->
-  <div
-    style={{
-      fontSize: 18,
-      fontWeight: 800,
-      marginBottom: 8,
-    }}
-  >
-    Admin Activity Log
-  </div>
+            <section
+              style={{
+                background: 'white',
+                borderRadius: 10,
+                padding: 18,
+                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                height: 360,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 800,
+                  marginBottom: 8,
+                }}
+              >
+                Admin Activity Log
+              </div>
 
-  <div
-    style={{
-      flex: 1,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 4,
-      overflow: 'hidden',
-    }}
-  >
-    {/* 1 */}
-<div
-  style={{
-    display: 'flex',
-    alignItems: 'center',
-    gap: 16,
-    padding: '6px 0',
-    borderTop: '1px solid #E0E0E0',
-  }}
->
-  <img
-    style={{ width: 26, height: 26 }}
-    src="calendar.png"
-    alt=""
-  />
-  <div
-    style={{
-      flex: 1,
-      fontSize: 14,
-    }}
-  >
-    5m ago, November Roster Draft Approved by Admin Janet.
-  </div>
-  <div
-    style={{
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      background: '#EDF0F5',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    <img
-      style={{ width: 15, height: 15 }}
-      src="group.svg"
-      alt=""
-    />
-  </div>
-</div>
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  overflow: 'hidden',
+                }}
+              >
+                {logs.map((log) => {
+                  const onClick = getLogClickHandler(log.log_type);
+                  return (
+                    <div
+                      key={log.log_id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 16,
+                        padding: '6px 0',
+                        borderTop: '1px solid #E0E0E0',
+                      }}
+                    >
+                      <img
+                        style={{ width: 26, height: 26 }}
+                        src={getLogIcon(log.log_type)}
+                        alt=""
+                      />
+                      <div
+                        style={{
+                          flex: 1,
+                          fontSize: 14,
+                        }}
+                      >
+                        {formatTimeAgo(log.log_datetime)}, {log.log_details}
+                      </div>
+                      
+                    </div>
+                  );
+                })}
+              </div>
 
-
-    {/* 2 */}
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '6px 0',
-        borderTop: '1px solid #E0E0E0',
-      }}
-    >
-      <img
-        style={{ width: 26, height: 26 }}
-        src="calendar.png"
-        alt=""
-      />
-      <div
-        style={{
-          flex: 1,
-          fontSize: 14,
-        }}
-      >
-        5m ago, November Roster Draft Approved by Admin Janet.
-      </div>
-      <div
-    style={{
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      background: '#EDF0F5',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    <img
-      style={{ width: 15, height: 15 }}
-      src="group.svg"
-      alt=""
-    />
-  </div>
-    </div>
-
-    {/* 3 */}
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '6px 0',
-        borderTop: '1px solid #E0E0E0',
-      }}
-    >
-      <img
-        style={{ width: 26, height: 26 }}
-        src="calendar.png"
-        alt=""
-      />
-      <div
-        style={{
-          flex: 1,
-          fontSize: 14,
-        }}
-      >
-        5m ago, November Roster Draft Approved by Admin Janet.
-      </div>
-      <div
-    style={{
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      background: '#EDF0F5',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    <img
-      style={{ width: 15, height: 15 }}
-      src="group.svg"
-      alt=""
-    />
-  </div>
-    </div>
-
-    {/* 4 */}
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '6px 0',
-        borderTop: '1px solid #E0E0E0',
-      }}
-    >
-      <img
-        style={{ width: 26, height: 26 }}
-        src="userMale.png"
-        alt=""
-      />
-      <div
-        style={{
-          flex: 1,
-          fontSize: 14,
-        }}
-      >
-        23m ago, New Preference added to December Roster Draft by Tim Smith.
-      </div>
-      <div
-    style={{
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      background: '#EDF0F5',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    <img
-      style={{ width: 15, height: 15 }}
-      src="group.svg"
-      alt=""
-    />
-  </div>
-    </div>
-
-    {/* 5 */}
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '6px 0',
-        borderTop: '1px solid #E0E0E0',
-      }}
-    >
-      <img
-        style={{ width: 26, height: 26 }}
-        src="userMale.png"
-        alt=""
-      />
-      <div
-        style={{
-          flex: 1,
-          fontSize: 14,
-        }}
-      >
-        23m ago, New Preference added to December Roster Draft by Tim Smith.
-      </div>
-      <div
-    style={{
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      background: '#EDF0F5',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    <img
-      style={{ width: 15, height: 15 }}
-      src="group.svg"
-      alt=""
-    />
-  </div>
-    </div>
-
-    {/* 6 */}
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '6px 0',
-        borderTop: '1px solid #E0E0E0',
-      }}
-    >
-      <img
-        style={{ width: 26, height: 26 }}
-        src="clock.png"
-        alt=""
-      />
-      <div
-        style={{
-          flex: 1,
-          fontSize: 14,
-        }}
-      >
-        1h 05m ago, December preference window opened by Admin Janet.
-      </div>
-      <div
-    style={{
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      background: '#EDF0F5',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    <img
-      style={{ width: 15, height: 15 }}
-      src="group.svg"
-      alt=""
-    />
-  </div>
-    </div>
-
-    
-  </div>
-
-  <div
-    style={{
-      textAlign: 'center',
-      marginTop: 4,
-      fontSize: 13,
-      fontWeight: 700,
-      color: '#5091CD',
-      cursor: 'pointer',
-    }}
-  >
-    View All
-  </div>
-</section>
-
+              <div
+                style={{
+                  textAlign: 'center',
+                  marginTop: 4,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: '#5091CD',
+                  cursor: 'pointer',
+                }}
+              >
+                View All
+              </div>
+            </section>
           </div>
         </div>
       </main>

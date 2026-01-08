@@ -107,6 +107,7 @@ function App() {
         onGoNewStaffAccounts={() => setPage('newStaff')}
         onGoManageLeave={() => setPage('manageLeave')}
         currentUserRole={currentUserRole}
+        loggedInUser={loggedInUser}
       />
     );
   }
