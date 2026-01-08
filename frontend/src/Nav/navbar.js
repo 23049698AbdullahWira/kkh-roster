@@ -108,6 +108,15 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
     hour: '2-digit', minute: '2-digit', hour12: true,
   }).format(currentDate);
 
+  const getLinkStyle = (tabName) => ({
+    cursor: 'pointer',
+    borderBottom: active === tabName ? '3px solid #5091CD' : '3px solid transparent',
+    paddingBottom: '4px',
+    color: '#374151',
+    textDecoration: 'none',
+    transition: 'border-color 0.2s'
+  });
+
   // Sync Data with Backend
   useEffect(() => {
     const fetchUserData = async () => {
