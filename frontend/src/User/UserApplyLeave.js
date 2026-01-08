@@ -66,6 +66,7 @@ function UserApplyLeave({
   onGoShiftPreference,
   onGoApplyLeave,
   onGoAccount,
+  onLogout,
 }) {
 
   // --- STATE MANAGEMENT ---
@@ -200,6 +201,7 @@ function UserApplyLeave({
         onGoShiftPreference={onGoShiftPreference}
         onGoApplyLeave={onGoApplyLeave}
         onGoAccount={onGoAccount}
+        onLogout={onLogout}
       />
 
       <main style={styles.mainContent}>

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 const API_BASE_URL = "http://localhost:5000";
 const DEFAULT_AVATAR = "https://i.pinimg.com/736x/9e/83/75/9e837528f01cf3f42119c5aeeed1b336.jpg";
 
-function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
+function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }) {
   
   // --- HELPERS (defined outside or inside, but before state) ---
 
@@ -108,14 +108,51 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
     hour: '2-digit', minute: '2-digit', hour12: true,
   }).format(currentDate);
 
-  const getLinkStyle = (tabName) => ({
-    cursor: 'pointer',
-    borderBottom: active === tabName ? '3px solid #5091CD' : '3px solid transparent',
-    paddingBottom: '4px',
-    color: '#374151',
-    textDecoration: 'none',
-    transition: 'border-color 0.2s'
-  });
+  // Sync Data with Backend
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const userId = initialData.id;
+
+      if (!userId) {
+        console.warn("[Navbar] No User ID found, skipping fetch.");
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/${userId}`);
+        if (response.ok) {
+          const userData = await response.json();
+
+          // 1. Handle Name Update
+          const newName = userData.fullName || userData.full_name;
+          if (newName) {
+            setUserName(newName);
+            localStorage.setItem('userName', newName);
+          }
+
+          // 2. Handle Avatar Update (THE FIX)
+          const rawAvatar = userData.avatar || userData.avatar_url;
+          
+          if (rawAvatar) {
+            // Case A: User has an avatar
+            const cleanAvatar = String(rawAvatar).replace(/['"]+/g, '').trim();
+            setAvatarUrl(cleanAvatar);
+            localStorage.setItem('avatar', cleanAvatar);
+          } else {
+            // Case B: User has NO avatar (null/empty)
+            // We must explicitly clear the state and storage
+            setAvatarUrl(null);
+            localStorage.removeItem('avatar');
+          }
+        }
+      } catch (error) {
+        console.error("[Navbar] Failed to sync user data:", error);
+      }
+    };
+
+    fetchUserData();
+  }, [initialData.id]);
+
 
   return (
     <header style={styles.header}>
@@ -135,6 +172,7 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift }) {
             <div style={getLinkStyle('roster')} onClick={onGoRoster}>Roster</div>
             <div style={getLinkStyle('staff')} onClick={onGoStaff}>Staff</div>
             <div style={getLinkStyle('shift')} onClick={onGoShift}>Shift Distribution</div>
+            <div style={getLinkStyle('logout')} onClick={onLogout}>Logout</div>
           </nav>
         </div>
 

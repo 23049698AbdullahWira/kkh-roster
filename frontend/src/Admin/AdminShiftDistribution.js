@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar';
 
-function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift }) {
-  // --- 1. STATE MANAGEMENT ---
+function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout, }) {
+  // --- 1. STATE ---
   const [shiftData, setShiftData] = useState([]);
   const [availableYears, setAvailableYears] = useState([]); 
   const [isLoading, setIsLoading] = useState(true);
@@ -114,7 +114,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#F3F4F6', fontFamily: 'Inter, sans-serif' }}>
-      <Navbar active="shift" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} />
+      <Navbar active="shift" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout}/>
 
       <main style={{ maxWidth: 1200, margin: '40px auto', padding: '0 32px' }}>
         

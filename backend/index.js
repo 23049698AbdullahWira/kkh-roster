@@ -8,6 +8,21 @@ require('dotenv').config();
 
 const app = express();
 
+// ================= Helper Functions =================
+// Log user actions to actionlog table
+async function logAction({ userId, details }) {
+  try {
+    await pool.query(
+      `INSERT INTO actionlog (log_details, log_datetime, user_id)
+       VALUES (?, NOW(), ?)`,
+      [details, userId]
+    );
+  } catch (err) {
+    console.error('Failed to insert action log:', err);
+    // Do NOT throw – app should still succeed even if logging fails
+  }
+}
+
 // ================= Middleware =================
 app.use(cors());
 app.use(express.json());
@@ -336,8 +351,8 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
 
 // POST Register
 app.post('/api/auth/register', async (req, res) => {
-  const { firstName, lastName, email, phone, password, role } = req.body;
-  
+  const { firstName, lastName, email, phone, password, role, createdByUserId, createdByName, createdByRole } = req.body;
+
   try {
     const [existing] = await pool.query('SELECT user_id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) {
@@ -351,7 +366,23 @@ app.post('/api/auth/register', async (req, res) => {
       [fullName, email, phone, role, password]
     );
 
-    res.json({ success: true, message: 'Staff account created successfully', userId: result.insertId });
+    // Fire-and-forget action log
+    if (createdByUserId) {
+      const creatorRole = (createdByRole || '').toUpperCase();   // e.g. 'SUPERADMIN'
+      const creatorName = createdByName || 'Unknown User';        // e.g. 'Super Admin'
+      const newRole = (role || '').toUpperCase();                 // e.g. 'APN'
+
+      const details =
+        `${creatorRole} ${creatorName} created ${newRole} Account named "${fullName}".`;
+
+      logAction({ userId: createdByUserId, details });
+    }
+
+    res.json({
+      success: true,
+      message: 'Staff account created successfully',
+      userId: result.insertId
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: err.message });
@@ -376,6 +407,10 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Incorrect password' });
     }
 
+    // Log successful login
+    const details = `${user.role || 'User'} ${user.full_name} logged in.`;
+    logAction({ userId: user.user_id, details });
+
     res.json({
       success: true,
       user: {
@@ -392,7 +427,25 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// ================= Server Start =================
+// ================= Action Logs =================
+app.get('/actionlogs', async (req, res) => {
+  const limit = parseInt(req.query.limit, 10) || 6;
+  try {
+    const [rows] = await pool.query(
+      `SELECT log_id, log_details, log_datetime
+       FROM actionlog
+       ORDER BY log_datetime DESC
+       LIMIT ?`,
+      [limit]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching action logs:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch action logs' });
+  }
+});
+
+// ================= Server =================
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
