@@ -305,14 +305,23 @@ app.get('/api/shifts/:rosterId', async (req, res) => {
 });
 
 // Update Roster Status
+// POST /api/rosters/update-status
 app.post('/api/rosters/update-status', async (req, res) => {
   const { rosterId, status } = req.body;
+
   try {
-    // Assuming your table is named 'roster' and has a 'status' column
-    await pool.query('UPDATE rosters SET status = ? WHERE roster_id = ?', [status, rosterId]);
+    let sql = 'UPDATE rosters SET status = ? WHERE roster_id = ?';
+    
+    // --- NEW LOGIC: If Publishing, also set the date ---
+    if (status === 'Published') {
+      sql = 'UPDATE rosters SET status = ?, publish_date = NOW() WHERE roster_id = ?';
+    }
+
+    await pool.query(sql, [status, rosterId]);
+    
     res.json({ success: true, status });
   } catch (err) {
-    console.error(err);
+    console.error("Error updating status:", err);
     res.status(500).json({ error: err.message });
   }
 });

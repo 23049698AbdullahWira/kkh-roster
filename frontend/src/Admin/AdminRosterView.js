@@ -309,6 +309,54 @@ function AdminRosterView({
     }
   };
 
+  // 1. Helper to check if grid has holes
+  const checkIfRosterComplete = () => {
+    if (staffList.length === 0 || days.length === 0) return false;
+    
+    for (const staff of staffList) {
+      for (const day of days) {
+        // Find shift for this specific nurse on this specific day
+        const hasShift = shifts.find(s => 
+          s.user_id === staff.user_id && 
+          s.shift_date.startsWith(day.fullDate)
+        );
+        
+        // If no shift found (and checking specifically for absence of data), return false
+        if (!hasShift) return false; 
+      }
+    }
+    return true;
+  };
+
+  const isComplete = checkIfRosterComplete(); // Re-calculates on every render
+
+  // 2. The Publish Action Handler
+  const handlePublishRoster = async () => {
+    if (!isComplete) {
+      alert("You cannot publish yet.\n\nPlease ensure every single cell has a shift assigned (use 'OFF' for rest days).");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to PUBLISH this roster? It will become visible to all staff.")) return;
+
+    try {
+      const res = await fetch('http://localhost:5000/api/rosters/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rosterId, status: 'Published' })
+      });
+
+      if (res.ok) {
+        setRosterStatus('Published');
+        alert("Success! Roster is now Published.");
+      }
+    } catch (err) {
+      console.error("Error publishing:", err);
+      alert("Server connection error.");
+    }
+  };
+  // --- NEW ADDITION END ---
+
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
       <Navbar active="roster" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} />
@@ -365,6 +413,38 @@ function AdminRosterView({
                 Close Preferences
               </button>
             )}
+
+            {/* --- NEW ADDITION START: PUBLISH BUTTON --- */}
+            {rosterStatus === 'Drafting' && (
+              <button
+                type="button"
+                onClick={handlePublishRoster}
+                // If isComplete is false, the button is disabled (Gray)
+                disabled={!isComplete} 
+                style={{
+                  padding: '10px 24px',
+                  // Blue if ready, Gray if incomplete
+                  background: isComplete ? '#1E40AF' : '#E5E7EB', 
+                  color: isComplete ? 'white' : '#9CA3AF',
+                  borderRadius: 68, 
+                  border: 'none', 
+                  cursor: isComplete ? 'pointer' : 'not-allowed', 
+                  fontWeight: 700,
+                  boxShadow: isComplete ? '0 4px 6px rgba(30, 64, 175, 0.3)' : 'none',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  transition: 'all 0.2s'
+                }}
+              >
+                {/* Upload Icon */}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                Publish Roster
+              </button>
+            )}
+            {/* --- NEW ADDITION END --- */}
 
             {/* --- NEW: Auto-Fill Button (Only in Drafting) --- */}
             {rosterStatus === 'Drafting' && (
