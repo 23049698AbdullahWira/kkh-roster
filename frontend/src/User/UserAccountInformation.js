@@ -25,6 +25,7 @@ function UserAccountInformation({
   onGoShiftPreference,
   onGoApplyLeave,
   onGoAccount,
+  onLogout
 }) {
   const [userData, setUserData] = useState(null);
   const [initialUserData, setInitialUserData] = useState(null);
@@ -203,7 +204,15 @@ function UserAccountInformation({
 
   return (
     <div style={styles.page}>
-      <UserNavbar active="account" {...{ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeave, onGoAccount }} />
+      <UserNavbar
+        active="roster"
+        onGoHome={onGoHome}
+        onGoRoster={onGoRoster}
+        onGoShiftPreference={onGoShiftPreference}
+        onGoApplyLeave={onGoApplyLeave}
+        onGoAccount={onGoAccount}
+        onLogout={onLogout}
+      />
       <main style={styles.mainContent}>
         <header style={styles.header}>
           <h1 style={styles.title}>Account Information</h1>
