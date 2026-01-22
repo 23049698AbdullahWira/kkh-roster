@@ -5,7 +5,6 @@ import UserNavbar from '../Nav/UserNavbar.js';
 const formatDate = (dateString) => {
   if (!dateString) return '';
   const date = new Date(dateString);
-  // Adjust for timezone differences by treating the date as UTC
   const adjustedDate = new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
   const options = { day: 'numeric', month: 'short', year: 'numeric' };
   return adjustedDate.toLocaleDateString('en-GB', options).replace(/ /g, ' ');
@@ -217,7 +216,7 @@ function UserApplyLeave({
           <h1 style={styles.title}>
             {isSubmitted ? 'Submission Successful' : 'Apply Leave'}
           </h1>
-          <div style={{ width: 120 }} /> {/* Spacer */}
+          <div style={{ width: 120 }} />
         </header>
 
         {isSubmitted ? (
