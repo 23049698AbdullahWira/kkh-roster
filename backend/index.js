@@ -167,6 +167,41 @@ app.put('/users/:id', async (req, res) => {
   }
 });
 
+app.post('/users/:id/change-password', async (req, res) => {
+  const { id } = req.params;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'Current password and new password are required.' });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT password FROM users WHERE user_id = ?', [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = rows[0];
+    const storedPassword = user.password;
+
+    if (currentPassword !== storedPassword) {
+      return res.status(401).json({ message: 'Incorrect current password.' });
+    }
+    
+    await pool.query(
+      'UPDATE users SET password = ? WHERE user_id = ?',
+      [newPassword, id]
+    );
+
+    res.json({ message: 'Password changed successfully.' });
+
+  } catch (err) {
+    console.error("Error changing password:", err);
+    res.status(500).json({ error: "Failed to change password." });
+  }
+});
+
 // ---------------------------------------------------------
 //  SHIFT DISTRIBUTION ROUTES (FIXED & TIMEZONE SAFE)
 // ---------------------------------------------------------
@@ -324,7 +359,7 @@ app.get('/leave_has_users', async (req, res) => {
   }
 });
 
-// POST Create Leave
+// ================= Create Leave =================
 app.post(
   '/leave_has_users',
   upload.single('leave_document'),
@@ -355,18 +390,62 @@ app.post(
 // PATCH Leave Status
 app.patch('/leave_has_users/:id/status', async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, approverId } = req.body;
 
   if (!status || !['Approved', 'Rejected'].includes(status)) {
     return res.status(400).json({ success: false, message: 'Invalid status provided.' });
   }
 
+  if (!approverId) {
+    console.warn(`Action Log Warning: approverId not provided for leave status update (ID: ${id}).`);
+  }
+
   try {
-    const query = `UPDATE leave_has_users SET status = ? WHERE leave_data_id = ?`;
-    const [result] = await pool.query(query, [status, id]);
+    const [leaveDetails] = await pool.query(
+      `SELECT 
+         lhu.user_id, 
+         u_applicant.full_name AS applicant_name, 
+         lt.leave_type
+       FROM leave_has_users lhu
+       JOIN users u_applicant ON lhu.user_id = u_applicant.user_id
+       JOIN leave_type lt ON lhu.leave_id = lt.leave_id
+       WHERE lhu.leave_data_id = ?`,
+      [id]
+    );
+
+    if (leaveDetails.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Leave request not found.' });
+    }
+
+    const { applicant_name, leave_type } = leaveDetails[0];
+
+    const [result] = await pool.query(
+      'UPDATE leave_has_users SET status = ? WHERE leave_data_id = ?',
+      [status, id]
+    );
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ success: false, message: 'Leave request not found.' });
+      return res
+        .status(404)
+        .json({ success: false, message: 'Leave request not found during update.' });
+    }
+
+    if (approverId) {
+      const [approverRows] = await pool.query(
+        'SELECT full_name, role FROM users WHERE user_id = ?',
+        [approverId]
+      );
+
+      if (approverRows.length > 0) {
+        const approver = approverRows[0];
+        const details = `${approver.role || 'Admin'} ${approver.full_name} ${status.toLowerCase()} ${applicant_name}'s leave request (${leave_type}).`;
+        
+        logAction({ userId: approverId, details });
+      } else {
+        console.warn(`Could not find approver with ID ${approverId} to log the action.`);
+      }
     }
     res.json({ success: true, message: `Leave status updated to ${status}.` });
 
