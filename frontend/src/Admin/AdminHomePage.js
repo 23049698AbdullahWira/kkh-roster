@@ -27,7 +27,7 @@ function AdminHome({
   onStaffPreferences,
   onLogout,
 }) {
-  // ---- NEW: activity log state ----
+  // ---- activity log state ----
   const [logs, setLogs] = useState([]);
 
   useEffect(() => {
@@ -43,12 +43,17 @@ function AdminHome({
     fetchLogs();
   }, []);
 
-  // ---- NEW: helper for "5m ago" etc. using log_datetime ----
+  // ---- helper for "5m ago" using SGT (UTC+8) ----
   const formatTimeAgo = (isoString) => {
     if (!isoString) return '';
-    const date = new Date(isoString);
-    const diffMs = Date.now() - date.getTime();
+
+    const dbDate = new Date(isoString);
+    const sgtDate = new Date(dbDate.getTime() + 8 * 60 * 60 * 1000);
+
+    const now = Date.now();
+    const diffMs = now - sgtDate.getTime();
     const diffMin = Math.floor(diffMs / 60000);
+
     if (diffMin < 1) return 'Just now';
     if (diffMin < 60) return `${diffMin}m ago`;
     const diffH = Math.floor(diffMin / 60);
@@ -57,7 +62,7 @@ function AdminHome({
     return `${diffD}d ago`;
   };
 
-  // ---- NEW: decide left icon & right-click behaviour based on log_type ----
+  // ---- decide left icon & right-click behaviour based on log_type ----
   const getLogIcon = (type) => {
     if (type === 'ROSTER') return 'calendar.png';
     if (type === 'PREFERENCE') return 'userMale.png';
@@ -646,7 +651,25 @@ function AdminHome({
                       >
                         {formatTimeAgo(log.log_datetime)}, {log.log_details}
                       </div>
-                      
+                      <div
+                        onClick={onClick}
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: 14,
+                          background: '#EDF0F5',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <img
+                          style={{ width: 15, height: 15 }}
+                          src="group.svg"
+                          alt=""
+                        />
+                      </div>
                     </div>
                   );
                 })}

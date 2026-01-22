@@ -165,14 +165,34 @@ function AdminStaffManagementPage({
   };
 
   const handleSubmitCreate = async () => {
+  // basic email + phone validation
+  const email = createForm.email.trim();
+  const phone = createForm.contact.trim();
+
+  const emailValid =
+    email.includes('@') &&
+    email.indexOf('@') > 0 &&
+    email.lastIndexOf('.') > email.indexOf('@') + 1;
+
+  const phoneValid = /^[0-9+\-\s]+$/.test(phone) && phone.replace(/\D/g, '').length >= 8;
+
+  if (!emailValid) {
+    alert('Please enter a valid email address (must contain @ and a domain).');
+    return;
+  }
+  if (!phoneValid) {
+    alert('Please enter a valid phone number (digits only, min 8 numbers).');
+    return;
+  }
+
   const [firstName, ...restName] = createForm.full_name.trim().split(' ');
   const lastName = restName.join(' ');
 
   const payload = {
     firstName: firstName || createForm.full_name,
     lastName: lastName || '',
-    email: createForm.email,
-    phone: createForm.contact,
+    email,
+    phone,
     password: 'Temp1234!',
     role: createForm.role || 'staff',
     createdByUserId: loggedInUser?.userId,
