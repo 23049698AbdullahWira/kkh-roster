@@ -129,8 +129,35 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
   };
 
 
-  const handleDownload = (row) => {
-    console.log("Download:", row.title);
+  const handleDownload = async (row) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/rosters/${row.id}/download`);
+      
+      if (!response.ok) {
+        throw new Error("Failed to download file");
+      }
+
+      // 1. Convert response to Blob (Binary Large Object)
+      const blob = await response.blob();
+
+      // 2. Create a hidden link element
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${row.month}_${row.year}_Roster.xlsx`; // Name the file
+      document.body.appendChild(a);
+
+      // 3. Click it programmatically
+      a.click();
+
+      // 4. Clean up
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+    } catch (err) {
+      console.error("Download error:", err);
+      alert("Error downloading roster. Please try again.");
+    }
   };
 
   const handleDeleteRoster = async (row) => {

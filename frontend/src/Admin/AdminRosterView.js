@@ -23,6 +23,22 @@ function AdminRosterView({
 
   const [isEditing, setIsEditing] = useState(false);
 
+  // --- SORTING STATE ---
+  const [sortOrder, setSortOrder] = useState('asc'); // Default A-Z
+
+  // --- SORTING LOGIC ---
+  // Create a sorted copy of staffList based on the sortOrder
+  const sortedStaffList = React.useMemo(() => {
+    return [...staffList].sort((a, b) => {
+      const nameA = (a.full_name || '').toLowerCase();
+      const nameB = (b.full_name || '').toLowerCase();
+
+      if (nameA < nameB) return sortOrder === 'asc' ? -1 : 1;
+      if (nameA > nameB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [staffList, sortOrder]);
+
   // --- STATE FOR EDIT MODAL ---
   const [selectedCell, setSelectedCell] = useState(null);
   const [selectedWardId, setSelectedWardId] = useState('');
@@ -357,6 +373,19 @@ function AdminRosterView({
   };
   // --- NEW ADDITION END ---
 
+  // Simple Sort Arrow Icon
+const IconSort = ({ direction }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+    {direction === 'asc' ? (
+      // A-Z (Down Arrow implies going down the alphabet)
+      <path d="M12 5v14M19 12l-7 7-7-7" />
+    ) : (
+      // Z-A (Up Arrow)
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    )}
+  </svg>
+);
+
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
       <Navbar active="roster" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} />
@@ -520,7 +549,20 @@ function AdminRosterView({
             <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 800 }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr>
-                  <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: 10, minWidth: 150 }}>Nurse Name</th>
+                  <th 
+                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    style={{ 
+                    position: 'sticky', left: 0, zIndex: 20, 
+                    background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', 
+                    padding: '10px 14px', minWidth: 150, 
+                    cursor: 'pointer', userSelect: 'none' // Hand cursor for clicking
+                  }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      Nurse Name
+                      <IconSort direction={sortOrder} />
+                    </div>
+                  </th>
                   {days.map((d) => (
                     <th key={d.day} style={{ borderLeft: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: 6, minWidth: 40, background: '#F9FAFB', fontSize: 14 }}>
                       {d.day} <br /> <span style={{ fontSize: 11, fontWeight: 'normal' }}>{d.label}</span>
@@ -529,7 +571,7 @@ function AdminRosterView({
                 </tr>
               </thead>
               <tbody>
-                {staffList.map((staff) => (
+                {sortedStaffList.map((staff) => (
                   <tr key={staff.user_id}>
                     <td style={{ position: 'sticky', left: 0, zIndex: 5, background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: 8, fontWeight: 600 }}>
                       {staff.full_name}

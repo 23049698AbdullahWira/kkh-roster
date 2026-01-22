@@ -4,6 +4,7 @@ const pool = require('./db');
 const multer = require('multer');
 const path = require('path');
 const { generateRoster } = require('./services/rosterEngine');
+const ExcelJS = require('exceljs'); // Import at the top
 require('dotenv').config();
 
 const app = express();
@@ -802,6 +803,123 @@ app.delete('/api/rosters/:id', async (req, res) => {
     await connection.rollback();
     console.error("Delete Roster Error:", err);
     res.status(500).json({ error: "Failed to delete roster" });
+  } finally {
+    connection.release();
+  }
+});
+
+// GET /api/rosters/:id/download
+app.get('/api/rosters/:id/download', async (req, res) => {
+  const rosterId = req.params.id;
+
+  const connection = await pool.getConnection();
+  try {
+    // 1. Fetch Roster Info
+    const [rosterMeta] = await connection.query("SELECT * FROM rosters WHERE roster_id = ?", [rosterId]);
+    if (rosterMeta.length === 0) return res.status(404).send("Roster not found");
+    
+    const { month, year } = rosterMeta[0];
+
+    // 2. Fetch Shifts + Colors
+    // We now grab 'shift_color_hex' from the database
+    const [shifts] = await connection.query(`
+      SELECT 
+        s.shift_date, 
+        sd.shift_code, 
+        sd.shift_color_hex,  /* <--- Get the Hex Color */
+        u.full_name 
+      FROM shifts s
+      JOIN users u ON s.user_id = u.user_id
+      JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
+      WHERE s.roster_id = ?
+      ORDER BY u.full_name, s.shift_date
+    `, [rosterId]);
+
+    // 3. Setup Workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(`${month} ${year}`);
+
+    // 4. Columns
+    const daysInMonth = new Date(year, new Date(`${month} 1, 2000`).getMonth() + 1, 0).getDate();
+    const columns = [{ header: 'Nurse Name', key: 'name', width: 25 }];
+    for (let i = 1; i <= daysInMonth; i++) columns.push({ header: `${i}`, key: `day_${i}`, width: 6 });
+    worksheet.columns = columns;
+
+    // 5. Process Data & Build Color Map
+    const nurseMap = {};
+    const colorMap = {}; // <--- Stores 'AM' -> '#10B981'
+
+    shifts.forEach(shift => {
+      const name = shift.full_name;
+      const dateStr = typeof shift.shift_date === 'string' 
+        ? shift.shift_date.split('T')[0] 
+        : shift.shift_date.toISOString().split('T')[0];
+      const day = parseInt(dateStr.split('-')[2], 10);
+
+      // Store Row Data
+      if (!nurseMap[name]) nurseMap[name] = { name: name };
+      nurseMap[name][`day_${day}`] = shift.shift_code;
+
+      // Store Color Mapping (if exists)
+      if (shift.shift_code && shift.shift_color_hex) {
+        colorMap[shift.shift_code] = shift.shift_color_hex;
+      }
+    });
+
+    // 6. Add Rows
+    Object.values(nurseMap).forEach(row => worksheet.addRow(row));
+
+    // 7. Styling with Database Colors
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        row.font = { bold: true };
+        return;
+      }
+
+      row.eachCell((cell, colNumber) => {
+        // Basic Alignment & Border
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          left: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          bottom: { style: 'thin', color: { argb: 'FFD1D5DB' } },
+          right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
+        };
+
+        // Apply Color if it's a shift cell
+        if (colNumber > 1) { 
+            const code = cell.value;
+            const hex = colorMap[code]; // Look up the color from DB
+
+            if (hex) {
+                // Excel expects ARGB (FF + Hex without #)
+                // Example: #10B981 -> FF10B981
+                const cleanHex = hex.replace('#', '');
+                const argbColor = `FF${cleanHex}`;
+
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: argbColor }
+                };
+
+                // OPTIONAL: Make text white if background is dark?
+                // For now, let's keep it black unless you want "smart text color" logic.
+                // cell.font = { color: { argb: 'FFFFFFFF' } }; 
+            }
+        }
+      });
+    });
+
+    // 8. Send File
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=${month}_${year}_Roster.xlsx`);
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (err) {
+    console.error("Excel Generation Error:", err);
+    res.status(500).send("Error generating file");
   } finally {
     connection.release();
   }
