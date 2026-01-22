@@ -33,8 +33,10 @@ function AdminHome({
   useEffect(() => {
     async function fetchLogs() {
       try {
+        // Fetch the latest action logs from the backend (limited to 6)
         const res = await fetch('http://localhost:5000/actionlogs?limit=6');
         const data = await res.json();
+        // Store logs in local React state for rendering
         setLogs(data || []);
       } catch (err) {
         console.error('Failed to fetch action logs:', err);
@@ -47,7 +49,9 @@ function AdminHome({
   const formatTimeAgo = (isoString) => {
     if (!isoString) return '';
 
+    // Convert string to Date (assumed server time or UTC)
     const dbDate = new Date(isoString);
+    // Add 8 hours so display is aligned with Singapore Time (UTC+8)
     const sgtDate = new Date(dbDate.getTime() + 8 * 60 * 60 * 1000);
 
     const now = Date.now();
@@ -71,11 +75,13 @@ function AdminHome({
     return 'calendar.png';
   };
 
+  // Map each log type to a click handler that navigates the admin
   const getLogClickHandler = (type) => {
     if (type === 'ROSTER') return onGoRoster;
     if (type === 'PREFERENCE') return onStaffPreferences;
     if (type === 'ACCOUNT') return onGoStaff;
     if (type === 'WINDOW') return onGoShift;
+    // Default: do nothing when no type is matched
     return () => {};
   };
 
@@ -381,12 +387,16 @@ function AdminHome({
           {/* RIGHT COLUMN */}
           <div
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 16,
-            }}
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+          }}
           >
             {/* Quick Links */}
+            {/* This section shows 4 big buttons that quickly navigate the admin
+                to key features: Start New Roster, Add New Staff, Manage Leave,
+                and Staff Preferences. Each button calls a callback prop that
+                the parent component passes in (navigation handler). */}
             <section
               style={{
                 background: 'white',
@@ -412,7 +422,8 @@ function AdminHome({
                   gap: 24,
                 }}
               >
-                {/* 1. Start New Roster */}
+                {/* 1. Start New Roster
+                    Clicking calls onStartNewRoster, which navigates to the roster creation view. */}
                 <button
                   type="button"
                   onClick={onStartNewRoster}
@@ -457,7 +468,8 @@ function AdminHome({
                   </div>
                 </button>
 
-                {/* 2. Add New Staff */}
+                {/* 2. Add New Staff
+                    Clicking calls onAddNewStaff, which opens the staff creation UI. */}
                 <button
                   type="button"
                   onClick={onAddNewStaff}
@@ -502,7 +514,8 @@ function AdminHome({
                   </div>
                 </button>
 
-                {/* 3. Manage Leave */}
+                {/* 3. Manage Leave
+                    Clicking calls onManageLeave to go to the leave approval / management page. */}
                 <button
                   type="button"
                   onClick={onManageLeave}
@@ -547,7 +560,8 @@ function AdminHome({
                   </div>
                 </button>
 
-                {/* 4. Staff Preferences */}
+                {/* 4. Staff Preferences
+                    Clicking calls onStaffPreferences to open preference management. */}
                 <button
                   type="button"
                   onClick={onStaffPreferences}
@@ -595,6 +609,10 @@ function AdminHome({
             </section>
 
             {/* Admin Activity Log */}
+            {/* This section lists recent actions (from /actionlogs), such as logins
+                and account creations. Each row shows an icon, "time ago" (SGT),
+                the log message, and a small button that navigates to a related page
+                based on log_type. */}
             <section
               style={{
                 background: 'white',
@@ -626,6 +644,7 @@ function AdminHome({
                 }}
               >
                 {logs.map((log) => {
+                  // Determine which navigation callback to use for this log
                   const onClick = getLogClickHandler(log.log_type);
                   return (
                     <div
@@ -638,11 +657,13 @@ function AdminHome({
                         borderTop: '1px solid #E0E0E0',
                       }}
                     >
+                      {/* Icon chosen based on log_type (Roster, Account, etc.) */}
                       <img
                         style={{ width: 26, height: 26 }}
                         src={getLogIcon(log.log_type)}
                         alt=""
                       />
+                      {/* Main text: "X minutes ago, <details>" using SGT time */}
                       <div
                         style={{
                           flex: 1,
@@ -651,6 +672,8 @@ function AdminHome({
                       >
                         {formatTimeAgo(log.log_datetime)}, {log.log_details}
                       </div>
+                      {/* Small circular button that, when clicked, navigates
+                          to the related area (e.g., Roster page, Staff page). */}
                       <div
                         onClick={onClick}
                         style={{
@@ -675,6 +698,7 @@ function AdminHome({
                 })}
               </div>
 
+              {/* Placeholder "View All" text – can later be wired up to a full logs page */}
               <div
                 style={{
                   textAlign: 'center',

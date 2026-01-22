@@ -20,7 +20,7 @@ function AdminStaffManagementPage({
 
   // Data Options
   const [roleOptions, setRoleOptions] = useState([]);
-  const [leaveTypes, setLeaveTypes] = useState([]); //
+  const [leaveTypes, setLeaveTypes] = useState([]);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -44,9 +44,8 @@ function AdminStaffManagementPage({
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]);
 
-  //prevents superadmin from being shown in role options for account creation.
+  // prevents superadmin from being shown in role options for account creation
   const visibleRoles = roleOptions.filter(r => r === 'APN' || r === 'ADMIN');
-
 
   // --- 2. HELPER: Status Colors ---
   const getStatusStyle = (status) => {
@@ -96,12 +95,12 @@ function AdminStaffManagementPage({
       setStaffRows(formattedStaff);
 
       // B. Fetch Roles
-      const resRoles = await fetch('http://localhost:5000/roles'); //
+      const resRoles = await fetch('http://localhost:5000/roles');
       const rolesData = await resRoles.json();
       setRoleOptions(rolesData);
 
       // C. Fetch Leave Types (for the Leave Modal)
-      const resLeaveTypes = await fetch('http://localhost:5000/leave_type'); //
+      const resLeaveTypes = await fetch('http://localhost:5000/leave_type');
       const leaveTypesData = await resLeaveTypes.json();
       setLeaveTypes(leaveTypesData);
 
@@ -119,7 +118,7 @@ function AdminStaffManagementPage({
   // --- 4. HANDLER: MANAGE LEAVE ---
   const fetchLeaveRequests = async () => {
     try {
-      const res = await fetch('http://localhost:5000/leave_has_users'); //
+      const res = await fetch('http://localhost:5000/leave_has_users');
       const data = await res.json();
       // Sort by pending first, then date
       const sorted = data.sort((a, b) => (a.status === 'Pending' ? -1 : 1));
@@ -136,7 +135,7 @@ function AdminStaffManagementPage({
 
   const handleLeaveAction = async (leaveId, newStatus) => {
     try {
-      const res = await fetch(`http://localhost:5000/leave_has_users/${leaveId}/status`, { //
+      const res = await fetch(`http://localhost:5000/leave_has_users/${leaveId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -156,76 +155,106 @@ function AdminStaffManagementPage({
   };
 
   // --- 5. HANDLER: CREATE STAFF ---
+  // Generic change handler for the "Create Staff" form fields
+  // It supports both text inputs and the optional profile picture file input.
   const handleChangeCreate = (field) => (e) => {
     if (field === 'profile_picture') {
+      // For file input, store the File object (or null if cleared)
       setCreateForm((prev) => ({ ...prev, profile_picture: e.target.files[0] || null }));
     } else {
+      // For text inputs, update the specific field
       setCreateForm((prev) => ({ ...prev, [field]: e.target.value }));
     }
   };
 
+  // Submit handler that:
+  // 1) Validates email and phone on the client side,
+  // 2) Splits full_name into firstName + lastName,
+  // 3) Builds a payload matching the backend /api/auth/register contract,
+  // 4) Sends a POST request,
+  // 5) Handles success (close modal, reset form, refresh list) and errors.
   const handleSubmitCreate = async () => {
-  // basic email + phone validation
-  const email = createForm.email.trim();
-  const phone = createForm.contact.trim();
+    // basic email + phone validation
+    const email = createForm.email.trim();
+    const phone = createForm.contact.trim();
 
-  const emailValid =
-    email.includes('@') &&
-    email.indexOf('@') > 0 &&
-    email.lastIndexOf('.') > email.indexOf('@') + 1;
+    // Simple email validation: must contain '@', something before it,
+    // and a '.' after the '@' (very lightweight check)
+    const emailValid =
+      email.includes('@') &&
+      email.indexOf('@') > 0 &&
+      email.lastIndexOf('.') > email.indexOf('@') + 1;
 
-  const phoneValid = /^[0-9+\-\s]+$/.test(phone) && phone.replace(/\D/g, '').length >= 8;
+    // Simple phone validation:
+    // allow digits, +, -, spaces; require at least 8 digits total
+    const phoneValid = /^[0-9+\-\s]+$/.test(phone) && phone.replace(/\D/g, '').length >= 8;
 
-  if (!emailValid) {
-    alert('Please enter a valid email address (must contain @ and a domain).');
-    return;
-  }
-  if (!phoneValid) {
-    alert('Please enter a valid phone number (digits only, min 8 numbers).');
-    return;
-  }
-
-  const [firstName, ...restName] = createForm.full_name.trim().split(' ');
-  const lastName = restName.join(' ');
-
-  const payload = {
-    firstName: firstName || createForm.full_name,
-    lastName: lastName || '',
-    email,
-    phone,
-    password: 'Temp1234!',
-    role: createForm.role || 'staff',
-    createdByUserId: loggedInUser?.userId,
-    createdByName: loggedInUser?.fullName,
-    createdByRole: loggedInUser?.role,
-  };
-
-  try {
-    const res = await fetch('http://localhost:5000/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok || !data.success) {
-      alert(data.message || 'Failed to create staff account.');
+    if (!emailValid) {
+      alert('Please enter a valid email address (must contain @ and a domain).');
+      return;
+    }
+    if (!phoneValid) {
+      alert('Please enter a valid phone number (digits only, min 8 numbers).');
       return;
     }
 
-    alert('Staff account created successfully!');
-    setShowCreate(false);
-    setCreateForm({ full_name: '', contact: '', email: '', role: '', profile_picture: null });
-    fetchInitialData();
-  } catch (err) {
-    console.error('Error creating staff:', err);
-    alert('Unable to connect to server.');
-  }
-};
+    // Split full_name into firstName and lastName
+    // First word is firstName; the rest are joined as lastName
+    const [firstName, ...restName] = createForm.full_name.trim().split(' ');
+    const lastName = restName.join(' ');
 
+    // Payload structure expected by the backend /api/auth/register endpoint
+    const payload = {
+      firstName: firstName || createForm.full_name,
+      lastName: lastName || '',
+      email,
+      phone,
+      // Temporary password assigned by the system; user can change later
+      password: 'Temp1234!',
+      // Default to 'staff' if no role was chosen
+      role: createForm.role || 'staff',
+      // Audit fields: who created this new staff account
+      createdByUserId: loggedInUser?.userId,
+      createdByName: loggedInUser?.fullName,
+      createdByRole: loggedInUser?.role,
+    };
 
-  const isCreateValid = createForm.full_name.trim() && createForm.contact.trim() && createForm.email.trim() && createForm.role.trim();
+    try {
+      // POST request to the backend auth route to create the account
+      const res = await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      // If HTTP status or success flag is not OK, show the error message
+      if (!res.ok || !data.success) {
+        alert(data.message || 'Failed to create staff account.');
+        return;
+      }
+
+      // On success: notify user, close modal, clear form, and refetch staff list
+      alert('Staff account created successfully!');
+      setShowCreate(false);
+      setCreateForm({ full_name: '', contact: '', email: '', role: '', profile_picture: null });
+      fetchInitialData();
+    } catch (err) {
+      console.error('Error creating staff:', err);
+      alert('Unable to connect to server.');
+    }
+  };
+
+  // Boolean used to enable/disable the "Create" button:
+  // requires all text fields to be non-empty (role included).
+  const isCreateValid =
+    createForm.full_name.trim() &&
+    createForm.contact.trim() &&
+    createForm.email.trim() &&
+    createForm.role.trim();
+
+  // Only SUPERADMIN can open the "Create Staff" modal or click "New Staff Account"
   const canCreateStaff = currentUserRole === 'SUPERADMIN';
 
   // --- 6. HANDLERS: EDIT/VIEW STAFF ---
@@ -270,7 +299,7 @@ function AdminStaffManagementPage({
   };
 
   const handleUpdate = () => {
-    fetch(`http://localhost:5000/users/${selectedStaff.staffId}`, { //
+    fetch(`http://localhost:5000/users/${selectedStaff.staffId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData)
@@ -293,8 +322,12 @@ function AdminStaffManagementPage({
   const currentStaff = staffRows.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(staffRows.length / itemsPerPage);
 
-  const handleNextPage = () => { if (currentPage < totalPages) setCurrentPage(prev => prev + 1); };
-  const handlePrevPage = () => { if (currentPage > 1) setCurrentPage(prev => prev - 1); };
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
+  };
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(prev => prev - 1);
+  };
 
   const gridLayout = '2fr 1.3fr 1.4fr 2.5fr 1fr 0.8fr';
 
@@ -436,7 +469,6 @@ function AdminStaffManagementPage({
       )}
 
       {/* MODAL 2: CREATE STAFF ACCOUNT */}
-      {/* POPUP: Create Staff Account */}
       {showCreate && canCreateStaff && (
         <div
           style={{
@@ -489,6 +521,7 @@ function AdminStaffManagementPage({
                 Please enter the details below.
               </div>
             </div>
+
             {/* Fields */}
             <div
               style={{
@@ -535,6 +568,7 @@ function AdminStaffManagementPage({
                   />
                 </div>
               ))}
+
               {/* Role dropdown */}
               <div
                 style={{
@@ -573,7 +607,8 @@ function AdminStaffManagementPage({
                   ))}
                 </select>
               </div>
-              {/* Profile picture */}
+
+              {/* Profile picture (optional) */}
               <div
                 style={{
                   width: '100%',
@@ -653,6 +688,7 @@ function AdminStaffManagementPage({
                 </div>
               </div>
             </div>
+
             {/* Buttons */}
             <div
               style={{
@@ -714,14 +750,22 @@ function AdminStaffManagementPage({
         </div>
       )}
 
-
-    </div> 
+    </div>
   );
 }
 
 // --- ICON COMPONENTS ---
-const EyeIcon = () => (<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#6B7280" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>);
-const PencilIcon = () => (<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#6B7280" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>);
+const EyeIcon = () => (
+  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#6B7280" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+);
+const PencilIcon = () => (
+  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#6B7280" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+  </svg>
+);
 
 // --- STYLES ---
 const buttonStyle = { padding: '10px 24px', borderRadius: 68, border: 'none', color: 'white', fontSize: 16, fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s', display: 'flex', alignItems: 'center', gap: 8 };
