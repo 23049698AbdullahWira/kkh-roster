@@ -86,9 +86,15 @@ app.get('/users', async (req, res) => {
 app.get('/users/:id', async (req, res) => {
     const userId = req.params.id;
     try {
-      // USE ALIASES (AS) TO MATCH FRONTEND KEYS
+      // MODIFIED: Added email and contact (aliased as phone) to support Profile Modal
+      // Kept fullName and avatar aliases to support existing Navbar
       const [rows] = await pool.query(
-        `SELECT full_name AS fullName, avatar_url AS avatar FROM users WHERE user_id = ?`, 
+        `SELECT 
+            full_name AS fullName, 
+            avatar_url AS avatar, 
+            email, 
+            contact AS phone 
+         FROM users WHERE user_id = ?`, 
         [userId]
       );
   
@@ -106,9 +112,10 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Make sure the folder name 'uploads' matches your actual folder
 app.use('/uploads', express.static('uploads'));
 
-// UPDATE User Profile
+// UPDATE User Profile (Dynamic Update)
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
+  // We check req.body for ALL possible fields from both Features (Staff Edit & My Profile)
   const { full_name, email, role, status, password, avatar_url, contact } = req.body;
 
   try {
@@ -117,22 +124,42 @@ app.put('/users/:id', async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    let query = `
-      UPDATE users 
-      SET full_name = ?, email = ?, role = ?, status = ?, avatar_url = ?, contact = ?
-    `;
-    const params = [full_name, email, role, status, avatar_url, contact];
+    // --- DYNAMIC QUERY BUILDING ---
+    // This allows partial updates (e.g. My Profile) AND full updates (Edit Staff)
+    // without overwriting missing fields with NULL.
+    let fields = [];
+    let params = [];
 
+    if (full_name !== undefined) { fields.push('full_name = ?'); params.push(full_name); }
+    if (email !== undefined)     { fields.push('email = ?');     params.push(email); }
+    if (role !== undefined)      { fields.push('role = ?');      params.push(role); }
+    if (status !== undefined)    { fields.push('status = ?');    params.push(status); }
+    if (avatar_url !== undefined){ fields.push('avatar_url = ?'); params.push(avatar_url); }
+    if (contact !== undefined)   { fields.push('contact = ?');   params.push(contact); }
+    
+    // Password Logic: Only update if provided and not empty
     if (password && password.trim() !== "") {
-      query += `, password = ?`;
+      fields.push('password = ?');
       params.push(password);
     }
 
-    query += ` WHERE user_id = ?`;
+    if (fields.length === 0) {
+        return res.json({ message: "No changes detected" });
+    }
+
+    // Finalize Query
+    const query = `UPDATE users SET ${fields.join(', ')} WHERE user_id = ?`;
     params.push(id);
 
     await pool.query(query, params);
-    res.json({ message: 'User updated successfully' });
+    
+    // Return updated fields for Frontend State Update
+    res.json({ 
+        message: 'User updated successfully',
+        fullName: full_name,
+        avatar: avatar_url,
+        phone: contact
+    });
 
   } catch (err) {
     console.error("Error updating user:", err);
@@ -395,7 +422,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      'SELECT user_id, email, password, role, full_name, avatar_url FROM users WHERE email = ?',
+      'SELECT user_id, email, password, role, full_name, avatar_url, contact FROM users WHERE email = ?',
       [email]
     );
     if (rows.length === 0) {
@@ -417,6 +444,7 @@ app.post('/api/auth/login', async (req, res) => {
         userId: user.user_id,
         fullName: user.full_name,
         email: user.email,
+        phone: user.contact, // Ensure phone is sent on login too
         role: user.role || 'user',
         avatar: user.avatar_url || "https://placehold.co/50x50"
       }
