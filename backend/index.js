@@ -1,10 +1,12 @@
-const express = require('express');
-const cors = require('cors');
-const pool = require('./db');
-const multer = require('multer');
-const path = require('path');
-require('dotenv').config();
+// Import core dependencies
+const express = require('express');      // Express: HTTP server framework
+const cors = require('cors');            // CORS: controls cross‑origin requests
+const pool = require('./db');            // MySQL connection pool (using mysql2 or similar)
+const multer = require('multer');        // Multer: file upload middleware
+const path = require('path');            // Node core: path utilities
+require('dotenv').config();              // dotenv: load environment variables from .env
 
+// Create the Express application instance
 const app = express();
 
 // ================= Helper Functions =================
@@ -320,25 +322,30 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
   }
 });
 
-// ================= Login =================
-// POST register - NO WARD, matches your exact table
+// ================= Auth: Register & Login =================
+// Register staff accounts (called from Admin UI)
+// Note: this is not public self‑signup; admins call this to create staff.
 app.post('/api/auth/register', async (req, res) => {
   const { firstName, lastName, email, phone, password, role, createdByUserId, createdByName, createdByRole } = req.body;
 
   try {
+    // Check if email is already used
     const [existing] = await pool.query('SELECT user_id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
 
+    // Combine first and last name into full_name
     const fullName = `${firstName} ${lastName}`.trim();
+
+    // Insert new user with default 'Active' status
     const [result] = await pool.query(
       `INSERT INTO users (full_name, email, contact, role, password, status) 
        VALUES (?, ?, ?, ?, ?, 'Active')`,
       [fullName, email, phone, role, password]
     );
 
-    // Fire-and-forget action log
+    // Log the creation action if creator info is provided
     if (createdByUserId) {
       const creatorRole = (createdByRole || '').toUpperCase();   // e.g. 'SUPERADMIN'
       const creatorName = createdByName || 'Unknown User';        // e.g. 'Super Admin'
@@ -347,6 +354,7 @@ app.post('/api/auth/register', async (req, res) => {
       const details =
         `${creatorRole} ${creatorName} created ${newRole} Account named "${fullName}".`;
 
+      // Fire-and-forget logging (no await on purpose)
       logAction({ userId: createdByUserId, details });
     }
 
@@ -361,11 +369,13 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-
+// Login route for both admins and regular users
+// Uses plain password comparison (no hashing in this snippet)
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // Look up user by email
     const [rows] = await pool.query(
       'SELECT user_id, email, password, role, full_name FROM users WHERE email = ?',
       [email]
@@ -377,16 +387,18 @@ app.post('/api/auth/login', async (req, res) => {
     }
     const user = rows[0];
 
+    // Compare passwords directly (in production, use hashing)
     if (user.password !== password) {
       return res
         .status(401)
         .json({ success: false, message: 'Incorrect password' });
     }
 
-    // Log successful login
+    // Log successful login action
     const details = `${user.role || 'User'} ${user.full_name} logged in.`;
     logAction({ userId: user.user_id, details });
 
+    // Return minimal user info (no token here)
     res.json({
       success: true,
       user: {
@@ -403,8 +415,9 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ================= Action Logs =================
+// Fetch recent action logs for the Admin Activity Log UI
 app.get('/actionlogs', async (req, res) => {
-  const limit = parseInt(req.query.limit, 10) || 6;
+  const limit = parseInt(req.query.limit, 10) || 6; // default to 6 logs
   try {
     const [rows] = await pool.query(
       `SELECT log_id, log_details, log_datetime
