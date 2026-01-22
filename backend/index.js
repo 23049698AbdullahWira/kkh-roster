@@ -82,7 +82,6 @@ app.get('/users', async (req, res) => {
   }
 });
 
-// Add this new route to get a single user by their ID
 app.get('/users/:id', async (req, res) => {
   const { id } = req.params;
   try {
@@ -90,7 +89,6 @@ app.get('/users/:id', async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
-    // IMPORTANT: Do not send the password back to the frontend
     const { password, ...userProfile } = rows[0];
     res.json(userProfile);
   } catch (err) {
@@ -346,27 +344,22 @@ app.get('/api/rosters/:id', async (req, res) => {
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
   
-  // 1. Get 'contact' from the request body along with other fields
   const { full_name, email, role, status, password, avatar_url, contact } = req.body;
 
   try {
-    // 2. Check if user exists
+
     const [check] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
     if (check.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // 3. Prepare update query
-    // ADDED: "contact = ?" to the SQL string
     let query = `
       UPDATE users 
       SET full_name = ?, email = ?, role = ?, status = ?, avatar_url = ?, contact = ?
     `;
     
-    // 4. Add 'contact' to the parameters array (order must match the ?s above)
     const params = [full_name, email, role, status, avatar_url, contact];
 
-    // Handle Password (only update if provided)
     if (password && password.trim() !== "") {
       query += `, password = ?`;
       params.push(password);
@@ -375,7 +368,6 @@ app.put('/users/:id', async (req, res) => {
     query += ` WHERE user_id = ?`;
     params.push(id);
 
-    // 5. Execute update
     await pool.query(query, params);
 
     res.json({ message: 'User updated successfully' });
@@ -383,6 +375,41 @@ app.put('/users/:id', async (req, res) => {
   } catch (err) {
     console.error("Error updating user:", err);
     res.status(500).json({ error: "Failed to update user" });
+  }
+});
+
+app.post('/users/:id/change-password', async (req, res) => {
+  const { id } = req.params;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ message: 'Current password and new password are required.' });
+  }
+
+  try {
+    const [rows] = await pool.query('SELECT password FROM users WHERE user_id = ?', [id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const user = rows[0];
+    const storedPassword = user.password;
+
+    if (currentPassword !== storedPassword) {
+      return res.status(401).json({ message: 'Incorrect current password.' });
+    }
+    
+    await pool.query(
+      'UPDATE users SET password = ? WHERE user_id = ?',
+      [newPassword, id]
+    );
+
+    res.json({ message: 'Password changed successfully.' });
+
+  } catch (err) {
+    console.error("Error changing password:", err);
+    res.status(500).json({ error: "Failed to change password." });
   }
 });
 
@@ -462,7 +489,7 @@ app.get('/leave_type', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM leave_type');
     res.json(rows);
-  } catch (err) { // It's also good practice to have a catch block
+  } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
@@ -490,7 +517,7 @@ app.get('/leave_has_users', async (req, res) => {
   }
 });
 
-// ================= Create Leave (With Upload) =================
+// ================= Create Leave =================
 app.post(
   '/leave_has_users',
   upload.single('leave_document'),
@@ -546,7 +573,7 @@ app.post(
 // ================= Update Leave Status =================
 app.patch('/leave_has_users/:id/status', async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, approverId } = req.body;
 
   if (!status || !['Approved', 'Rejected'].includes(status)) {
     return res
@@ -554,19 +581,56 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
       .json({ success: false, message: 'Invalid status provided.' });
   }
 
-  try {
-    const query = `
-      UPDATE leave_has_users
-      SET status = ?
-      WHERE leave_data_id = ? 
-    `;
+  if (!approverId) {
+    console.warn(`Action Log Warning: approverId not provided for leave status update (ID: ${id}).`);
+  }
 
-    const [result] = await pool.query(query, [status, id]);
+  try {
+    const [leaveDetails] = await pool.query(
+      `SELECT 
+         lhu.user_id, 
+         u_applicant.full_name AS applicant_name, 
+         lt.leave_type
+       FROM leave_has_users lhu
+       JOIN users u_applicant ON lhu.user_id = u_applicant.user_id
+       JOIN leave_type lt ON lhu.leave_id = lt.leave_id
+       WHERE lhu.leave_data_id = ?`,
+      [id]
+    );
+
+    if (leaveDetails.length === 0) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Leave request not found.' });
+    }
+
+    const { applicant_name, leave_type } = leaveDetails[0];
+
+    const [result] = await pool.query(
+      'UPDATE leave_has_users SET status = ? WHERE leave_data_id = ?',
+      [status, id]
+    );
 
     if (result.affectedRows === 0) {
       return res
         .status(404)
-        .json({ success: false, message: 'Leave request not found.' });
+        .json({ success: false, message: 'Leave request not found during update.' });
+    }
+
+    if (approverId) {
+      const [approverRows] = await pool.query(
+        'SELECT full_name, role FROM users WHERE user_id = ?',
+        [approverId]
+      );
+
+      if (approverRows.length > 0) {
+        const approver = approverRows[0];
+        const details = `${approver.role || 'Admin'} ${approver.full_name} ${status.toLowerCase()} ${applicant_name}'s leave request (${leave_type}).`;
+        
+        logAction({ userId: approverId, details });
+      } else {
+        console.warn(`Could not find approver with ID ${approverId} to log the action.`);
+      }
     }
 
     res.json({
