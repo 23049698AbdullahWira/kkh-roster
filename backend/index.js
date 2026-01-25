@@ -589,6 +589,8 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
     const [leaveDetails] = await pool.query(
       `SELECT 
          lhu.user_id, 
+          lhu.leave_start,
+          lhu.leave_end,   
          u_applicant.full_name AS applicant_name, 
          lt.leave_type
        FROM leave_has_users lhu
@@ -604,7 +606,7 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
         .json({ success: false, message: 'Leave request not found.' });
     }
 
-    const { applicant_name, leave_type } = leaveDetails[0];
+    const { user_id, applicant_name, leave_type, leave_start, leave_end } = leaveDetails[0];
 
     const [result] = await pool.query(
       'UPDATE leave_has_users SET status = ? WHERE leave_data_id = ?',
@@ -616,6 +618,68 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
         .status(404)
         .json({ success: false, message: 'Leave request not found during update.' });
     }
+
+    // =========================================================
+    // ROSTER UPDATE LOGIC
+    // =========================================================
+    if (status === 'Approved') {
+        const typeMap = {
+            'Annual Leave': 'AL',
+            'Sick Leave': 'MC',
+            'Maternity Leave': 'ML',
+            'Hospitalisation Leave': 'HL',
+            'Day-Off': 'DO'
+        };
+        const finalCode = typeMap[leave_type] || 'AL'; 
+
+        console.log("DEBUG: Mapped Code is", finalCode); // <--- DEBUG 1
+
+        // --- FIX 2: Use correct table 'shift_desc' ---
+        const [typeResult] = await pool.query(
+            "SELECT shift_type_id FROM shift_desc WHERE shift_code = ?", 
+            [finalCode]
+        );
+
+        if (typeResult.length > 0) {
+            console.log("DEBUG: Found Shift Type ID:", typeResult[0].shift_type_id); // <--- DEBUG 2
+            const shiftTypeId = typeResult[0].shift_type_id;
+            const start = new Date(leave_start);
+            const end = new Date(leave_end);
+
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                
+                // --- FIX 3: Find Roster ID safely using MONTH() ---
+                const [rosterCheck] = await pool.query(
+                    `SELECT roster_id FROM rosters 
+                     WHERE month = MONTH(?) 
+                     AND year = YEAR(?) LIMIT 1`,
+                    [dateStr, dateStr]
+                );
+
+                if (rosterCheck.length > 0) {
+                    const validRosterId = rosterCheck[0].roster_id;
+
+                    // Delete old shift
+                    await pool.query(
+                        "DELETE FROM shifts WHERE user_id = ? AND shift_date = ?",
+                        [user_id, dateStr]
+                    );
+
+                    // Insert new Leave shift
+                    await pool.query(`
+                        INSERT INTO shifts (user_id, shift_date, shift_type_id, roster_id, ward_id)
+                        VALUES (?, ?, ?, ?, 2) 
+                    `, [user_id, dateStr, shiftTypeId, validRosterId]);
+                    
+                } else {
+                  console.log("DEBUG: Roster check failed for month:", d.getMonth() + 1); // <--- DEBUG 3
+                  console.warn(`Skipping roster update: No roster found for ${dateStr}.`);
+                }
+            }
+        }
+    }
+    // =========================================================
 
     if (approverId) {
       const [approverRows] = await pool.query(
