@@ -166,6 +166,32 @@ app.put('/users/:id', async (req, res) => {
     res.status(500).json({ error: "Failed to update user" });
   }
 });
+// This handles the logAction() call from the frontend
+app.post('/action-logs', async (req, res) => {
+  const { userId, details } = req.body;
+
+  // Basic check to ensure data exists
+  if (!userId || !details) {
+    return res.status(400).json({ message: 'Missing userId or details' });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO actionlog (log_details, log_datetime, user_id)
+       VALUES (?, NOW(), ?)`,
+      [details, userId]
+    );
+    
+    // Send success status so the frontend console doesn't show an error
+    res.status(200).json({ message: 'Action logged successfully' });
+
+  } catch (err) {
+    console.error("Failed to write to actionlog:", err);
+    // Even if logging fails, we often don't want to crash the app, 
+    // but sending a 500 allows the frontend to know it failed.
+    res.status(500).json({ error: "Failed to log action" });
+  }
+});
 
 app.post('/users/:id/change-password', async (req, res) => {
   const { id } = req.params;
@@ -199,6 +225,34 @@ app.post('/users/:id/change-password', async (req, res) => {
   } catch (err) {
     console.error("Error changing password:", err);
     res.status(500).json({ error: "Failed to change password." });
+  }
+});
+
+// --- DELETE STAFF ACCOUNT ---
+app.delete('/users/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // 1. Execute the deletion
+    const [result] = await pool.query('DELETE FROM users WHERE user_id = ?', [id]);
+
+    // 2. Check if a row was actually deleted
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User not found or already deleted.' });
+    }
+
+    // 3. Return success
+    res.json({ message: 'User deleted successfully.' });
+
+  } catch (err) {
+    console.error("Error deleting user:", err);
+    // 4. Handle database constraints (e.g., if user has linked shift records)
+    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
+        return res.status(400).json({ 
+            message: "Cannot delete this user because they have existing records (e.g., shifts or leave requests). Consider deactivating them instead." 
+        });
+    }
+    res.status(500).json({ error: "Failed to delete user." });
   }
 });
 

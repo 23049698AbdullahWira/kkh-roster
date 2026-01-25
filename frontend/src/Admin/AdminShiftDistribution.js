@@ -14,7 +14,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);    
-  const itemsPerPage = 5;
+  const itemsPerPage = 6;
 
   // --- 2. HELPER: Determine Badge Color ---
   const getWorkloadStatus = (total, targetVal) => {
@@ -113,7 +113,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
   const gridLayout = '2.5fr 1fr 1fr 1fr 1.5fr';
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', background: '#F3F4F6', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ width: '100%', minHeight: '100vh', background: '#F8F9FA', fontFamily: 'Inter, sans-serif' }}>
       <Navbar active="shift" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout}/>
 
       <main style={{ maxWidth: 1200, margin: '40px auto', padding: '0 32px' }}>
@@ -194,7 +194,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
 
         {/* --- DATA TABLE --- */}
         <section style={{ background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '16px 24px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '16px 24px', background: 'white', borderBottom: '1px solid #E5E7EB' }}>
             <div style={headerStyle}>Staff Member</div>
             <div style={headerStyle}>PH Count</div>
             <div style={headerStyle}>Sun Count</div>
@@ -217,7 +217,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
                     padding: '16px 24px', 
                     alignItems: 'center',
                     borderTop: idx === 0 ? 'none' : '1px solid #E5E7EB',
-                    backgroundColor: idx % 2 === 0 ? 'white' : '#F9FAFB'
+                    backgroundColor:'white'
                   }}>
                     <div>
                       {/* Using the corrected 'name' field */}
