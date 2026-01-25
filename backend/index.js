@@ -228,31 +228,40 @@ app.post('/users/:id/change-password', async (req, res) => {
   }
 });
 
-// --- DELETE STAFF ACCOUNT ---
+// --- FORCE DELETE USER (Updated) ---
 app.delete('/users/:id', async (req, res) => {
   const { id } = req.params;
+  const connection = await pool.getConnection();
 
   try {
-    // 1. Execute the deletion
-    const [result] = await pool.query('DELETE FROM users WHERE user_id = ?', [id]);
+    await connection.beginTransaction();
 
-    // 2. Check if a row was actually deleted
+    // 1. Delete Dependencies (Child records)
+    // ✅ These tables likely exist based on your app
+    await connection.query('DELETE FROM shifts WHERE user_id = ?', [id]);
+    await connection.query('DELETE FROM actionlog WHERE user_id = ?', [id]);
+
+    // ⚠️ FIXED: Commented out because this table does not exist yet
+    // If you create a table for leaves later, uncomment this line and use the correct name
+    // await connection.query('DELETE FROM leave_requests WHERE user_id = ?', [id]);
+    
+    // 2. Delete the User
+    const [result] = await connection.query('DELETE FROM users WHERE user_id = ?', [id]);
+
+    await connection.commit();
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'User not found or already deleted.' });
     }
 
-    // 3. Return success
-    res.json({ message: 'User deleted successfully.' });
+    res.json({ message: 'User and all associated records deleted successfully.' });
 
   } catch (err) {
+    await connection.rollback();
     console.error("Error deleting user:", err);
-    // 4. Handle database constraints (e.g., if user has linked shift records)
-    if (err.code === 'ER_ROW_IS_REFERENCED_2') {
-        return res.status(400).json({ 
-            message: "Cannot delete this user because they have existing records (e.g., shifts or leave requests). Consider deactivating them instead." 
-        });
-    }
-    res.status(500).json({ error: "Failed to delete user." });
+    res.status(500).json({ error: "Failed to force delete user." });
+  } finally {
+    connection.release();
   }
 });
 
