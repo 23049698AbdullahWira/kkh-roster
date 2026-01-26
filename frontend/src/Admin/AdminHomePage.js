@@ -1,5 +1,6 @@
-// src/Admin/AdminHomePage.js (or AdminHome.js)
+// src/Admin/AdminHomePage.js
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../Nav/navbar.js';
 
 const todoItems = [
@@ -15,28 +16,15 @@ const todoItems = [
   },
 ];
 
-function AdminHome({
-  user,
-  onGoRoster,
-  onGoStaff,
-  onGoHome,
-  onGoShift,
-  onStartNewRoster,
-  onAddNewStaff,
-  onManageLeave,
-  onStaffPreferences,
-  onLogout,
-}) {
-  // ---- activity log state ----
+function AdminHome({ user }) {
   const [logs, setLogs] = useState([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchLogs() {
       try {
-        // Fetch the latest action logs from the backend (limited to 6)
         const res = await fetch('http://localhost:5000/actionlogs?limit=6');
         const data = await res.json();
-        // Store logs in local React state for rendering
         setLogs(data || []);
       } catch (err) {
         console.error('Failed to fetch action logs:', err);
@@ -45,19 +33,13 @@ function AdminHome({
     fetchLogs();
   }, []);
 
-  // ---- helper for "5m ago" using SGT (UTC+8) ----
   const formatTimeAgo = (isoString) => {
     if (!isoString) return '';
-
-    // Convert string to Date (assumed server time or UTC)
     const dbDate = new Date(isoString);
-    // Add 8 hours so display is aligned with Singapore Time (UTC+8)
     const sgtDate = new Date(dbDate.getTime() + 8 * 60 * 60 * 1000);
-
     const now = Date.now();
     const diffMs = now - sgtDate.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-
     if (diffMin < 1) return 'Just now';
     if (diffMin < 60) return `${diffMin}m ago`;
     const diffH = Math.floor(diffMin / 60);
@@ -66,23 +48,31 @@ function AdminHome({
     return `${diffD}d ago`;
   };
 
-  // ---- decide left icon & right-click behaviour based on log_type ----
   const getLogIcon = (type) => {
-    if (type === 'ROSTER') return 'calendar.png';
-    if (type === 'PREFERENCE') return 'userMale.png';
-    if (type === 'WINDOW') return 'clock.png';
-    if (type === 'ACCOUNT') return 'userMale.png';
-    return 'calendar.png';
+    if (type === 'ROSTER') return '/calendar.png';
+    if (type === 'PREFERENCE') return '/userMale.png';
+    if (type === 'WINDOW') return '/clock.png';
+    if (type === 'ACCOUNT') return '/userMale.png';
+    return '/calendar.png';
   };
 
-  // Map each log type to a click handler that navigates the admin
+  // Navigation helpers (Quick Links + Activity Log)
+  const goRoster = () => navigate('/admin/rosters');
+  const goNewStaff = () => navigate('/admin/staff');
+  const goManageLeave = () => navigate('/admin/manage-leave');
+  const goStaffPreferences = () => navigate('/admin/shift-distribution');
+
   const getLogClickHandler = (type) => {
-    if (type === 'ROSTER') return onGoRoster;
-    if (type === 'PREFERENCE') return onStaffPreferences;
-    if (type === 'ACCOUNT') return onGoStaff;
-    if (type === 'WINDOW') return onGoShift;
-    // Default: do nothing when no type is matched
+    if (type === 'ROSTER') return goRoster;
+    if (type === 'PREFERENCE') return goStaffPreferences;
+    if (type === 'ACCOUNT') return goNewStaff;
+    if (type === 'WINDOW') return goStaffPreferences;
     return () => {};
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    navigate('/login');
   };
 
   return (
@@ -96,16 +86,8 @@ function AdminHome({
         fontFamily: 'Inter, sans-serif',
       }}
     >
-      <Navbar
-        active="home"
-        onGoHome={onGoHome}
-        onGoRoster={onGoRoster}
-        onGoStaff={onGoStaff}
-        onGoShift={onGoShift}
-        onLogout={onLogout}
-      />
+      <Navbar active="home" />
 
-      {/* MAIN CONTENT */}
       <main
         style={{
           maxWidth: 1200,
@@ -114,7 +96,6 @@ function AdminHome({
           boxSizing: 'border-box',
         }}
       >
-        {/* Welcome */}
         <h1
           style={{
             fontSize: 22,
@@ -125,7 +106,6 @@ function AdminHome({
           Welcome back, {user?.fullName || 'Admin'}!
         </h1>
 
-        {/* Roster Status card */}
         <section
           style={{
             background: 'white',
@@ -156,7 +136,7 @@ function AdminHome({
             }}
           >
             <span style={{ fontSize: 14, fontWeight: 800 }}>Preference Open</span>
-            <img style={{ width: 24, height: 24 }} src="greenCheckMark.png" alt="" />
+            <img style={{ width: 24, height: 24 }} src="/greenCheckMark.png" alt="" />
             <div
               style={{
                 flex: 1,
@@ -167,7 +147,7 @@ function AdminHome({
               }}
             />
             <span style={{ fontSize: 14, fontWeight: 800 }}>Reviewing Draft</span>
-            <img style={{ width: 24, height: 24 }} src="greenCheckMark.png" alt="" />
+            <img style={{ width: 24, height: 24 }} src="/greenCheckMark.png" alt="" />
             <div
               style={{
                 flex: 1,
@@ -178,11 +158,10 @@ function AdminHome({
               }}
             />
             <span style={{ fontSize: 14, fontWeight: 800 }}>Published Roster</span>
-            <img style={{ width: 24, height: 24 }} src="loadingCircle.png" alt="" />
+            <img style={{ width: 24, height: 24 }} src="/loadingCircle.png" alt="" />
           </div>
         </section>
 
-        {/* TWO COLUMNS */}
         <div
           style={{
             display: 'grid',
@@ -190,9 +169,7 @@ function AdminHome({
             gap: 24,
           }}
         >
-          {/* LEFT COLUMN */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Critical Staffing Shortage */}
             <section
               style={{
                 background: 'white',
@@ -234,7 +211,6 @@ function AdminHome({
                 </div>
               </div>
 
-              {/* Card 1: WARNING */}
               <div
                 style={{
                   background: '#EDF0F5',
@@ -248,7 +224,7 @@ function AdminHome({
               >
                 <img
                   style={{ width: 30, height: 30, marginRight: 20 }}
-                  src="redWarning.png"
+                  src="/redWarning.png"
                   alt="Warning"
                 />
                 <div style={{ fontSize: 14, fontWeight: 700 }}>
@@ -270,7 +246,6 @@ function AdminHome({
                 />
               </div>
 
-              {/* Card 2: CONTRADICTING SHIFT */}
               <div
                 style={{
                   background: '#EDF0F5',
@@ -284,7 +259,7 @@ function AdminHome({
               >
                 <img
                   style={{ width: 30, height: 30, marginRight: 20 }}
-                  src="yellowWarning.png"
+                  src="/yellowWarning.png"
                   alt="Contradicting Shift"
                 />
                 <div style={{ fontSize: 14, fontWeight: 700 }}>
@@ -307,7 +282,6 @@ function AdminHome({
               </div>
             </section>
 
-            {/* To-Do List / Action Items */}
             <section
               style={{
                 background: 'white',
@@ -384,19 +358,13 @@ function AdminHome({
             </section>
           </div>
 
-          {/* RIGHT COLUMN */}
           <div
             style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16,
-          }}
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+            }}
           >
-            {/* Quick Links */}
-            {/* This section shows 4 big buttons that quickly navigate the admin
-                to key features: Start New Roster, Add New Staff, Manage Leave,
-                and Staff Preferences. Each button calls a callback prop that
-                the parent component passes in (navigation handler). */}
             <section
               style={{
                 background: 'white',
@@ -422,11 +390,9 @@ function AdminHome({
                   gap: 24,
                 }}
               >
-                {/* 1. Start New Roster
-                    Clicking calls onStartNewRoster, which navigates to the roster creation view. */}
                 <button
                   type="button"
-                  onClick={onStartNewRoster}
+                  onClick={goRoster}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -452,7 +418,7 @@ function AdminHome({
                   >
                     <img
                       style={{ width: 50, height: 50 }}
-                      src="startNewRoster.png"
+                      src="/startNewRoster.png"
                       alt="Start New Roster"
                     />
                   </div>
@@ -468,11 +434,9 @@ function AdminHome({
                   </div>
                 </button>
 
-                {/* 2. Add New Staff
-                    Clicking calls onAddNewStaff, which opens the staff creation UI. */}
                 <button
                   type="button"
-                  onClick={onAddNewStaff}
+                  onClick={goNewStaff}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -498,7 +462,7 @@ function AdminHome({
                   >
                     <img
                       style={{ width: 50, height: 50 }}
-                      src="addNewStaff.png"
+                      src="/addNewStaff.png"
                       alt="Add New Staff"
                     />
                   </div>
@@ -514,11 +478,9 @@ function AdminHome({
                   </div>
                 </button>
 
-                {/* 3. Manage Leave
-                    Clicking calls onManageLeave to go to the leave approval / management page. */}
                 <button
                   type="button"
-                  onClick={onManageLeave}
+                  onClick={goManageLeave}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -544,7 +506,7 @@ function AdminHome({
                   >
                     <img
                       style={{ width: 50, height: 50 }}
-                      src="manageLeave.png"
+                      src="/manageLeave.png"
                       alt="Manage Leave"
                     />
                   </div>
@@ -560,11 +522,9 @@ function AdminHome({
                   </div>
                 </button>
 
-                {/* 4. Staff Preferences
-                    Clicking calls onStaffPreferences to open preference management. */}
                 <button
                   type="button"
-                  onClick={onStaffPreferences}
+                  onClick={goStaffPreferences}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -590,7 +550,7 @@ function AdminHome({
                   >
                     <img
                       style={{ width: 50, height: 50 }}
-                      src="staffPref.png"
+                      src="/staffPref.png"
                       alt="Staff Preferences"
                     />
                   </div>
@@ -608,11 +568,6 @@ function AdminHome({
               </div>
             </section>
 
-            {/* Admin Activity Log */}
-            {/* This section lists recent actions (from /actionlogs), such as logins
-                and account creations. Each row shows an icon, "time ago" (SGT),
-                the log message, and a small button that navigates to a related page
-                based on log_type. */}
             <section
               style={{
                 background: 'white',
@@ -644,7 +599,6 @@ function AdminHome({
                 }}
               >
                 {logs.map((log) => {
-                  // Determine which navigation callback to use for this log
                   const onClick = getLogClickHandler(log.log_type);
                   return (
                     <div
@@ -657,13 +611,11 @@ function AdminHome({
                         borderTop: '1px solid #E0E0E0',
                       }}
                     >
-                      {/* Icon chosen based on log_type (Roster, Account, etc.) */}
                       <img
                         style={{ width: 26, height: 26 }}
                         src={getLogIcon(log.log_type)}
                         alt=""
                       />
-                      {/* Main text: "X minutes ago, <details>" using SGT time */}
                       <div
                         style={{
                           flex: 1,
@@ -672,33 +624,12 @@ function AdminHome({
                       >
                         {formatTimeAgo(log.log_datetime)}, {log.log_details}
                       </div>
-                      {/* Small circular button that, when clicked, navigates
-                          to the related area (e.g., Roster page, Staff page). */}
-                      <div
-                        onClick={onClick}
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: 14,
-                          background: '#EDF0F5',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <img
-                          style={{ width: 15, height: 15 }}
-                          src="group.svg"
-                          alt=""
-                        />
-                      </div>
+                      
                     </div>
                   );
                 })}
               </div>
 
-              {/* Placeholder "View All" text – can later be wired up to a full logs page */}
               <div
                 style={{
                   textAlign: 'center',

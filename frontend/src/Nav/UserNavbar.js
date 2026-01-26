@@ -1,20 +1,24 @@
 // src/UserNavbar.js
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 function UserNavbar({
   active = 'home',
-  onGoHome,
-  onGoRoster,
-  onGoShiftPreference,
-  onGoApplyLeave,
-  onGoAccount,
   onLogout,
 }) {
+  const navigate = useNavigate();
+
   const linkStyle = (tab) => ({
     cursor: 'pointer',
     borderBottom: active === tab ? '2px #5091CD solid' : 'none',
     paddingBottom: active === tab ? 4 : 0,
   });
+
+  const handleHome = () => navigate('/user/home');
+  const handleRoster = () => navigate('/user/roster');
+  const handleShiftPreference = () => navigate('/user/preferences');
+  const handleApplyLeave = () => navigate('/user/leave');
+  const handleAccount = () => navigate('/user/account');
 
   return (
     <header
@@ -40,7 +44,7 @@ function UserNavbar({
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
           <img
             style={{ width: 180, height: 'auto' }}
-            src="kkh.png"
+            src="/kkh.png"
             alt="Logo"
           />
           <nav
@@ -52,19 +56,19 @@ function UserNavbar({
               fontWeight: 800,
             }}
           >
-            <div style={linkStyle('home')} onClick={onGoHome}>
+            <div style={linkStyle('home')} onClick={handleHome}>
               Home
             </div>
-            <div style={linkStyle('roster')} onClick={onGoRoster}>
+            <div style={linkStyle('roster')} onClick={handleRoster}>
               Roster
             </div>
             <div
               style={linkStyle('preference')}
-              onClick={onGoShiftPreference}
+              onClick={handleShiftPreference}
             >
               Shifts Preference
             </div>
-            <div style={linkStyle('leave')} onClick={onGoApplyLeave}>
+            <div style={linkStyle('leave')} onClick={handleApplyLeave}>
               Apply Leave
             </div>
             <div style={linkStyle('logout')} onClick={onLogout}>
@@ -84,10 +88,15 @@ function UserNavbar({
             30 Oct, Thursday, 07:23 AM
           </div>
           <img
-            style={{ width: 40, height: 40, borderRadius: '50%', cursor: 'pointer' }}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              cursor: 'pointer',
+            }}
             src="https://placehold.co/40x40"
             alt="User avatar"
-            onClick={onGoAccount}
+            onClick={handleAccount}
           />
         </div>
       </div>

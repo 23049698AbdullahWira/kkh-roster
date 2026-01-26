@@ -1,5 +1,6 @@
 // src/UserHomePage.jsx
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import UserNavbar from '../Nav/UserNavbar.js';
 
 const todayAssignment = {
@@ -37,7 +38,13 @@ const userProfile = {
   notes: 'Fluent in Mandarin and Malay.',
 };
 
-function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLeave, onGoAccount, onLogout}) {
+function UserHomePage({ user, onLogout }) {
+  const navigate = useNavigate();
+  const goRoster = () => navigate('/user/roster');
+  const goShiftPreference = () => navigate('/user/preferences');
+  const goApplyLeave = () => navigate('/user/leave');
+  const goAccount = () => navigate('/user/account');
+
   return (
     <div
       style={{
@@ -51,13 +58,9 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     >
       <UserNavbar
         active="home"
-        onGoHome={onGoHome}
-        onGoRoster={onGoRoster}
-        onGoShiftPreference={onGoShiftPreference}
-        onGoApplyLeave={onGoApplyLeave}
-        onGoAccount={onGoAccount}
         onLogout={onLogout}
       />
+
 
       <main
         style={{
@@ -384,7 +387,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     {/* 1. View Monthly Roster */}
     <button
       type="button"
-      onClick={onGoRoster}
+      onClick={goRoster}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -410,7 +413,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         <img
           style={{ width: 40, height: 40 }}
-          src="userViewRoster.png"
+          src="/userViewRoster.png"
           alt="View Monthly Roster"
         />
       </div>
@@ -430,7 +433,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     {/* 2. Shifts Preference */}
     <button
       type="button"
-      onClick={onGoShiftPreference}
+      onClick={goShiftPreference}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -456,7 +459,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         <img
           style={{ width: 40, height: 40 }}
-          src="userShiftPref.png"
+          src="/userShiftPref.png"
           alt="Shifts Preference"
         />
       </div>
@@ -476,7 +479,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     {/* 3. Apply Leave */}
     <button
       type="button"
-      onClick={onGoApplyLeave}
+      onClick={goApplyLeave}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -502,7 +505,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         <img
           style={{ width: 40, height: 40 }}
-          src="userApplyLeave.png"
+          src="/userApplyLeave.png"
           alt="Apply Leave"
         />
       </div>
@@ -522,7 +525,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     {/* 4. Edit Profile */}
     <button
       type="button"
-      onClick={onGoAccount}
+      onClick={goAccount}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -548,7 +551,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         <img
           style={{ width: 40, height: 40 }}
-          src="userEditProfile.png"
+          src="/userEditProfile.png"
           alt="Edit Profile"
         />
       </div>
@@ -566,6 +569,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     </button>
   </div>
 </section>
+
 
 
 
@@ -614,7 +618,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     >
       <img
         style={{ width: 33, height: 33 }}
-        src="calendar.png"
+        src="/calendar.png"
         alt=""
       />
       <div
@@ -627,24 +631,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         21min ago, Shift preference auto-approved.
       </div>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          padding: 8,
-          background: '#EDF0F5',
-          borderRadius: 16,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <img
-          style={{ width: 17, height: 17 }}
-          src="group.svg"
-          alt=""
-        />
-      </div>
+      
     </div>
 
     {/* 2 */}
@@ -660,7 +647,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     >
       <img
         style={{ width: 33, height: 33 }}
-        src="calendar.png"
+        src="/calendar.png"
         alt=""
       />
       <div
@@ -673,24 +660,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         38m ago, Shift preference approved by Admin.
       </div>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          padding: 8,
-          background: '#EDF0F5',
-          borderRadius: 16,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <img
-          style={{ width: 17, height: 17 }}
-          src="group.svg"
-          alt=""
-        />
-      </div>
+      
     </div>
 
     {/* 3 */}
@@ -706,7 +676,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     >
       <img
         style={{ width: 33, height: 33 }}
-        src="calendar.png"
+        src="/calendar.png"
         alt=""
       />
       <div
@@ -719,24 +689,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         59m ago, Shift preference rejected by Admin.
       </div>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          padding: 8,
-          background: '#EDF0F5',
-          borderRadius: 16,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <img
-          style={{ width: 17, height: 17 }}
-          src="group.svg"
-          alt=""
-        />
-      </div>
+      
     </div>
 
     {/* 4 */}
@@ -752,7 +705,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     >
       <img
         style={{ width: 33, height: 33 }}
-        src="clock.png"
+        src="/clock.png"
         alt=""
       />
       <div
@@ -765,24 +718,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         1day ago, January 2025 preference window is now opened.
       </div>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          padding: 8,
-          background: '#EDF0F5',
-          borderRadius: 16,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <img
-          style={{ width: 17, height: 17 }}
-          src="group.svg"
-          alt=""
-        />
-      </div>
+      
     </div>
 
     {/* 5 */}
@@ -798,7 +734,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     >
       <img
         style={{ width: 33, height: 33 }}
-        src="clock.png"
+        src="/clock.png"
         alt=""
       />
       <div
@@ -811,24 +747,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         1day ago, New December 2025 roster has been published.
       </div>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          padding: 8,
-          background: '#EDF0F5',
-          borderRadius: 16,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <img
-          style={{ width: 17, height: 17 }}
-          src="group.svg"
-          alt=""
-        />
-      </div>
+      
     </div>
 
     {/* 6 */}
@@ -844,7 +763,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     >
       <img
         style={{ width: 33, height: 33 }}
-        src="userMale.png"
+        src="/userMale.png"
         alt=""
       />
       <div
@@ -857,24 +776,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         1month ago, You’ve updated your profile.
       </div>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          padding: 8,
-          background: '#EDF0F5',
-          borderRadius: 16,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <img
-          style={{ width: 17, height: 17 }}
-          src="group.svg"
-          alt=""
-        />
-      </div>
+      
     </div>
 
     {/* 7 */}
@@ -890,7 +792,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
     >
       <img
         style={{ width: 33, height: 33 }}
-        src="userMale.png"
+        src="/userMale.png"
         alt=""
       />
       <div
@@ -903,24 +805,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       >
         1month ago, Your account has been successfully created.
       </div>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          padding: 8,
-          background: '#EDF0F5',
-          borderRadius: 16,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <img
-          style={{ width: 17, height: 17 }}
-          src="group.svg"
-          alt=""
-        />
-      </div>
+      
     </div>
   </div>
 
@@ -1014,7 +899,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
                   >
                     <img
                       style={{ width: 20, height: 20 }}
-                      src="blueCalendar.png"
+                      src="/blueCalendar.png"
                       alt=""
                     />
                     <span>Date Joined:&nbsp;</span>
@@ -1037,7 +922,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
                         transform: 'rotate(180deg)',
                         transformOrigin: 'center',
                       }}
-                      src="blueClock.png"
+                      src="/blueClock.png"
                       alt=""
                     />
                     <span>Time Preference:&nbsp;</span>
@@ -1055,7 +940,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
                   >
                     <img
                       style={{ width: 20, height: 20 }}
-                      src="blueCert.png"
+                      src="/blueCert.png"
                       alt=""
                     />
                     <span>Certification:&nbsp;</span>
@@ -1073,7 +958,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
                   >
                     <img
                       style={{ width: 20, height: 20 }}
-                      src="blueNotes.png"
+                      src="/blueNotes.png"
                       alt=""
                     />
                     <div>

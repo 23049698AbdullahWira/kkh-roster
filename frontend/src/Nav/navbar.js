@@ -1,12 +1,22 @@
-// src/Navbar.jsx
+// src/Nav/navbar.js
 import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
-function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }) {
+function Navbar({ active }) {
+  const navigate = useNavigate();
+
   const linkStyle = (tab) => ({
     cursor: 'pointer',
     borderBottom: active === tab ? '2px #5091CD solid' : 'none',
     paddingBottom: active === tab ? 4 : 0,
+    color: '#000',
+    textDecoration: 'none',
   });
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
 
   return (
     <header
@@ -31,7 +41,7 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
         <div style={{ display: 'flex', alignItems: 'center', gap: 32 }}>
           <img
             style={{ width: 180, height: 'auto' }}
-            src="kkh.png"
+            src="/kkh.png"
             alt="Logo"
           />
           <nav
@@ -43,19 +53,22 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
               fontWeight: 800,
             }}
           >
-            <div style={linkStyle('home')} onClick={onGoHome}>
+            <Link to="/admin/home" style={linkStyle('home')}>
               Home
-            </div>
-            <div style={linkStyle('roster')} onClick={onGoRoster}>
+            </Link>
+            <Link to="/admin/rosters" style={linkStyle('roster')}>
               Roster
-            </div>
-            <div style={linkStyle('staff')} onClick={onGoStaff}>
+            </Link>
+            <Link to="/admin/staff" style={linkStyle('staff')}>
               Staff
-            </div>
-            <div style={linkStyle('shift')} onClick={onGoShift}>
+            </Link>
+            <Link
+              to="/admin/shift-distribution"
+              style={linkStyle('shift')}
+            >
               Shift Distribution
-            </div>
-            <div style={linkStyle('logout')} onClick={onLogout}>
+            </Link>
+            <div style={linkStyle('logout')} onClick={handleLogout}>
               Logout
             </div>
           </nav>

@@ -6,12 +6,11 @@ function AdminStaffManagementPage({
   onGoRoster,
   onGoStaff,
   onGoShift,
-  onGoManageLeave, // Now unused (replaced by modal)
-  currentUserRole = 'SUPERADMIN', // Default for testing
+  onGoManageLeave, // used by Manage Leave button
+  currentUserRole = 'SUPERADMIN',
   onLogout,
   loggedInUser,
 }) {
-
   // --- 1. STATE ---
 
   // Staff List State
@@ -31,53 +30,68 @@ function AdminStaffManagementPage({
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    full_name: '', email: '', password: '', contact: '', role: '', status: '', avatar_url: ''
+    full_name: '',
+    email: '',
+    password: '',
+    contact: '',
+    role: '',
+    status: '',
+    avatar_url: '',
   });
 
   // MODAL 2: CREATE STAFF
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({
-    full_name: '', contact: '', email: '', role: '', profile_picture: null,
+    full_name: '',
+    contact: '',
+    email: '',
+    role: '',
+    profile_picture: null,
   });
 
-  // MODAL 3: MANAGE LEAVE (NEW)
+  // MODAL 3: MANAGE LEAVE
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [leaveRequests, setLeaveRequests] = useState([]);
 
-  // prevents superadmin from being shown in role options for account creation
-  const visibleRoles = roleOptions.filter(r => r === 'APN' || r === 'ADMIN');
+  // prevent SUPERADMIN from being in role options
+  const visibleRoles = roleOptions.filter((r) => r === 'APN' || r === 'ADMIN');
 
-  // --- 2. HELPER: Status Colors ---
+  // --- PERMISSIONS ---
+
+  const canCreateStaff = currentUserRole === 'SUPERADMIN';
+
+  // --- 2. HELPERS ---
+
   const getStatusStyle = (status) => {
     const lowerStatus = status ? status.toLowerCase() : '';
     if (lowerStatus === 'on-duty') return { color: '#166534', bg: '#DCFCE7' };
-    if (lowerStatus === 'leave' || lowerStatus === 'annual leave') return { color: '#991B1B', bg: '#FEE2E2' };
+    if (lowerStatus === 'leave' || lowerStatus === 'annual leave')
+      return { color: '#991B1B', bg: '#FEE2E2' };
     if (lowerStatus === 'day-off') return { color: '#854D0E', bg: '#FEF9C3' };
     return { color: '#1E40AF', bg: '#DBEAFE' };
   };
 
   const getLeaveStatusColor = (status) => {
-    if (status === 'Approved') return '#166534'; // Green
-    if (status === 'Rejected') return '#991B1B'; // Red
-    return '#854D0E'; // Yellow/Orange for Pending
+    if (status === 'Approved') return '#166534';
+    if (status === 'Rejected') return '#991B1B';
+    return '#854D0E';
   };
 
-  // --- 3. FETCH DATA (Initial) ---
+  // --- 3. FETCH DATA ---
+
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      // A. Fetch Users
+      // A. Users
       const resUsers = await fetch('http://localhost:5000/users');
       const dataUsers = await resUsers.json();
 
-      // Filter: Exclude SUPER ADMIN
-      const filteredData = dataUsers.filter(user => {
+      const filteredData = dataUsers.filter((user) => {
         const userRole = user.role ? user.role.toUpperCase() : '';
         return userRole !== 'SUPER ADMIN';
       });
 
-      // Map to table format
-      const formattedStaff = filteredData.map(user => {
+      const formattedStaff = filteredData.map((user) => {
         const style = getStatusStyle(user.status);
         return {
           staffId: user.user_id,
@@ -94,18 +108,17 @@ function AdminStaffManagementPage({
       });
       setStaffRows(formattedStaff);
 
-      // B. Fetch Roles
+      // B. Roles
       const resRoles = await fetch('http://localhost:5000/roles');
       const rolesData = await resRoles.json();
       setRoleOptions(rolesData);
 
-      // C. Fetch Leave Types (for the Leave Modal)
+      // C. Leave Types
       const resLeaveTypes = await fetch('http://localhost:5000/leave_type');
       const leaveTypesData = await resLeaveTypes.json();
       setLeaveTypes(leaveTypesData);
-
     } catch (err) {
-      console.error("Error fetching data:", err);
+      console.error('Error fetching data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -115,16 +128,18 @@ function AdminStaffManagementPage({
     fetchInitialData();
   }, []);
 
-  // --- 4. HANDLER: MANAGE LEAVE ---
+  // --- 4. LEAVE HANDLERS ---
+
   const fetchLeaveRequests = async () => {
     try {
       const res = await fetch('http://localhost:5000/leave_has_users');
       const data = await res.json();
-      // Sort by pending first, then date
-      const sorted = data.sort((a, b) => (a.status === 'Pending' ? -1 : 1));
+      const sorted = data.sort((a, b) =>
+        a.status === 'Pending' ? -1 : 1
+      );
       setLeaveRequests(sorted);
     } catch (err) {
-      console.error("Error fetching leave requests:", err);
+      console.error('Error fetching leave requests:', err);
     }
   };
 
@@ -135,92 +150,61 @@ function AdminStaffManagementPage({
 
   const handleLeaveAction = async (leaveId, newStatus) => {
     try {
-      const res = await fetch(`http://localhost:5000/leave_has_users/${leaveId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-      });
+      const res = await fetch(
+        `http://localhost:5000/leave_has_users/${leaveId}/status`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        }
+      );
 
       if (res.ok) {
-        // Refresh the list locally to feel snappy
-        setLeaveRequests(prev => prev.map(req =>
-          req.leave_data_id === leaveId ? { ...req, status: newStatus } : req
-        ));
+        setLeaveRequests((prev) =>
+          prev.map((req) =>
+            req.leave_data_id === leaveId
+              ? { ...req, status: newStatus }
+              : req
+          )
+        );
       } else {
-        alert("Failed to update status");
+        alert('Failed to update status');
       }
     } catch (err) {
-      console.error("Error updating leave:", err);
+      console.error('Error updating leave:', err);
     }
   };
 
-  // --- 5. HANDLER: CREATE STAFF ---
-  // Generic change handler for the "Create Staff" form fields
-  // It supports both text inputs and the optional profile picture file input.
+  // --- 5. CREATE STAFF ---
+
   const handleChangeCreate = (field) => (e) => {
     if (field === 'profile_picture') {
-      // For file input, store the File object (or null if cleared)
-      setCreateForm((prev) => ({ ...prev, profile_picture: e.target.files[0] || null }));
+      setCreateForm((prev) => ({
+        ...prev,
+        profile_picture: e.target.files[0] || null,
+      }));
     } else {
-      // For text inputs, update the specific field
       setCreateForm((prev) => ({ ...prev, [field]: e.target.value }));
     }
   };
 
-  // Submit handler that:
-  // 1) Validates email and phone on the client side,
-  // 2) Splits full_name into firstName + lastName,
-  // 3) Builds a payload matching the backend /api/auth/register contract,
-  // 4) Sends a POST request,
-  // 5) Handles success (close modal, reset form, refresh list) and errors.
   const handleSubmitCreate = async () => {
-    // basic email + phone validation
-    const email = createForm.email.trim();
-    const phone = createForm.contact.trim();
-
-    // Simple email validation: must contain '@', something before it,
-    // and a '.' after the '@' (very lightweight check)
-    const emailValid =
-      email.includes('@') &&
-      email.indexOf('@') > 0 &&
-      email.lastIndexOf('.') > email.indexOf('@') + 1;
-
-    // Simple phone validation:
-    // allow digits, +, -, spaces; require at least 8 digits total
-    const phoneValid = /^[0-9+\-\s]+$/.test(phone) && phone.replace(/\D/g, '').length >= 8;
-
-    if (!emailValid) {
-      alert('Please enter a valid email address (must contain @ and a domain).');
-      return;
-    }
-    if (!phoneValid) {
-      alert('Please enter a valid phone number (digits only, min 8 numbers).');
-      return;
-    }
-
-    // Split full_name into firstName and lastName
-    // First word is firstName; the rest are joined as lastName
     const [firstName, ...restName] = createForm.full_name.trim().split(' ');
     const lastName = restName.join(' ');
 
-    // Payload structure expected by the backend /api/auth/register endpoint
     const payload = {
       firstName: firstName || createForm.full_name,
       lastName: lastName || '',
-      email,
-      phone,
-      // Temporary password assigned by the system; user can change later
+      email: createForm.email,
+      phone: createForm.contact,
       password: 'Temp1234!',
-      // Default to 'staff' if no role was chosen
       role: createForm.role || 'staff',
-      // Audit fields: who created this new staff account
       createdByUserId: loggedInUser?.userId,
       createdByName: loggedInUser?.fullName,
       createdByRole: loggedInUser?.role,
     };
 
     try {
-      // POST request to the backend auth route to create the account
       const res = await fetch('http://localhost:5000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -229,16 +213,20 @@ function AdminStaffManagementPage({
 
       const data = await res.json();
 
-      // If HTTP status or success flag is not OK, show the error message
       if (!res.ok || !data.success) {
         alert(data.message || 'Failed to create staff account.');
         return;
       }
 
-      // On success: notify user, close modal, clear form, and refetch staff list
       alert('Staff account created successfully!');
       setShowCreate(false);
-      setCreateForm({ full_name: '', contact: '', email: '', role: '', profile_picture: null });
+      setCreateForm({
+        full_name: '',
+        contact: '',
+        email: '',
+        role: '',
+        profile_picture: null,
+      });
       fetchInitialData();
     } catch (err) {
       console.error('Error creating staff:', err);
@@ -246,18 +234,14 @@ function AdminStaffManagementPage({
     }
   };
 
-  // Boolean used to enable/disable the "Create" button:
-  // requires all text fields to be non-empty (role included).
   const isCreateValid =
     createForm.full_name.trim() &&
     createForm.contact.trim() &&
     createForm.email.trim() &&
     createForm.role.trim();
 
-  // Only SUPERADMIN can open the "Create Staff" modal or click "New Staff Account"
-  const canCreateStaff = currentUserRole === 'SUPERADMIN';
+  // --- 6. EDIT / VIEW STAFF ---
 
-  // --- 6. HANDLERS: EDIT/VIEW STAFF ---
   const handleViewClick = (staff) => {
     setSelectedStaff(staff);
     setFormData({
@@ -267,7 +251,7 @@ function AdminStaffManagementPage({
       contact: staff.contact,
       role: staff.role,
       status: staff.status,
-      avatar_url: staff.avatarUrl
+      avatar_url: staff.avatarUrl,
     });
     setIsEditing(false);
     setShowModal(true);
@@ -282,7 +266,7 @@ function AdminStaffManagementPage({
       contact: staff.contact,
       role: staff.role,
       status: staff.status,
-      avatar_url: staff.avatarUrl
+      avatar_url: staff.avatarUrl,
     });
     setIsEditing(true);
     setShowModal(true);
@@ -295,50 +279,87 @@ function AdminStaffManagementPage({
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleUpdate = () => {
     fetch(`http://localhost:5000/users/${selectedStaff.staffId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
+      body: JSON.stringify(formData),
     })
-      .then(res => {
+      .then((res) => {
         if (res.ok) {
-          alert("Staff updated successfully!");
+          alert('Staff updated successfully!');
           handleCloseModal();
           fetchInitialData();
         } else {
-          alert("Failed to update staff.");
+          alert('Failed to update staff.');
         }
       })
-      .catch(err => console.error("Error updating:", err));
+      .catch((err) => console.error('Error updating:', err));
   };
 
   // --- 7. PAGINATION ---
+
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentStaff = staffRows.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(staffRows.length / itemsPerPage);
 
   const handleNextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
+    if (currentPage < totalPages) setCurrentPage((prev) => prev + 1);
   };
   const handlePrevPage = () => {
-    if (currentPage > 1) setCurrentPage(prev => prev - 1);
+    if (currentPage > 1) setCurrentPage((prev) => prev - 1);
   };
 
   const gridLayout = '2fr 1.3fr 1.4fr 2.5fr 1fr 0.8fr';
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', fontFamily: 'Inter, sans-serif' }}>
-      <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout} />
+    <div
+      style={{
+        width: '100%',
+        minHeight: '100vh',
+        background: '#EDF0F5',
+        fontFamily: 'Inter, sans-serif',
+      }}
+    >
+      <Navbar
+        active="staff"
+        onGoHome={onGoHome}
+        onGoRoster={onGoRoster}
+        onGoStaff={onGoStaff}
+        onGoShift={onGoShift}
+        onLogout={onLogout}
+      />
 
-      <main style={{ maxWidth: 1200, margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' }}>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, color: '#111827' }}>All Staff Members</h1>
+      <main
+        style={{
+          maxWidth: 1200,
+          margin: '24px auto 40px',
+          padding: '0 32px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 16,
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 24,
+              fontWeight: 900,
+              margin: 0,
+              color: '#111827',
+            }}
+          >
+            All Staff Members
+          </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button
               type="button"
@@ -388,9 +409,28 @@ function AdminStaffManagementPage({
           </div>
         </div>
 
-        <div style={{ background: 'white', borderRadius: 10, border: '1px solid #E6E6E6', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <div
+          style={{
+            background: 'white',
+            borderRadius: 10,
+            border: '1px solid #E6E6E6',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            overflow: 'hidden',
+          }}
+        >
           {/* Table Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '16px', background: 'white', borderBottom: '1px solid #E6E6E6', fontWeight: 600, fontSize: 16, color: '#374151' }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: gridLayout,
+              padding: '16px',
+              background: 'white',
+              borderBottom: '1px solid #E6E6E6',
+              fontWeight: 600,
+              fontSize: 16,
+              color: '#374151',
+            }}
+          >
             <div>Full Name</div>
             <div>Staff ID</div>
             <div>Contact</div>
@@ -401,20 +441,57 @@ function AdminStaffManagementPage({
 
           {/* Table Body */}
           {isLoading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Loading...</div>
+            <div
+              style={{
+                padding: '40px',
+                textAlign: 'center',
+                color: '#666',
+              }}
+            >
+              Loading...
+            </div>
           ) : (
             currentStaff.map((row, idx) => (
-              <div key={row.staffId} style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '12px 16px', alignItems: 'center', borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6', fontSize: 14, color: '#1F2937' }}>
+              <div
+                key={row.staffId}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: gridLayout,
+                  padding: '12px 16px',
+                  alignItems: 'center',
+                  borderTop:
+                    idx === 0 ? 'none' : '1px solid #E6E6E6',
+                  fontSize: 14,
+                  color: '#1F2937',
+                }}
+              >
                 <div style={{ fontWeight: 500 }}>{row.fullName}</div>
                 <div>{row.staffId}</div>
                 <div>{row.contact || '---'}</div>
-                <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 10 }}>{row.email}</div>
+                <div
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    paddingRight: 10,
+                  }}
+                >
+                  {row.email}
+                </div>
                 <div>{row.role}</div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => handleViewClick(row)} style={iconButtonStyle} title="View Details">
+                  <button
+                    onClick={() => handleViewClick(row)}
+                    style={iconButtonStyle}
+                    title="View Details"
+                  >
                     <EyeIcon />
                   </button>
-                  <button onClick={() => handleEditClick(row)} style={iconButtonStyle} title="Edit Staff">
+                  <button
+                    onClick={() => handleEditClick(row)}
+                    style={iconButtonStyle}
+                    title="Edit Staff"
+                  >
                     <PencilIcon />
                   </button>
                 </div>
@@ -424,15 +501,87 @@ function AdminStaffManagementPage({
 
           {/* Pagination Footer */}
           {staffRows.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid #E6E6E6', background: 'white' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}>«</button>
-                <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}>‹</button>
-                <span style={{ fontSize: 13, color: '#6B7280', margin: '0 12px', fontWeight: 500, minWidth: 60, textAlign: 'center' }}>
-                  {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, staffRows.length)} of {staffRows.length}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderTop: '1px solid #E6E6E6',
+                background: 'white',
+              }}
+            >
+              <div
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  style={{
+                    ...paginationButtonStyle,
+                    opacity: currentPage === 1 ? 0.4 : 1,
+                    cursor:
+                      currentPage === 1 ? 'default' : 'pointer',
+                  }}
+                >
+                  «
+                </button>
+                <button
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1}
+                  style={{
+                    ...paginationButtonStyle,
+                    opacity: currentPage === 1 ? 0.4 : 1,
+                    cursor:
+                      currentPage === 1 ? 'default' : 'pointer',
+                  }}
+                >
+                  ‹
+                </button>
+                <span
+                  style={{
+                    fontSize: 13,
+                    color: '#6B7280',
+                    margin: '0 12px',
+                    fontWeight: 500,
+                    minWidth: 60,
+                    textAlign: 'center',
+                  }}
+                >
+                  {indexOfFirstItem + 1}-
+                  {Math.min(indexOfLastItem, staffRows.length)} of{' '}
+                  {staffRows.length}
                 </span>
-                <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}>›</button>
-                <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}>»</button>
+                <button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    ...paginationButtonStyle,
+                    opacity:
+                      currentPage === totalPages ? 0.4 : 1,
+                    cursor:
+                      currentPage === totalPages
+                        ? 'default'
+                        : 'pointer',
+                  }}
+                >
+                  ›
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    ...paginationButtonStyle,
+                    opacity:
+                      currentPage === totalPages ? 0.4 : 1,
+                    cursor:
+                      currentPage === totalPages
+                        ? 'default'
+                        : 'pointer',
+                  }}
+                >
+                  »
+                </button>
               </div>
             </div>
           )}
@@ -443,26 +592,110 @@ function AdminStaffManagementPage({
       {showModal && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
-            <h2 style={{ marginBottom: 24, fontSize: 20, fontWeight: 700, color: '#111827' }}>
+            <h2
+              style={{
+                marginBottom: 24,
+                fontSize: 20,
+                fontWeight: 700,
+                color: '#111827',
+              }}
+            >
               {isEditing ? 'Edit Staff Details' : 'Staff Details'}
             </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div><label style={labelStyle}>Full Name</label><input name="full_name" value={formData.full_name} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Email</label><input name="email" type="email" value={formData.email} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Contact Number</label><input name="contact" type="text" value={formData.contact} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} placeholder="+65 1234 5678" /></div>
-              <div><label style={labelStyle}>Password</label><input name="password" type="text" value={formData.password} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} placeholder="Enter new password" /></div>
-              <div><label style={labelStyle}>Avatar URL</label><input name="avatar_url" type="text" value={formData.avatar_url} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} placeholder="https://example.com/avatar.png" /></div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}
+            >
+              <div>
+                <label style={labelStyle}>Full Name</label>
+                <input
+                  name="full_name"
+                  value={formData.full_name}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Email</label>
+                <input
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Contact Number</label>
+                <input
+                  name="contact"
+                  type="text"
+                  value={formData.contact}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  style={inputStyle}
+                  placeholder="+65 1234 5678"
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Password</label>
+                <input
+                  name="password"
+                  type="text"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  style={inputStyle}
+                  placeholder="Enter new password"
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Avatar URL</label>
+                <input
+                  name="avatar_url"
+                  type="text"
+                  value={formData.avatar_url}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  style={inputStyle}
+                  placeholder="https://example.com/avatar.png"
+                />
+              </div>
               <div>
                 <label style={labelStyle}>Role</label>
-                <select name="role" value={formData.role} onChange={handleInputChange} disabled={!isEditing} style={inputStyle}>
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleInputChange}
+                  disabled={!isEditing}
+                  style={inputStyle}
+                >
                   <option value="APN">APN</option>
                   <option value="ADMIN">ADMIN</option>
                 </select>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 32 }}>
-              <button onClick={handleCloseModal} style={cancelButtonStyle}>Close</button>
-              {isEditing && <button onClick={handleUpdate} style={saveButtonStyle}>Save Changes</button>}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: 12,
+                marginTop: 32,
+              }}
+            >
+              <button onClick={handleCloseModal} style={cancelButtonStyle}>
+                Close
+              </button>
+              {isEditing && (
+                <button onClick={handleUpdate} style={saveButtonStyle}>
+                  Save Changes
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -496,7 +729,6 @@ function AdminStaffManagementPage({
               gap: 16,
             }}
           >
-            {/* Title */}
             <div>
               <div
                 style={{
@@ -509,7 +741,6 @@ function AdminStaffManagementPage({
               </div>
             </div>
 
-            {/* Subtitle */}
             <div>
               <div
                 style={{
@@ -522,7 +753,6 @@ function AdminStaffManagementPage({
               </div>
             </div>
 
-            {/* Fields */}
             <div
               style={{
                 display: 'flex',
@@ -569,7 +799,6 @@ function AdminStaffManagementPage({
                 </div>
               ))}
 
-              {/* Role dropdown */}
               <div
                 style={{
                   width: '100%',
@@ -608,7 +837,6 @@ function AdminStaffManagementPage({
                 </select>
               </div>
 
-              {/* Profile picture (optional) */}
               <div
                 style={{
                   width: '100%',
@@ -663,7 +891,9 @@ function AdminStaffManagementPage({
                   <div
                     style={{
                       fontSize: 11,
-                      color: createForm.profile_picture ? '#2563EB' : '#888',
+                      color: createForm.profile_picture
+                        ? '#2563EB'
+                        : '#888',
                       fontWeight: 500,
                     }}
                   >
@@ -689,7 +919,6 @@ function AdminStaffManagementPage({
               </div>
             </div>
 
-            {/* Buttons */}
             <div
               style={{
                 display: 'flex',
@@ -749,33 +978,148 @@ function AdminStaffManagementPage({
           </div>
         </div>
       )}
-
     </div>
   );
 }
 
 // --- ICON COMPONENTS ---
+
 const EyeIcon = () => (
-  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#6B7280" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  <svg
+    width="20"
+    height="20"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="#6B7280"
+    strokeWidth={2}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+    />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+    />
   </svg>
 );
+
 const PencilIcon = () => (
-  <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#6B7280" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+  <svg
+    width="20"
+    height="20"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="#6B7280"
+    strokeWidth={2}
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+    />
   </svg>
 );
 
 // --- STYLES ---
-const buttonStyle = { padding: '10px 24px', borderRadius: 68, border: 'none', color: 'white', fontSize: 16, fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s', display: 'flex', alignItems: 'center', gap: 8 };
-const iconButtonStyle = { width: 32, height: 32, background: '#F3F4F6', borderRadius: 6, cursor: 'pointer', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' };
-const paginationButtonStyle = { width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, color: '#374151', fontSize: 18, lineHeight: 1, transition: 'all 0.2s', outline: 'none' };
-const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, backdropFilter: 'blur(2px)' };
-const modalContentStyle = { background: 'white', padding: 32, borderRadius: 16, width: 520, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', maxHeight: '90vh', overflowY: 'auto' };
-const labelStyle = { display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' };
-const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, border: '1px solid #D1D5DB', fontSize: 14, boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s' };
-const saveButtonStyle = { padding: '10px 20px', background: '#2563EB', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 };
-const cancelButtonStyle = { padding: '10px 20px', background: 'white', color: '#374151', border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 };
+
+const iconButtonStyle = {
+  width: 32,
+  height: 32,
+  background: '#F3F4F6',
+  borderRadius: 6,
+  cursor: 'pointer',
+  border: '1px solid #E5E7EB',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'all 0.2s',
+};
+
+const paginationButtonStyle = {
+  width: 32,
+  height: 32,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'white',
+  border: '1px solid #E5E7EB',
+  borderRadius: 8,
+  color: '#374151',
+  fontSize: 18,
+  lineHeight: 1,
+  transition: 'all 0.2s',
+  outline: 'none',
+};
+
+const modalOverlayStyle = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.5)',
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  zIndex: 1000,
+  backdropFilter: 'blur(2px)',
+};
+
+const modalContentStyle = {
+  background: 'white',
+  padding: 32,
+  borderRadius: 16,
+  width: 520,
+  boxShadow:
+    '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+  maxHeight: '90vh',
+  overflowY: 'auto',
+};
+
+const labelStyle = {
+  display: 'block',
+  marginBottom: 6,
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#374151',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
+};
+
+const inputStyle = {
+  width: '100%',
+  padding: '10px 12px',
+  borderRadius: 6,
+  border: '1px solid #D1D5DB',
+  fontSize: 14,
+  boxSizing: 'border-box',
+  outline: 'none',
+  transition: 'border-color 0.2s',
+};
+
+const saveButtonStyle = {
+  padding: '10px 20px',
+  background: '#2563EB',
+  color: 'white',
+  border: 'none',
+  borderRadius: 6,
+  cursor: 'pointer',
+  fontWeight: 600,
+  fontSize: 14,
+};
+
+const cancelButtonStyle = {
+  padding: '10px 20px',
+  background: 'white',
+  color: '#374151',
+  border: '1px solid #D1D5DB',
+  borderRadius: 6,
+  cursor: 'pointer',
+  fontWeight: 600,
+  fontSize: 14,
+};
 
 export default AdminStaffManagementPage;
