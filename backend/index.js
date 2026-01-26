@@ -289,18 +289,21 @@ app.get('/available-years', async (req, res) => {
 app.get('/shift-distribution', async (req, res) => {
   const { year, shiftType } = req.query;
   const targetYear = year || new Date().getFullYear();
-  // Ensure we search for "NNJ" regardless of casing or extra spaces
+  // Ensure we normalize the input (handle "AL" vs "al" vs "NNJ")
   const targetShiftType = (shiftType || 'NNJ').trim().toUpperCase();
 
   try {
-    // A. Fetch Public Holidays (External API)
+    // A. Fetch Public Holidays (Only needed if NOT analyzing Annual Leave)
     let phSet = new Set();
-    try {
-        const url = `https://date.nager.at/api/v3/publicholidays/${targetYear}/SG`;
-        const response = await axios.get(url);
-        response.data.forEach(item => phSet.add(item.date));
-    } catch (apiErr) {
-        console.error("Warning: Holiday API failed.", apiErr.message);
+    
+    if (targetShiftType !== 'AL') {
+        try {
+            const url = `https://date.nager.at/api/v3/publicholidays/${targetYear}/SG`;
+            const response = await axios.get(url);
+            response.data.forEach(item => phSet.add(item.date));
+        } catch (apiErr) {
+            console.error("Warning: Holiday API failed.", apiErr.message);
+        }
     }
 
     // B. Fetch All Shifts for APNs in that Year
@@ -331,10 +334,11 @@ app.get('/shift-distribution', async (req, res) => {
       if (!userMap.has(row.user_id)) {
         userMap.set(row.user_id, {
           user_id: row.user_id,
-          name: row.full_name || 'Unknown', // This key 'name' is what frontend expects
+          name: row.full_name || 'Unknown',
           role: row.role,
           ph_count: 0,
           sun_count: 0,
+          al_count: 0, // NEW: Track Annual Leave
           total: 0
         });
       }
@@ -345,26 +349,33 @@ app.get('/shift-distribution', async (req, res) => {
       if (row.shift_date) {
         const dbShiftCode = (row.shift_code || 'UNKNOWN').trim().toUpperCase();
 
-        // --- TIMEZONE SAFE DATE EXTRACTION ---
-        // Instead of .toISOString() which converts to UTC (and shifts date back in SG),
-        // we use getFullYear/Month/Date to keep the local date from the DB.
+        // Date Parsing (Keep local date from DB)
         const rawDate = new Date(row.shift_date);
         const yyyy = rawDate.getFullYear();
         const mm = String(rawDate.getMonth() + 1).padStart(2, '0');
         const dd = String(rawDate.getDate()).padStart(2, '0');
-        const dateStr = `${yyyy}-${mm}-${dd}`; // e.g., "2025-12-25"
+        const dateStr = `${yyyy}-${mm}-${dd}`;
 
-        // Only count if shift code matches target (e.g., 'NNJ')
-        if (dbShiftCode === targetShiftType) {
-            
-            // Check Sunday (0 = Sunday)
-            if (rawDate.getDay() === 0) {
-                stats.sun_count += 1;
+        // === LOGIC BRANCH: AL vs NNJ ===
+        
+        if (targetShiftType === 'AL') {
+            // Logic for Annual Leave: Just count occurrences of 'AL'
+            if (dbShiftCode === 'AL') {
+                stats.al_count += 1;
             }
-            
-            // Check Public Holiday (Compare String vs String)
-            if (phSet.has(dateStr)) {
-                stats.ph_count += 1;
+        } else {
+            // Logic for NNJ (or specific shift codes)
+            // Only count if the shift code matches the target (e.g., 'NNJ')
+            if (dbShiftCode === targetShiftType) {
+                // Check Sunday (0 = Sunday)
+                if (rawDate.getDay() === 0) {
+                    stats.sun_count += 1;
+                }
+                
+                // Check Public Holiday
+                if (phSet.has(dateStr)) {
+                    stats.ph_count += 1;
+                }
             }
         }
       }
@@ -373,7 +384,8 @@ app.get('/shift-distribution', async (req, res) => {
     // D. Finalize Results
     const results = Array.from(userMap.values()).map(u => ({
         ...u,
-        total: u.ph_count + u.sun_count
+        // Calculate Total based on mode
+        total: targetShiftType === 'AL' ? u.al_count : (u.ph_count + u.sun_count)
     }));
     
     res.json(results);
