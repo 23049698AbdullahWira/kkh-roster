@@ -18,6 +18,9 @@ import SignUp from './Auth/SignUp.js';
 function App() {
   // --- All state hooks are now at the top level ---
   const [page, setPage] = useState('login');
+  
+  // --- NEW STATE: TRACK THE ID ---
+  const [rosterId, setRosterId] = useState(null); 
   const [rosterMonth, setRosterMonth] = useState('December');
   const [rosterYear, setRosterYear] = useState(2025);
   const [loggedInUser, setLoggedInUser] = useState(null);
@@ -78,7 +81,9 @@ function App() {
     return (
       <AdminRosterPage
         {...navProps}
-        onOpenRoster={(month, year) => {
+        // Updated to accept ID as the first argument
+        onOpenRoster={(id, month, year) => {
+          setRosterId(id);       // Save the ID!
           setRosterMonth(month);
           setRosterYear(year);
           setPage('rosterView');
@@ -92,6 +97,7 @@ function App() {
     return (
       <AdminRosterView
         {...navProps}
+        rosterId={rosterId} // Pass the ID here!
         month={rosterMonth}
         year={rosterYear}
         onBack={() => setPage('rosterList')}
