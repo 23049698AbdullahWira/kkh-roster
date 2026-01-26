@@ -3,7 +3,7 @@ const cors = require('cors');
 const pool = require('./db');
 const multer = require('multer');
 const path = require('path');
-const axios = require('axios'); 
+const axios = require('axios');
 const { generateRoster } = require('./services/rosterEngine');
 const ExcelJS = require('exceljs'); // Import at the top
 require('dotenv').config();
@@ -86,28 +86,28 @@ app.get('/users', async (req, res) => {
 
 // GET User by ID (For Navbar/Profile)
 app.get('/users/:id', async (req, res) => {
-    const userId = req.params.id;
-    try {
-      // MODIFIED: Added email and contact (aliased as phone) to support Profile Modal
-      // Kept fullName and avatar aliases to support existing Navbar
-      const [rows] = await pool.query(
-        `SELECT 
+  const userId = req.params.id;
+  try {
+    // MODIFIED: Added email and contact (aliased as phone) to support Profile Modal
+    // Kept fullName and avatar aliases to support existing Navbar
+    const [rows] = await pool.query(
+      `SELECT 
             full_name AS fullName, 
             avatar_url AS avatar, 
             email, 
             contact AS phone 
-         FROM users WHERE user_id = ?`, 
-        [userId]
-      );
-  
-      if (rows.length === 0) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      res.json(rows[0]);
-    } catch (err) {
-      console.error("Error fetching user:", err);
-      res.status(500).json({ error: err.message });
+         FROM users WHERE user_id = ?`,
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
     }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Error fetching user:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET Request to fetch ROSTERS with Creator Name
@@ -129,37 +129,37 @@ app.get('/api/rosters', async (req, res) => {
       LEFT JOIN users u ON r.creator_user_id = u.user_id
       ORDER BY r.year DESC, r.month DESC
     `;
-    
+
     const [rows] = await pool.query(query);
 
     // 2. Helper lists/dates
-    const monthNames = ["January", "February", "March", "April", "May", "June", 
-                        "July", "August", "September", "October", "November", "December"];
+    const monthNames = ["January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"];
     const today = new Date();
 
     // 3. Transform data for React
     const formattedRosters = rows.map(row => {
-        // Calculate Status: If today is past publish_date, it is Published
-        // let status = 'Draft';
-        // if (row.publish_date && new Date(row.publish_date) <= today) {
-        //     status = 'Published';
-        // }
+      // Calculate Status: If today is past publish_date, it is Published
+      // let status = 'Draft';
+      // if (row.publish_date && new Date(row.publish_date) <= today) {
+      //     status = 'Published';
+      // }
 
-        // Convert month number (1-12) to name (January)
-        // We subtract 1 because array starts at 0
-        const monthName = monthNames[row.month - 1] || 'Unknown';
+      // Convert month number (1-12) to name (January)
+      // We subtract 1 because array starts at 0
+      const monthName = monthNames[row.month - 1] || 'Unknown';
 
-        return {
-            id: row.roster_id,
-            title: `${monthName} Roster ${row.year}`,
-            generatedBy: row.creator_name || 'Unknown', // This will show their email
-            createdOn: row.created_at,
-            deadline: row.publish_date,
-            // status: status,
-            status: row.status,
-            month: monthName,
-            year: row.year
-        };
+      return {
+        id: row.roster_id,
+        title: `${monthName} Roster ${row.year}`,
+        generatedBy: row.creator_name || 'Unknown', // This will show their email
+        createdOn: row.created_at,
+        deadline: row.publish_date,
+        // status: status,
+        status: row.status,
+        month: monthName,
+        year: row.year
+      };
     });
 
     res.json(formattedRosters);
@@ -174,7 +174,7 @@ app.get('/api/rosters', async (req, res) => {
 app.post('/api/rosters', async (req, res) => {
   // 1. EXTRACT DATA
   // We no longer need 'title' or 'notes' from the body
-  const { month, year, userId } = req.body; 
+  const { month, year, userId } = req.body;
 
   if (!month || !year) {
     return res.status(400).json({ message: 'Month and Year are required.' });
@@ -187,13 +187,13 @@ app.post('/api/rosters', async (req, res) => {
       "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6,
       "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12
     };
-    const monthInt = monthMap[month] || month; 
-    
+    const monthInt = monthMap[month] || month;
+
     // Auto-Generate the Title (Remarks)
     const autoRemarks = `${month} ${year} Roster`;
-    
+
     // Fallback ID
-    const creatorId = userId || 1; 
+    const creatorId = userId || 1;
 
     // --- 3. DUPLICATE CHECK ---
     // Before inserting, check if this month/year combo exists
@@ -214,15 +214,15 @@ app.post('/api/rosters', async (req, res) => {
     `;
 
     const [result] = await pool.query(sql, [
-      monthInt, 
-      year, 
+      monthInt,
+      year,
       autoRemarks, // Use the auto-generated title
       creatorId
     ]);
 
-    res.status(201).json({ 
-      message: 'Roster created successfully', 
-      rosterId: result.insertId 
+    res.status(201).json({
+      message: 'Roster created successfully',
+      rosterId: result.insertId
     });
 
   } catch (err) {
@@ -247,7 +247,7 @@ app.get('/api/shift-types', async (req, res) => {
 app.get('/api/wards', async (req, res) => {
   try {
     // We select ward_name (the code) and ward_comments (the full name)
-    const [rows] = await pool.query('SELECT ward_id, ward_name, ward_comments FROM ward'); 
+    const [rows] = await pool.query('SELECT ward_id, ward_name, ward_comments FROM ward');
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -274,9 +274,9 @@ app.post('/api/shifts/update', async (req, res) => {
         shift_type_id = VALUES(shift_type_id), 
         ward_id = VALUES(ward_id)
     `;
-    
+
     await pool.query(sql, [userId, date, shiftTypeId, rosterId, wardId]);
-    
+
     res.json({ message: 'Shift updated' });
   } catch (err) {
     console.error(err);
@@ -287,7 +287,7 @@ app.post('/api/shifts/update', async (req, res) => {
 // GET Request to fetch SHIFTS with detailed info (Color & Code)
 app.get('/api/shifts/:rosterId', async (req, res) => {
   const { rosterId } = req.params;
-  
+
   try {
     // We join 'shifts' with 'shift_desc' to get the color and short code (e.g., 'PM')
     const query = `
@@ -306,10 +306,10 @@ app.get('/api/shifts/:rosterId', async (req, res) => {
       LEFT JOIN ward w ON s.ward_id = w.ward_id
       WHERE s.roster_id = ?
     `;
-    
+
     const [rows] = await pool.query(query, [rosterId]);
     res.json(rows);
-    
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -323,14 +323,14 @@ app.post('/api/rosters/update-status', async (req, res) => {
 
   try {
     let sql = 'UPDATE rosters SET status = ? WHERE roster_id = ?';
-    
+
     // --- NEW LOGIC: If Publishing, also set the date ---
     if (status === 'Published') {
       sql = 'UPDATE rosters SET status = ?, publish_date = NOW() WHERE roster_id = ?';
     }
 
     await pool.query(sql, [status, rosterId]);
-    
+
     res.json({ success: true, status });
   } catch (err) {
     console.error("Error updating status:", err);
@@ -372,12 +372,12 @@ app.put('/users/:id', async (req, res) => {
     let params = [];
 
     if (full_name !== undefined) { fields.push('full_name = ?'); params.push(full_name); }
-    if (email !== undefined)     { fields.push('email = ?');     params.push(email); }
-    if (role !== undefined)      { fields.push('role = ?');      params.push(role); }
-    if (status !== undefined)    { fields.push('status = ?');    params.push(status); }
-    if (avatar_url !== undefined){ fields.push('avatar_url = ?'); params.push(avatar_url); }
-    if (contact !== undefined)   { fields.push('contact = ?');   params.push(contact); }
-    
+    if (email !== undefined) { fields.push('email = ?'); params.push(email); }
+    if (role !== undefined) { fields.push('role = ?'); params.push(role); }
+    if (status !== undefined) { fields.push('status = ?'); params.push(status); }
+    if (avatar_url !== undefined) { fields.push('avatar_url = ?'); params.push(avatar_url); }
+    if (contact !== undefined) { fields.push('contact = ?'); params.push(contact); }
+
     // Password Logic: Only update if provided and not empty
     if (password && password.trim() !== "") {
       fields.push('password = ?');
@@ -385,7 +385,7 @@ app.put('/users/:id', async (req, res) => {
     }
 
     if (fields.length === 0) {
-        return res.json({ message: "No changes detected" });
+      return res.json({ message: "No changes detected" });
     }
 
     // Finalize Query
@@ -393,13 +393,13 @@ app.put('/users/:id', async (req, res) => {
     params.push(id);
 
     await pool.query(query, params);
-    
+
     // Return updated fields for Frontend State Update
-    res.json({ 
-        message: 'User updated successfully',
-        fullName: full_name,
-        avatar: avatar_url,
-        phone: contact
+    res.json({
+      message: 'User updated successfully',
+      fullName: full_name,
+      avatar: avatar_url,
+      phone: contact
     });
 
   } catch (err) {
@@ -422,7 +422,7 @@ app.post('/action-logs', async (req, res) => {
        VALUES (?, NOW(), ?)`,
       [details, userId]
     );
-    
+
     // Send success status so the frontend console doesn't show an error
     res.status(200).json({ message: 'Action logged successfully' });
 
@@ -455,7 +455,7 @@ app.post('/users/:id/change-password', async (req, res) => {
     if (currentPassword !== storedPassword) {
       return res.status(401).json({ message: 'Incorrect current password.' });
     }
-    
+
     await pool.query(
       'UPDATE users SET password = ? WHERE user_id = ?',
       [newPassword, id]
@@ -485,7 +485,7 @@ app.delete('/users/:id', async (req, res) => {
     // ⚠️ FIXED: Commented out because this table does not exist yet
     // If you create a table for leaves later, uncomment this line and use the correct name
     // await connection.query('DELETE FROM leave_requests WHERE user_id = ?', [id]);
-    
+
     // 2. Delete the User
     const [result] = await connection.query('DELETE FROM users WHERE user_id = ?', [id]);
 
@@ -536,15 +536,15 @@ app.get('/shift-distribution', async (req, res) => {
   try {
     // A. Fetch Public Holidays (Only needed if NOT analyzing Annual Leave)
     let phSet = new Set();
-    
+
     if (targetShiftType !== 'AL') {
-        try {
-            const url = `https://date.nager.at/api/v3/publicholidays/${targetYear}/SG`;
-            const response = await axios.get(url);
-            response.data.forEach(item => phSet.add(item.date));
-        } catch (apiErr) {
-            console.error("Warning: Holiday API failed.", apiErr.message);
-        }
+      try {
+        const url = `https://date.nager.at/api/v3/publicholidays/${targetYear}/SG`;
+        const response = await axios.get(url);
+        response.data.forEach(item => phSet.add(item.date));
+      } catch (apiErr) {
+        console.error("Warning: Holiday API failed.", apiErr.message);
+      }
     }
 
     // B. Fetch All Shifts for APNs in that Year
@@ -598,37 +598,37 @@ app.get('/shift-distribution', async (req, res) => {
         const dateStr = `${yyyy}-${mm}-${dd}`;
 
         // === LOGIC BRANCH: AL vs NNJ ===
-        
+
         if (targetShiftType === 'AL') {
-            // Logic for Annual Leave: Just count occurrences of 'AL'
-            if (dbShiftCode === 'AL') {
-                stats.al_count += 1;
-            }
+          // Logic for Annual Leave: Just count occurrences of 'AL'
+          if (dbShiftCode === 'AL') {
+            stats.al_count += 1;
+          }
         } else {
-            // Logic for NNJ (or specific shift codes)
-            // Only count if the shift code matches the target (e.g., 'NNJ')
-            if (dbShiftCode === targetShiftType) {
-                // Check Sunday (0 = Sunday)
-                if (rawDate.getDay() === 0) {
-                    stats.sun_count += 1;
-                }
-                
-                // Check Public Holiday
-                if (phSet.has(dateStr)) {
-                    stats.ph_count += 1;
-                }
+          // Logic for NNJ (or specific shift codes)
+          // Only count if the shift code matches the target (e.g., 'NNJ')
+          if (dbShiftCode === targetShiftType) {
+            // Check Sunday (0 = Sunday)
+            if (rawDate.getDay() === 0) {
+              stats.sun_count += 1;
             }
+
+            // Check Public Holiday
+            if (phSet.has(dateStr)) {
+              stats.ph_count += 1;
+            }
+          }
         }
       }
     });
 
     // D. Finalize Results
     const results = Array.from(userMap.values()).map(u => ({
-        ...u,
-        // Calculate Total based on mode
-        total: targetShiftType === 'AL' ? u.al_count : (u.ph_count + u.sun_count)
+      ...u,
+      // Calculate Total based on mode
+      total: targetShiftType === 'AL' ? u.al_count : (u.ph_count + u.sun_count)
     }));
-    
+
     res.json(results);
 
   } catch (err) {
@@ -754,61 +754,61 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
     // ROSTER UPDATE LOGIC
     // =========================================================
     if (status === 'Approved') {
-        const typeMap = {
-            'Annual Leave': 'AL',
-            'Sick Leave': 'MC',
-            'Maternity Leave': 'ML',
-            'Hospitalisation Leave': 'HL',
-            'Day-Off': 'DO'
-        };
-        const finalCode = typeMap[leave_type] || 'AL'; 
+      const typeMap = {
+        'Annual Leave': 'AL',
+        'Sick Leave': 'MC',
+        'Maternity Leave': 'ML',
+        'Hospitalisation Leave': 'HL',
+        'Day-Off': 'DO'
+      };
+      const finalCode = typeMap[leave_type] || 'AL';
 
-        console.log("DEBUG: Mapped Code is", finalCode); // <--- DEBUG 1
+      console.log("DEBUG: Mapped Code is", finalCode); // <--- DEBUG 1
 
-        // --- FIX 2: Use correct table 'shift_desc' ---
-        const [typeResult] = await pool.query(
-            "SELECT shift_type_id FROM shift_desc WHERE shift_code = ?", 
-            [finalCode]
-        );
+      // --- FIX 2: Use correct table 'shift_desc' ---
+      const [typeResult] = await pool.query(
+        "SELECT shift_type_id FROM shift_desc WHERE shift_code = ?",
+        [finalCode]
+      );
 
-        if (typeResult.length > 0) {
-            console.log("DEBUG: Found Shift Type ID:", typeResult[0].shift_type_id); // <--- DEBUG 2
-            const shiftTypeId = typeResult[0].shift_type_id;
-            const start = new Date(leave_start);
-            const end = new Date(leave_end);
+      if (typeResult.length > 0) {
+        console.log("DEBUG: Found Shift Type ID:", typeResult[0].shift_type_id); // <--- DEBUG 2
+        const shiftTypeId = typeResult[0].shift_type_id;
+        const start = new Date(leave_start);
+        const end = new Date(leave_end);
 
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const dateStr = d.toISOString().split('T')[0];
-                
-                // --- FIX 3: Find Roster ID safely using MONTH() ---
-                const [rosterCheck] = await pool.query(
-                    `SELECT roster_id FROM rosters 
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+
+          // --- FIX 3: Find Roster ID safely using MONTH() ---
+          const [rosterCheck] = await pool.query(
+            `SELECT roster_id FROM rosters 
                      WHERE month = MONTH(?) 
                      AND year = YEAR(?) LIMIT 1`,
-                    [dateStr, dateStr]
-                );
+            [dateStr, dateStr]
+          );
 
-                if (rosterCheck.length > 0) {
-                    const validRosterId = rosterCheck[0].roster_id;
+          if (rosterCheck.length > 0) {
+            const validRosterId = rosterCheck[0].roster_id;
 
-                    // Delete old shift
-                    await pool.query(
-                        "DELETE FROM shifts WHERE user_id = ? AND shift_date = ?",
-                        [user_id, dateStr]
-                    );
+            // Delete old shift
+            await pool.query(
+              "DELETE FROM shifts WHERE user_id = ? AND shift_date = ?",
+              [user_id, dateStr]
+            );
 
-                    // Insert new Leave shift
-                    await pool.query(`
+            // Insert new Leave shift
+            await pool.query(`
                         INSERT INTO shifts (user_id, shift_date, shift_type_id, roster_id, ward_id)
                         VALUES (?, ?, ?, ?, 2) 
                     `, [user_id, dateStr, shiftTypeId, validRosterId]);
-                    
-                } else {
-                  console.log("DEBUG: Roster check failed for month:", d.getMonth() + 1); // <--- DEBUG 3
-                  console.warn(`Skipping roster update: No roster found for ${dateStr}.`);
-                }
-            }
+
+          } else {
+            console.log("DEBUG: Roster check failed for month:", d.getMonth() + 1); // <--- DEBUG 3
+            console.warn(`Skipping roster update: No roster found for ${dateStr}.`);
+          }
         }
+      }
     }
     // =========================================================
 
@@ -821,7 +821,7 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
       if (approverRows.length > 0) {
         const approver = approverRows[0];
         const details = `${approver.role || 'Admin'} ${approver.full_name} ${status.toLowerCase()} ${applicant_name}'s leave request (${leave_type}).`;
-        
+
         logAction({ userId: approverId, details });
       } else {
         console.warn(`Could not find approver with ID ${approverId} to log the action.`);
@@ -881,7 +881,7 @@ app.post('/api/auth/login', async (req, res) => {
 
   try {
     const [rows] = await pool.query(
-      'SELECT user_id, email, password, role, full_name, avatar_url, contact FROM users WHERE email = ?',
+      'SELECT user_id, email, password, role, full_name, avatar_url, service, contact FROM users WHERE email = ?',
       [email]
     );
     if (rows.length === 0) {
@@ -900,6 +900,7 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({
       success: true,
       user: {
+        service:user.service,
         userId: user.user_id,
         fullName: user.full_name,
         email: user.email,
@@ -1028,7 +1029,7 @@ app.put('/api/rosters/:id/settings', async (req, res) => {
 // --- DELETE ROSTER ROUTE ---
 app.delete('/api/rosters/:id', async (req, res) => {
   const rosterId = req.params.id;
-  
+
   const connection = await pool.getConnection();
   await connection.beginTransaction();
 
@@ -1067,7 +1068,7 @@ app.get('/api/rosters/:id/download', async (req, res) => {
     // 1. Fetch Roster Info
     const [rosterMeta] = await connection.query("SELECT * FROM rosters WHERE roster_id = ?", [rosterId]);
     if (rosterMeta.length === 0) return res.status(404).send("Roster not found");
-    
+
     const { month, year } = rosterMeta[0];
 
     // 2. Fetch Shifts + Colors
@@ -1101,8 +1102,8 @@ app.get('/api/rosters/:id/download', async (req, res) => {
 
     shifts.forEach(shift => {
       const name = shift.full_name;
-      const dateStr = typeof shift.shift_date === 'string' 
-        ? shift.shift_date.split('T')[0] 
+      const dateStr = typeof shift.shift_date === 'string'
+        ? shift.shift_date.split('T')[0]
         : shift.shift_date.toISOString().split('T')[0];
       const day = parseInt(dateStr.split('-')[2], 10);
 
@@ -1137,26 +1138,26 @@ app.get('/api/rosters/:id/download', async (req, res) => {
         };
 
         // Apply Color if it's a shift cell
-        if (colNumber > 1) { 
-            const code = cell.value;
-            const hex = colorMap[code]; // Look up the color from DB
+        if (colNumber > 1) {
+          const code = cell.value;
+          const hex = colorMap[code]; // Look up the color from DB
 
-            if (hex) {
-                // Excel expects ARGB (FF + Hex without #)
-                // Example: #10B981 -> FF10B981
-                const cleanHex = hex.replace('#', '');
-                const argbColor = `FF${cleanHex}`;
+          if (hex) {
+            // Excel expects ARGB (FF + Hex without #)
+            // Example: #10B981 -> FF10B981
+            const cleanHex = hex.replace('#', '');
+            const argbColor = `FF${cleanHex}`;
 
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: argbColor }
-                };
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: argbColor }
+            };
 
-                // OPTIONAL: Make text white if background is dark?
-                // For now, let's keep it black unless you want "smart text color" logic.
-                // cell.font = { color: { argb: 'FFFFFFFF' } }; 
-            }
+            // OPTIONAL: Make text white if background is dark?
+            // For now, let's keep it black unless you want "smart text color" logic.
+            // cell.font = { color: { argb: 'FFFFFFFF' } }; 
+          }
         }
       });
     });
@@ -1175,6 +1176,174 @@ app.get('/api/rosters/:id/download', async (req, res) => {
   }
 });
 
+// --- 1. GET User's Shift Preferences ---
+app.get('/api/get-shift-preferences/:userId', async (req, res) => {
+  const { userId } = req.params;
+  try {
+    // We JOIN 'shift_desc' to get the readable code (AM, PM) from the ID
+    const query = `
+      SELECT 
+        sp.shiftPref_id,
+        sp.date,
+        sp.status,      -- This is the approval status (Pending/Approved/Denied)
+        sp.remarks,
+        sp.roster_id,
+        sd.shift_code   -- This is the actual shift (AM/PM/NNJ)
+      FROM shiftpref sp
+      LEFT JOIN shift_desc sd ON sp.shift_type_id = sd.shift_type_id
+      WHERE sp.user_id = ?
+      ORDER BY sp.date DESC
+    `;
+
+    const [rows] = await pool.query(query, [userId]);
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching preferences:", err);
+    res.status(500).json({ error: "Failed to fetch preferences" });
+  }
+});
+
+// --- 2. ADD New Shift Preference (Dynamic Roster Lookup) ---
+app.post('/api/add-shift-preference', async (req, res) => {
+  const { user_id, date, shift_code, remarks } = req.body; // Removed roster_id from input
+
+  if (!user_id || !date || !shift_code) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    // A. Parse Date to get Month and Year
+    const prefDate = new Date(date);
+    const targetMonth = prefDate.getMonth() + 1; // JS months are 0-11
+    const targetYear = prefDate.getFullYear();
+
+    // B. Find the matching Roster ID
+    // We look for a roster that matches this specific month and year
+    const [rosterRows] = await pool.query(
+      'SELECT roster_id FROM rosters WHERE month = ? AND year = ? LIMIT 1',
+      [targetMonth, targetYear]
+    );
+
+    if (rosterRows.length === 0) {
+      return res.status(404).json({
+        error: `No roster created yet for ${targetMonth}/${targetYear}. You cannot submit preferences.`
+      });
+    }
+
+    const validRosterId = rosterRows[0].roster_id;
+
+    // C. Find the Shift Type ID (e.g., 'AM' -> 1)
+    const [shiftRows] = await pool.query(
+      'SELECT shift_type_id FROM shift_desc WHERE shift_code = ? LIMIT 1',
+      [shift_code]
+    );
+
+    if (shiftRows.length === 0) {
+      return res.status(400).json({ error: `Invalid Shift Code: ${shift_code}` });
+    }
+
+    const shiftTypeId = shiftRows[0].shift_type_id;
+
+    // D. Insert the Preference
+    const insertQuery = `
+      INSERT INTO shiftpref (user_id, date, shift_type_id, roster_id, remarks, status)
+      VALUES (?, ?, ?, ?, ?, 'Pending')
+    `;
+
+    await pool.query(insertQuery, [user_id, date, shiftTypeId, validRosterId, remarks]);
+
+    res.json({ message: "Preference request submitted successfully" });
+
+  } catch (err) {
+    console.error("Error adding preference:", err);
+    res.status(500).json({ error: "Failed to submit preference request" });
+  }
+  // --- 3. UPDATE Shift Preference ---
+  app.put('/api/update-shift-preference/:id', async (req, res) => {
+    const { id } = req.params;
+    const { date, shift_code, remarks } = req.body;
+
+    if (!date || !shift_code) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    try {
+      // A. Recalculate Roster ID (in case date changed)
+      const prefDate = new Date(date);
+      const targetMonth = prefDate.getMonth() + 1;
+      const targetYear = prefDate.getFullYear();
+
+      const [rosterRows] = await pool.query(
+        'SELECT roster_id FROM rosters WHERE month = ? AND year = ? LIMIT 1',
+        [targetMonth, targetYear]
+      );
+
+      if (rosterRows.length === 0) {
+        return res.status(404).json({
+          error: `No roster available for ${targetMonth}/${targetYear}. Cannot move preference to this date.`
+        });
+      }
+      const validRosterId = rosterRows[0].roster_id;
+
+      // B. Find Shift Type ID
+      const [shiftRows] = await pool.query(
+        'SELECT shift_type_id FROM shift_desc WHERE shift_code = ? LIMIT 1',
+        [shift_code]
+      );
+
+      if (shiftRows.length === 0) {
+        return res.status(400).json({ error: "Invalid Shift Code" });
+      }
+      const shiftTypeId = shiftRows[0].shift_type_id;
+
+      // C. Update Query (Resets status to 'Pending' on edit)
+      const updateQuery = `
+      UPDATE shiftpref 
+      SET date = ?, shift_type_id = ?, roster_id = ?, remarks = ?, status = 'Pending'
+      WHERE shiftPref_id = ?
+    `;
+
+      await pool.query(updateQuery, [date, shiftTypeId, validRosterId, remarks, id]);
+
+      res.json({ message: "Preference updated successfully" });
+
+    } catch (err) {
+      console.error("Error updating preference:", err);
+      res.status(500).json({ error: "Failed to update preference" });
+    }
+  });
+
+// --- 4. DELETE Shift Preference (Robust Version) ---
+app.delete('/api/delete-shift-preference/:id', async (req, res) => {
+  const { id } = req.params;
+
+  // Debugging: Log what the server received
+  console.log("Server received DELETE request for ID:", id);
+
+  if (!id || id === 'undefined' || id === 'null') {
+    return res.status(400).json({ error: "Invalid ID provided" });
+  }
+
+  try {
+    // Check your database column name matches EXACTLY (shiftPref_id vs id)
+    const query = 'DELETE FROM shiftpref WHERE shiftPref_id = ?';
+    
+    const [result] = await pool.query(query, [id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Preference not found. It may have already been deleted." });
+    }
+
+    res.json({ message: "Preference deleted successfully" });
+
+  } catch (err) {
+    console.error("Database Error deleting preference:", err);
+    // Send the specific SQL error to the frontend
+    res.status(500).json({ error: err.sqlMessage || err.message || "Database error" });
+  }
+});
+});
+
 // ================= Action Logs =================
 app.get('/actionlogs', async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 6;
@@ -1191,7 +1360,7 @@ app.get('/actionlogs', async (req, res) => {
     console.error('Error fetching action logs:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch action logs' });
   }
-});  
+});
 
 // ================= Server =================
 const PORT = process.env.PORT || 5000;
