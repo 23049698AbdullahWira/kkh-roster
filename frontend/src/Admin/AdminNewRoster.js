@@ -1,345 +1,244 @@
-// src/AdminNewRoster.js
 import React, { useState } from 'react';
 
+// --- STYLES OBJECT ---
+const styles = {
+  overlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backdropFilter: 'blur(2px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  modal: {
+    backgroundColor: '#EDF0F5',
+    width: '100%',
+    maxWidth: '500px',
+    padding: '32px',
+    borderRadius: '16px',
+    boxShadow: '0 20px 40px rgba(0,0,0,0.1)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px',
+    boxSizing: 'border-box',
+    fontFamily: 'Inter, sans-serif',
+  },
+  header: {
+    fontSize: '22px',
+    fontWeight: 700,
+    color: '#1A1A1A',
+    marginBottom: '8px',
+  },
+  label: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#333',
+    marginBottom: '8px',
+    display: 'block',
+  },
+  readOnlyInput: {
+    width: '100%',
+    padding: '12px 16px',
+    fontSize: '14px',
+    fontWeight: 600,
+    borderRadius: '8px',
+    border: '1px solid #E0E0E0',
+    boxSizing: 'border-box',
+    fontFamily: 'Inter, sans-serif',
+    color: '#555',
+    backgroundColor: '#EBEBEB', // darker grey to indicate disabled
+    cursor: 'not-allowed',
+  },
+  select: {
+    width: '100%',
+    padding: '12px 16px',
+    fontSize: '14px',
+    borderRadius: '8px',
+    border: '1px solid #E0E0E0',
+    outline: 'none',
+    boxSizing: 'border-box',
+    fontFamily: 'Inter, sans-serif',
+    color: '#333',
+    backgroundColor: '#FAFAFA',
+    appearance: 'none',
+    backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 16px center',
+    backgroundSize: '16px',
+    cursor: 'pointer',
+  },
+  buttonGroup: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    marginTop: '12px',
+  },
+  btnConfirm: {
+    padding: '10px 24px',
+    backgroundColor: '#5091CD',
+    color: 'white',
+    border: 'none',
+    borderRadius: '50px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(80, 145, 205, 0.3)',
+  },
+  btnCancel: {
+    padding: '10px 24px',
+    backgroundColor: '#F5F5F5',
+    color: '#333',
+    border: '1px solid #E0E0E0',
+    borderRadius: '50px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  errorBox: {
+    backgroundColor: '#FFE5E5',
+    color: '#D32F2F',
+    padding: '10px',
+    borderRadius: '8px',
+    fontSize: '13px',
+    fontWeight: 500,
+  }
+};
+
 function AdminNewRoster({ open, onConfirm, onCancel }) {
-  const [title, setTitle] = useState('');
   const [month, setMonth] = useState('');
   const [year, setYear] = useState('');
-  const [notes, setNotes] = useState('');
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   if (!open) return null;
 
-  const handleConfirm = () => {
-    onConfirm &&
-      onConfirm({
-        title,
-        month,
-        year,
-        notes,
+  // Auto-Generate Title Logic
+  const autoTitle = (month && year) ? `${month} ${year} Roster` : '(Select Month & Year)';
+
+  const handleSubmit = async () => {
+    if (!month || !year) {
+      setError("Please select both a Month and Year.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    let currentUserId = 1; 
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+      currentUserId = storedUser.userId || storedUser.id || 101; 
+    } catch (e) {
+      console.warn("Could not read user from local storage", e);
+    }
+
+    // STRICT Auto Title
+    const finalTitle = `${month} ${year} Roster`;
+
+    try {
+      const response = await fetch('http://localhost:5000/api/rosters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: finalTitle, // Uses the auto-generated title
+          month: month,
+          year: year,
+          status: 'Preference Open', 
+          userId: currentUserId
+        }),
       });
+
+      if (response.ok) {
+        setIsSubmitting(false);
+        setMonth('');
+        setYear('');
+        if (onConfirm) onConfirm();
+      } else {
+        const errData = await response.json();
+        setError(errData.message || 'Failed to create roster');
+        setIsSubmitting(false);
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Server connection error.');
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}
-      onClick={onCancel}
-    >
-      <div
-        style={{
-          width: 630,
-          padding: 38,
-          background: '#EDF0F5',
-          borderRadius: 9.6,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 27,
-          boxSizing: 'border-box',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 10,
-          }}
-        >
-          <div
-            style={{
-              color: 'black',
-              fontSize: 24,
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 600,
-            }}
-          >
-            Add New Roster
+    <div style={styles.overlay} onClick={onCancel}>
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        
+        <div style={styles.header}>Add New Roster</div>
+
+        {error && <div style={styles.errorBox}>{error}</div>}
+
+        {/* 1. Roster Period Selectors */}
+        <div>
+          <label style={styles.label}>Roster Period</label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              style={styles.select}
+            >
+              <option value="">Select month</option>
+              {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              style={styles.select}
+            >
+              <option value="">Select year</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+            </select>
           </div>
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 18,
-          }}
-        >
-          {/* Roster Title */}
-          <div
-            style={{
-              display: 'inline-flex',
-              width: 490,
-              gap: 18,
-            }}
-          >
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 6,
-              }}
-            >
-              <div
-                style={{
-                  color: 'black',
-                  fontSize: 16,
-                  fontWeight: 500,
-                  letterSpacing: 0.24,
-                }}
-              >
-                Roster Title
-              </div>
-              <div
-                style={{
-                  padding: 12,
-                  background: 'white',
-                  borderRadius: 6,
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                <input
-                  type="text"
-                  placeholder="Enter new roster title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    outline: 'none',
-                    fontSize: 12,
-                    fontFamily: 'Inter, sans-serif',
-                    fontWeight: 500,
-                    color: '#000',
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Roster Period */}
-          <div
-            style={{
-              display: 'inline-flex',
-              width: 490,
-              gap: 18,
-            }}
-          >
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 6,
-              }}
-            >
-              <div
-                style={{
-                  color: 'black',
-                  fontSize: 16,
-                  fontWeight: 500,
-                  letterSpacing: 0.24,
-                }}
-              >
-                Roster Period
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                }}
-              >
-                <div
-                  style={{
-                    height: 42,
-                    padding: 12,
-                    background: 'white',
-                    borderRadius: 6,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <select
-                    value={month}
-                    onChange={(e) => setMonth(e.target.value)}
-                    style={{
-                      border: 'none',
-                      outline: 'none',
-                      fontSize: 12,
-                      fontFamily: 'Inter, sans-serif',
-                      fontWeight: 500,
-                      color: month ? '#000' : '#8E8E8E',
-                      background: 'transparent',
-                      width: '100%',
-                    }}
-                  >
-                    <option value="">Select month</option>
-                    <option value="January">January</option>
-                    <option value="February">February</option>
-                    <option value="March">March</option>
-                    <option value="April">April</option>
-                    <option value="May">May</option>
-                    <option value="June">June</option>
-                    <option value="July">July</option>
-                    <option value="August">August</option>
-                    <option value="September">September</option>
-                    <option value="October">October</option>
-                    <option value="November">November</option>
-                    <option value="December">December</option>
-                  </select>
-                </div>
-
-                <div
-                  style={{
-                    height: 42,
-                    padding: 12,
-                    background: 'white',
-                    borderRadius: 6,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <select
-                    value={year}
-                    onChange={(e) => setYear(e.target.value)}
-                    style={{
-                      border: 'none',
-                      outline: 'none',
-                      fontSize: 12,
-                      fontFamily: 'Inter, sans-serif',
-                      fontWeight: 500,
-                      color: year ? '#000' : '#8E8E8E',
-                      background: 'transparent',
-                      width: '100%',
-                    }}
-                  >
-                    <option value="">Select year</option>
-                    <option value="2024">2024</option>
-                    <option value="2025">2025</option>
-                    <option value="2026">2026</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              width: 490,
-              gap: 6,
-            }}
-          >
-            <div
-              style={{
-                color: 'black',
-                fontSize: 16,
-                fontWeight: 500,
-                letterSpacing: 0.24,
-              }}
-            >
-              Notes (Optional)
-            </div>
-            <div
-              style={{
-                height: 94,
-                padding: 12,
-                background: 'white',
-                borderRadius: 6,
-                display: 'inline-flex',
-                alignItems: 'flex-start',
-                boxSizing: 'border-box',
-              }}
-            >
-              <textarea
-                placeholder="Enter notes for this roster (e.g. public holiday)"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  border: 'none',
-                  outline: 'none',
-                  resize: 'none',
-                  fontSize: 12,
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: 500,
-                  color: '#000',
-                }}
-              />
-            </div>
+        {/* 2. Auto-Generated Title (Read Only) */}
+        <div>
+          <label style={styles.label}>Roster Name (Auto-Generated)</label>
+          <div style={styles.readOnlyInput}>
+            {autoTitle}
           </div>
         </div>
 
         {/* Buttons */}
-        <div
-          style={{
-            display: 'inline-flex',
-            justifyContent: 'flex-end',
-            alignItems: 'center',
-            gap: 10,
-            alignSelf: 'stretch',
-          }}
-        >
+        <div style={styles.buttonGroup}>
           <button
             type="button"
-            onClick={handleConfirm}
-            style={{
-              width: 121,
-              paddingTop: 6,
-              paddingBottom: 6,
-              background: '#5091CD',
-              boxShadow: '0 3px 18.7px rgba(0,0,0,0.25)',
-              borderRadius: 24,
-              border: 'none',
-              color: 'white',
-              fontSize: 14,
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 500,
-              letterSpacing: 0.21,
-              cursor: 'pointer',
-            }}
+            onClick={onCancel}
+            disabled={isSubmitting}
+            style={styles.btnCancel}
+            onMouseOver={(e) => e.target.style.backgroundColor = '#E0E0E0'}
+            onMouseOut={(e) => e.target.style.backgroundColor = '#F5F5F5'}
           >
-            Confirm
+            Cancel
           </button>
 
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleSubmit}
+            disabled={isSubmitting}
             style={{
-              width: 121,
-              paddingTop: 6,
-              paddingBottom: 6,
-              background: '#EDF0F5',
-              boxShadow: '0 3px 18.7px rgba(0,0,0,0.25)',
-              borderRadius: 24,
-              border: 'none',
-              color: 'black',
-              fontSize: 14,
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 500,
-              letterSpacing: 0.21,
-              cursor: 'pointer',
+                ...styles.btnConfirm,
+                opacity: isSubmitting ? 0.7 : 1,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer'
             }}
           >
-            Cancel
+            {isSubmitting ? 'Creating...' : 'Confirm'}
           </button>
         </div>
+
       </div>
     </div>
   );
