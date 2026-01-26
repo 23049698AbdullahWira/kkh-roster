@@ -88,7 +88,7 @@ function AdminRosterView({
         // Fetch Users
         const userRes = await fetch('http://localhost:5000/users');
         const userData = await userRes.json();
-        const nursesOnly = userData.filter(user => user.role === 'APN');
+        const nursesOnly = userData.filter(user => user.role === 'APN' && user.status === 'Active');
 
         // Fetch Shifts
         const shiftRes = await fetch(`http://localhost:5000/api/shifts/${rosterId}`);
@@ -373,6 +373,36 @@ function AdminRosterView({
   };
   // --- NEW ADDITION END ---
 
+  // --- NEW: SERVICE GROUPING LOGIC ---
+  const SERVICE_PRIORITY = ['Acute', 'CE', 'Onco', 'PAS', 'PAME', 'Neonates'];
+
+  // Helper to group the ALREADY SORTED list into buckets
+  const getStaffByService = () => {
+    const groups = {};
+    // Initialize buckets
+    SERVICE_PRIORITY.forEach(s => groups[s] = []);
+    groups['General / Other'] = []; 
+
+    sortedStaffList.forEach(staff => {
+      // Get service (handle nulls)
+      const svc = staff.service ? staff.service.trim() : 'General / Other';
+
+      // Check if this service is in our Priority List
+      // We use 'includes' to catch "Acute Care" inside "Acute"
+      const foundKey = SERVICE_PRIORITY.find(key => svc.includes(key));
+
+      if (foundKey) {
+        groups[foundKey].push(staff);
+      } else {
+        groups['General / Other'].push(staff);
+      }
+    });
+
+    return groups;
+  };
+
+  const groupedStaff = getStaffByService();
+
   // Simple Sort Arrow Icon
 const IconSort = ({ direction }) => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
@@ -571,30 +601,74 @@ const IconSort = ({ direction }) => (
                 </tr>
               </thead>
               <tbody>
-                {sortedStaffList.map((staff) => (
-                  <tr key={staff.user_id}>
-                    <td style={{ position: 'sticky', left: 0, zIndex: 5, background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: 8, fontWeight: 600 }}>
-                      {staff.full_name}
-                    </td>
-                    {days.map((d) => {
-                      const shift = getShiftForCell(staff.user_id, d.fullDate);
-                      return (
-                        <td key={d.day}
-                          // Pass staff.full_name to the handler so the modal knows who it is
-                          onClick={() => handleCellClick(staff.user_id, d.fullDate, shift.code, staff.full_name)}
-                          style={{
-                            borderLeft: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', textAlign: 'center',
-                            background: shift.color, height: 40, fontSize: 13, fontWeight: 700,
-                            color: ['#0F9468', '#3366FF', '#4A4A4A', '#FBBF24', '#0EA5E9', '#F87171', '#059669', '#10B981', '#1E3A8A'].includes(shift.color) ? 'white' : 'black',
-                            cursor: 'pointer', // Always pointer now
-                            outline: (selectedCell && selectedCell.userId === staff.user_id && selectedCell.dateString === d.fullDate) ? '3px solid #F59E0B' : 'none',
-                          }}>
-                          {shift.code}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                {/* Loop through groups */}
+                {[...SERVICE_PRIORITY, 'General / Other'].map(serviceName => {
+                  const staffInGroup = groupedStaff[serviceName];
+                  if (!staffInGroup || staffInGroup.length === 0) return null;
+
+                  return (
+                    <React.Fragment key={serviceName}>
+                      {staffInGroup.map((staff, index) => {
+                        // Check if this is the FIRST person in the group
+                        const isFirstInGroup = index === 0;
+
+                        return (
+                          <tr key={staff.user_id}>
+                            {/* --- NAME COLUMN (With Inline Header) --- */}
+                            <td style={{ 
+                              position: 'sticky', left: 0, zIndex: 5, 
+                              background: 'white', 
+                              borderRight: '1px solid #8C8C8C', 
+                              borderBottom: '1px solid #8C8C8C',
+                              // Add a thick top border if it's the start of a new group
+                              borderTop: isFirstInGroup ? '3px solid #374151' : 'none', 
+                              padding: '8px 14px', 
+                              verticalAlign: 'middle'
+                            }}>
+                              {/* If first in group, show the Service Label ABOVE the name */}
+                              {isFirstInGroup && (
+                                <div style={{ 
+                                  fontSize: '10px', fontWeight: 900, color: '#2563EB', 
+                                  textTransform: 'uppercase', marginBottom: 4, letterSpacing: '0.5px' 
+                                }}>
+                                  {serviceName === 'General / Other' ? 'General' : serviceName}
+                                </div>
+                              )}
+                              
+                              {/* The Nurse Name */}
+                              <div style={{ fontWeight: 600, fontSize: '14px', color: '#1F2937' }}>
+                                {staff.full_name}
+                              </div>
+                            </td>
+
+                            {/* --- DAYS COLUMNS (Standard Grid) --- */}
+                            {days.map((d) => {
+                              const shift = getShiftForCell(staff.user_id, d.fullDate);
+                              return (
+                                <td key={d.day}
+                                  onClick={() => handleCellClick(staff.user_id, d.fullDate, shift.code, staff.full_name)}
+                                  style={{
+                                    borderLeft: '1px solid #8C8C8C', 
+                                    borderBottom: '1px solid #8C8C8C',
+                                    // Match the thick top border so the whole row looks separated
+                                    borderTop: isFirstInGroup ? '3px solid #374151' : 'none',
+                                    
+                                    textAlign: 'center',
+                                    background: shift.color, height: 40, fontSize: 13, fontWeight: 700,
+                                    color: getContrastTextColor(shift.color),
+                                    cursor: 'pointer',
+                                    outline: (selectedCell && selectedCell.userId === staff.user_id && selectedCell.dateString === d.fullDate) ? '3px solid #F59E0B' : 'none',
+                                  }}>
+                                  {shift.code}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>
