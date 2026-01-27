@@ -327,7 +327,7 @@ function AdminHome({ user }) {
                       nextRosterStatus === 'Published'
                         ? '#16A34A'
                         : nextRosterStatus === 'Drafting'
-                        ? '#F97316'
+                        ? 'yellow'
                         : nextRosterStatus === 'Preference Open'
                         ? '#DC2626'
                         : '#6B7280',
@@ -342,7 +342,7 @@ function AdminHome({ user }) {
                         nextRosterStatus === 'Published'
                           ? '#16A34A'
                           : nextRosterStatus === 'Drafting'
-                          ? '#F97316'
+                          ? 'yellow'
                           : nextRosterStatus === 'Preference Open'
                           ? '#DC2626'
                           : '#6B7280',
