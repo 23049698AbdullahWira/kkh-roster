@@ -3,19 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../Nav/navbar.js';
 
-const todoItems = [
-  {
-    header: 'New Account Requested – By 23 Oct',
-    title: '3 New User Accounts Awaiting Approval',
-    body: 'Reminded to approve new account for onboarding members of the team.',
-  },
-  {
-    header: 'Published November Roster – By 29 Oct',
-    title: 'Roster Publish.',
-    body: 'Reminded to publish November roster to all.',
-  },
-];
-
 function AdminHome({ user }) {
   const [logs, setLogs] = useState([]);
 
@@ -23,65 +10,55 @@ function AdminHome({ user }) {
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
   const [pendingPrefCount, setPendingPrefCount] = useState(0);
   const [nextRosterLabel, setNextRosterLabel] = useState('');
-  const [nextRosterStatus, setNextRosterStatus] = useState(''); // e.g. Pending / Drafting / Published
+  const [nextRosterStatus, setNextRosterStatus] = useState(''); // e.g. Preference Open / Drafting / Published
+
+  // Loading flag for the three summary cards
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+
+  // how many logs to show in the UI
+  const [visibleLogCount, setVisibleLogCount] = useState(6);
 
   const navigate = useNavigate();
 
-  // ---- NEW: fetch helpers ----
-  const fetchPendingLeaveCount = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/leave/pending-count');
-      const data = await res.json();
-      setPendingLeaveCount(data.pendingCount ?? 0);
-    } catch (err) {
-      console.error('Failed to fetch pending leave count:', err);
-    }
-  };
-
-  const fetchPendingShiftPrefCount = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/shiftpref/pending-count');
-      const data = await res.json();
-      setPendingPrefCount(data.pendingCount ?? 0);
-    } catch (err) {
-      console.error('Failed to fetch pending shift preference count:', err);
-    }
-  };
-
-  const fetchNextRosterStatus = async () => {
-    try {
-      const res = await fetch('http://localhost:5000/api/rosters/next');
-      if (!res.ok) {
-        // No rosters found or server error
-        setNextRosterLabel('No roster found');
-        setNextRosterStatus('N/A');
-        return;
-      }
-      const data = await res.json();
-      setNextRosterLabel(`${data.month} ${data.year}`);
-      setNextRosterStatus(data.status || 'Unknown');
-    } catch (err) {
-      console.error('Failed to fetch next roster status:', err);
-      setNextRosterLabel('Error');
-      setNextRosterStatus('N/A');
-    }
-  };
-
   useEffect(() => {
-    async function fetchLogs() {
+    async function fetchAll() {
       try {
-        const res = await fetch('http://localhost:5000/actionlogs?limit=6');
-        const data = await res.json();
-        setLogs(data || []);
+        const [logsRes, leaveRes, prefRes, rosterRes] = await Promise.all([
+          // ask backend for up to 50 (adjust if needed)
+          fetch('http://localhost:5000/actionlogs?limit=50'),
+          fetch('http://localhost:5000/api/leave/pending-count'),
+          fetch('http://localhost:5000/api/shiftpref/pending-count'),
+          fetch('http://localhost:5000/api/rosters/next'),
+        ]);
+
+        const [logsData, leaveData, prefData] = await Promise.all([
+          logsRes.json(),
+          leaveRes.json(),
+          prefRes.json(),
+        ]);
+
+        setLogs(logsData || []);
+        setPendingLeaveCount(leaveData?.pendingCount ?? 0);
+        setPendingPrefCount(prefData?.pendingCount ?? 0);
+
+        if (rosterRes.ok) {
+          const rosterData = await rosterRes.json();
+          setNextRosterLabel(`${rosterData.month} ${rosterData.year}`);
+          setNextRosterStatus(rosterData.status || 'Unknown');
+        } else {
+          setNextRosterLabel('No roster found');
+          setNextRosterStatus('N/A');
+        }
       } catch (err) {
-        console.error('Failed to fetch action logs:', err);
+        console.error('Dashboard fetch error:', err);
+        setNextRosterLabel('Error');
+        setNextRosterStatus('N/A');
+      } finally {
+        setIsLoadingDashboard(false);
       }
     }
 
-    fetchLogs();
-    fetchPendingLeaveCount();
-    fetchPendingShiftPrefCount();
-    fetchNextRosterStatus();
+    fetchAll();
   }, []);
 
   const formatTimeAgo = (isoString) => {
@@ -113,12 +90,32 @@ function AdminHome({ user }) {
   const goManageLeave = () => navigate('/admin/manage-leave');
   const goStaffPreferences = () => navigate('/admin/shift-distribution');
 
+  // Only some log types are clickable; others are plain rows
   const getLogClickHandler = (type) => {
     if (type === 'ROSTER') return goRoster;
     if (type === 'PREFERENCE') return goStaffPreferences;
     if (type === 'ACCOUNT') return goNewStaff;
     if (type === 'WINDOW') return goStaffPreferences;
-    return () => {};
+    return null;
+  };
+
+  // Helpers for card border colors based on status/count
+  const getLeaveBorderColor = () => {
+    if (isLoadingDashboard) return '#D1D5DB'; // gray-300
+    return pendingLeaveCount === 0 ? '#16A34A' : 'yellow'; // green / amber
+  };
+
+  const getPrefBorderColor = () => {
+    if (isLoadingDashboard) return '#D1D5DB';
+    return pendingPrefCount === 0 ? '#16A34A' : 'yellow';
+  };
+
+  const getRosterBorderColor = () => {
+    if (isLoadingDashboard) return '#D1D5DB';
+    if (nextRosterStatus === 'Published') return '#16A34A';
+    if (nextRosterStatus === 'Drafting') return 'yellow';
+    if (nextRosterStatus === 'Preference Open') return '#DC2626';
+    return '#D1D5DB';
   };
 
   return (
@@ -163,196 +160,222 @@ function AdminHome({ user }) {
           {/* LEFT COLUMN: three cards stacked nicely */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Pending leave requests */}
-<div
-  style={{
-    background: 'white',
-    borderRadius: 10,
-    padding: '16px 20px',
-    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',   // NEW
-    minHeight: 90,
-  }}
->
-  {/* left text block */}
-  <div style={{ display: 'flex', flexDirection: 'column' }}>
-    <div
-      style={{
-        fontSize: 12,
-        fontWeight: 700,
-        color: '#6B7280',
-        textTransform: 'uppercase',
-        marginBottom: 6,
-      }}
-    >
-      Pending leave requests
-    </div>
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-      <span
-        style={{
-          fontSize: 28,
-          fontWeight: 900,
-          color: '#111827',
-        }}
-      >
-        {pendingLeaveCount}
-      </span>
-      <span style={{ fontSize: 13, color: '#6B7280' }}>
-        awaiting approval
-      </span>
-    </div>
-  </div>
+            <div
+              style={{
+                background: 'white',
+                borderRadius: 10,
+                padding: '16px 20px',
+                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                minHeight: 90,
+                borderLeft: `6px solid ${getLeaveBorderColor()}`,
+              }}
+            >
+              {/* left text block */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#6B7280',
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
+                  }}
+                >
+                  Pending leave requests
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 900,
+                      color: '#111827',
+                    }}
+                  >
+                    {pendingLeaveCount}
+                  </span>
+                  <span style={{ fontSize: 13, color: '#6B7280' }}>
+                    awaiting approval
+                  </span>
+                </div>
+              </div>
 
-  {/* right icon */}
-  <img
-    src={pendingLeaveCount === 0 ? '/greenCheckMark.png' : '/yellowWarning.png'}
-    alt=""
-    style={{ width: 70, height: 70, flexShrink: 0 }}
-  />
-</div>
-
+              {/* right icon */}
+              <img
+                src={
+                  isLoadingDashboard
+                    ? '/loadingCircle.png'
+                    : pendingLeaveCount === 0
+                    ? '/greenCheckMark.png'
+                    : '/yellowWarning.png'
+                }
+                alt=""
+                style={{
+                  width: isLoadingDashboard ? 20 : 70,
+                  height: isLoadingDashboard ? 20 : 70,
+                  flexShrink: 0,
+                }}
+              />
+            </div>
 
             {/* Pending shift preferences */}
-<div
-  style={{
-    background: 'white',
-    borderRadius: 10,
-    padding: '16px 20px',
-    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',   // NEW
-    minHeight: 90,
-  }}
->
-  <div style={{ display: 'flex', flexDirection: 'column' }}>
-    <div
-      style={{
-        fontSize: 12,
-        fontWeight: 700,
-        color: '#6B7280',
-        textTransform: 'uppercase',
-        marginBottom: 6,
-      }}
-    >
-      Pending shift preferences
-    </div>
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-      <span
-        style={{
-          fontSize: 28,
-          fontWeight: 900,
-          color: '#111827',
-        }}
-      >
-        {pendingPrefCount}
-      </span>
-      <span style={{ fontSize: 13, color: '#6B7280' }}>
-        unreviewed submissions
-      </span>
-    </div>
-  </div>
+            <div
+              style={{
+                background: 'white',
+                borderRadius: 10,
+                padding: '16px 20px',
+                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                minHeight: 90,
+                borderLeft: `6px solid ${getPrefBorderColor()}`,
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#6B7280',
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
+                  }}
+                >
+                  Pending shift preferences
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 900,
+                      color: '#111827',
+                    }}
+                  >
+                    {pendingPrefCount}
+                  </span>
+                  <span style={{ fontSize: 13, color: '#6B7280' }}>
+                    unreviewed submissions
+                  </span>
+                </div>
+              </div>
 
-  <img
-    src={pendingPrefCount === 0 ? '/greenCheckMark.png' : '/yellowWarning.png'}
-    alt=""
-    style={{ width: 70, height: 70, flexShrink: 0 }}
-  />
-</div>
-
+              <img
+                src={
+                  isLoadingDashboard
+                    ? '/loadingCircle.png'
+                    : pendingPrefCount === 0
+                    ? '/greenCheckMark.png'
+                    : '/yellowWarning.png'
+                }
+                alt=""
+                style={{
+                  width: isLoadingDashboard ? 20 : 70,
+                  height: isLoadingDashboard ? 20 : 70,
+                  flexShrink: 0,
+                }}
+              />
+            </div>
 
             {/* Next month roster status */}
-<div
-  style={{
-    background: 'white',
-    borderRadius: 10,
-    padding: '16px 20px',
-    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',   // NEW
-    minHeight: 90,
-  }}
->
-  {/* left text block */}
-  <div style={{ display: 'flex', flexDirection: 'column' }}>
-    <div
-      style={{
-        fontSize: 12,
-        fontWeight: 700,
-        color: '#6B7280',
-        textTransform: 'uppercase',
-        marginBottom: 6,
-      }}
-    >
-      Next roster status
-    </div>
-    <div
-      style={{
-        fontSize: 15,
-        fontWeight: 700,
-        color: '#111827',
-        marginBottom: 4,
-      }}
-    >
-      {nextRosterLabel || 'Loading...'}
-    </div>
-    <div
-      style={{
-        fontSize: 13,
-        fontWeight: 700,
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        color:
-          nextRosterStatus === 'Published'
-            ? '#16A34A'
-            : nextRosterStatus === 'Drafting'
-            ? '#F97316'
-            : nextRosterStatus === 'Preference Open'
-            ? '#DC2626'
-            : '#6B7280',
-      }}
-    >
-      <span
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: '50%',
-          background:
-            nextRosterStatus === 'Published'
-              ? '#16A34A'
-              : nextRosterStatus === 'Drafting'
-              ? '#F97316'
-              : nextRosterStatus === 'Preference Open'
-              ? '#DC2626'
-              : '#6B7280',
-        }}
-      />
-      {nextRosterStatus || 'Loading...'}
-    </div>
-  </div>
+            <div
+              style={{
+                background: 'white',
+                borderRadius: 10,
+                padding: '16px 20px',
+                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                minHeight: 90,
+                borderLeft: `6px solid ${getRosterBorderColor()}`,
+              }}
+            >
+              {/* left text block */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#6B7280',
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
+                  }}
+                >
+                  Next roster status
+                </div>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: '#111827',
+                    marginBottom: 4,
+                  }}
+                >
+                  {nextRosterLabel || 'Loading...'}
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color:
+                      nextRosterStatus === 'Published'
+                        ? '#16A34A'
+                        : nextRosterStatus === 'Drafting'
+                        ? '#F97316'
+                        : nextRosterStatus === 'Preference Open'
+                        ? '#DC2626'
+                        : '#6B7280',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background:
+                        nextRosterStatus === 'Published'
+                          ? '#16A34A'
+                          : nextRosterStatus === 'Drafting'
+                          ? '#F97316'
+                          : nextRosterStatus === 'Preference Open'
+                          ? '#DC2626'
+                          : '#6B7280',
+                    }}
+                  />
+                  {nextRosterStatus || 'Loading...'}
+                </div>
+              </div>
 
-  {/* right icon */}
-  <img
-    src={
-      nextRosterStatus === 'Published'
-        ? '/greenCheckMark.png'
-        : nextRosterStatus === 'Drafting'
-        ? '/yellowWarning.png'
-        : nextRosterStatus === 'Preference Open'
-        ? '/redWarning.png'
-        : '/yellowWarning.png'
-    }
-    alt=""
-    style={{ width: 70, height: 70, flexShrink: 0 }}
-  />
-</div>
-
+              {/* right icon */}
+              <img
+                src={
+                  isLoadingDashboard
+                    ? '/loadingCircle.png'
+                    : nextRosterStatus === 'Published'
+                    ? '/greenCheckMark.png'
+                    : nextRosterStatus === 'Drafting'
+                    ? '/yellowWarning.png'
+                    : nextRosterStatus === 'Preference Open'
+                    ? '/redWarning.png'
+                    : '/yellowWarning.png'
+                }
+                alt=""
+                style={{
+                  width: isLoadingDashboard ? 20 : 70,
+                  height: isLoadingDashboard ? 20 : 70,
+                  flexShrink: 0,
+                }}
+              />
+            </div>
           </div>
 
-          {/* RIGHT COLUMN: Quick Links + Activity Log (unchanged) */}
+          {/* RIGHT COLUMN: Quick Links + Activity Log */}
           <div
             style={{
               display: 'flex',
@@ -571,7 +594,6 @@ function AdminHome({ user }) {
                 boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
                 display: 'flex',
                 flexDirection: 'column',
-                height: 360,
               }}
             >
               <div
@@ -584,17 +606,17 @@ function AdminHome({ user }) {
                 Admin Activity Log
               </div>
 
+              {/* Logs container grows as more are shown */}
               <div
                 style={{
-                  flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 4,
-                  overflow: 'hidden',
                 }}
               >
-                {logs.map((log) => {
+                {logs.slice(0, visibleLogCount).map((log) => {
                   const onClick = getLogClickHandler(log.log_type);
+                  const isClickable = Boolean(onClick);
                   return (
                     <div
                       key={log.log_id}
@@ -604,9 +626,9 @@ function AdminHome({ user }) {
                         gap: 16,
                         padding: '6px 0',
                         borderTop: '1px solid #E0E0E0',
-                        cursor: 'pointer',
+                        cursor: isClickable ? 'pointer' : 'default',
                       }}
-                      onClick={onClick}
+                      onClick={onClick || undefined}
                     >
                       <img
                         style={{ width: 26, height: 26 }}
@@ -629,14 +651,22 @@ function AdminHome({ user }) {
               <div
                 style={{
                   textAlign: 'center',
-                  marginTop: 4,
+                  marginTop: 8,
                   fontSize: 13,
                   fontWeight: 700,
                   color: '#5091CD',
-                  cursor: 'pointer',
+                  cursor: visibleLogCount < logs.length ? 'pointer' : 'default',
+                  opacity: visibleLogCount < logs.length ? 1 : 0.5,
+                }}
+                onClick={() => {
+                  if (visibleLogCount < logs.length) {
+                    setVisibleLogCount((prev) =>
+                      Math.min(prev + 7, logs.length)
+                    );
+                  }
                 }}
               >
-                View All
+                {visibleLogCount < logs.length ? 'View More' : 'No More Logs'}
               </div>
             </section>
           </div>
