@@ -18,13 +18,12 @@ import UserAccountInformation from './User/UserAccountInformation.js';
 import SignUp from './Auth/SignUp.js';
 
 function App() {
-  // 1) Correct useNavigate variable and only declare it once
   const navigate = useNavigate();
-  
-  // --- NEW STATE: TRACK THE ID ---
-  const [rosterId, setRosterId] = useState(null); 
+
+  const [rosterId, setRosterId] = useState(null);
   const [rosterMonth, setRosterMonth] = useState('December');
   const [rosterYear, setRosterYear] = useState(2025);
+
   const [loggedInUser, setLoggedInUser] = useState(null);
   const [currentUserRole, setCurrentUserRole] = useState(null);
 
@@ -47,7 +46,6 @@ function App() {
     navigate('/login');
   };
 
-  // Rehydrate user from localStorage on first load
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (stored) {
@@ -57,7 +55,6 @@ function App() {
     }
   }, []);
 
-  // These are passed into admin pages for navbar buttons, etc.
   const navProps = {
     onGoHome: () => {},
     onGoRoster: () => {},
@@ -66,145 +63,8 @@ function App() {
     onLogout: handleLogout,
   };
 
-  // ROSTER LIST PAGE (ADMIN)
-  if (page === 'rosterList') {
-    return (
-      <AdminRosterPage
-        {...navProps}
-        // Updated to accept ID as the first argument
-        onOpenRoster={(id, month, year) => {
-          setRosterId(id);       // Save the ID!
-          setRosterMonth(month);
-          setRosterYear(year);
-          setPage('rosterView');
-        }}
-      />
-    );
-  }
-
-  // ROSTER VIEW PAGE (ADMIN)
-  if (page === 'rosterView') {
-    return (
-      <AdminRosterView
-        {...navProps}
-        rosterId={rosterId} // Pass the ID here!
-        month={rosterMonth}
-        year={rosterYear}
-        onBack={() => setPage('rosterList')}
-      />
-    );
-  }
-
-  // STAFF MANAGEMENT PAGE (ADMIN)
-  if (page === 'staff') {
-    return (
-      <AdminStaffManagementPage
-        {...navProps}
-        onGoNewStaffAccounts={() => setPage('newStaff')}
-        onGoManageLeave={() => setPage('manageLeave')}
-        currentUserRole={currentUserRole}
-        loggedInUser={loggedInUser}
-      />
-    );
-  }
-
-  // SHIFT DISTRIBUTION PAGE (ADMIN)
-  if (page === 'shift') {
-    return <AdminShiftDistributionPage {...navProps} />;
-  }
-
-  // NEW STAFF ACCOUNTS PAGE (ADMIN)
-  if (page === 'newStaff') {
-    return <AdminNewAccounts {...navProps} onBack={() => setPage('staff')} />;
-  }
-
-  // MANAGE LEAVE PAGE (ADMIN)
-  if (page === 'manageLeave') {
-    return <AdminManageLeave {...navProps} onBack={() => setPage('staff')} />;
-  }
-
-  // --- USER PAGES ---
-
-  // USER HOME PAGE
-  if (page === 'userHome') {
-    return (
-      <UserHomePage
-        user={loggedInUser} // Pass the full loggedInUser object
-        onGoHome={() => setPage('userHome')}
-        onGoRoster={() => setPage('userRoster')}
-        onGoShiftPreference={() => setPage('userPreference')}
-        onGoApplyLeave={() => setPage('userLeave')}
-        onGoAccount={() => setPage('userAccount')}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  // USER ROSTER PAGE
-  if (page === 'userRoster') {
-    return (
-      <UserRoster
-        onBack={() => setPage('userHome')}
-        onGoHome={() => setPage('userHome')}
-        onGoRoster={() => setPage('userRoster')}
-        onGoShiftPreference={() => setPage('userPreference')}
-        onGoApplyLeave={() => setPage('userLeave')}
-        onGoAccount={() => setPage('userAccount')}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  // USER SHIFT PREFERENCE PAGE
-  if (page === 'userPreference') {
-    return (
-      <UserShiftPref
-        onBack={() => setPage('userHome')}
-        onGoHome={() => setPage('userHome')}
-        onGoRoster={() => setPage('userRoster')}
-        onGoShiftPreference={() => setPage('userPreference')}
-        onGoApplyLeave={() => setPage('userLeave')}
-        onGoAccount={() => setPage('userAccount')}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  // USER APPLY LEAVE PAGE
-  if (page === 'userLeave') {
-    return (
-      <UserApplyLeave
-        loggedInUser={loggedInUser}
-        onBack={() => setPage('userHome')}
-        onGoHome={() => setPage('userHome')}
-        onGoRoster={() => setPage('userRoster')}
-        onGoShiftPreference={() => setPage('userPreference')}
-        onGoApplyLeave={() => setPage('userLeave')}
-        onGoAccount={() => setPage('userAccount')}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  // USER ACCOUNT INFO PAGE
-  if (page === 'userAccount') {
-    return (
-      <UserAccountInformation
-      loggedInUser={loggedInUser}
-        onGoHome={() => setPage('userHome')}
-        onGoRoster={() => setPage('userRoster')}
-        onGoShiftPreference={() => setPage('userPreference')}
-        onGoApplyLeave={() => setPage('userLeave')}
-        onGoAccount={() => setPage('userAccount')}
-        onLogout={handleLogout}
-      />
-    );
-  }
-
-  // DEFAULT FALLBACK: ADMIN HOME PAGE
   return (
     <Routes>
-      {/* Default: visiting "/" goes to /login */}
       <Route path="/" element={<Navigate to="/login" replace />} />
 
       {/* Public auth routes */}
@@ -239,12 +99,31 @@ function App() {
       />
       <Route
         path="/admin/rosters"
-        element={<AdminRosterPage {...navProps} />}
+        element={
+          <AdminRosterPage
+            {...navProps}
+            onOpenRoster={(id, month, year) => {
+              setRosterId(id);
+              setRosterMonth(month);
+              setRosterYear(year);
+              navigate('/admin/rosters/view');
+            }}
+          />
+        }
       />
       <Route
-        path="/admin/rosters/view"
-        element={<AdminRosterView {...navProps} />}
-      />
+  path="/admin/rosters/view"
+  element={
+    <AdminRosterView
+      {...navProps}
+      rosterId={rosterId}
+      month={rosterMonth}
+      year={rosterYear}
+      onBack={() => navigate('/admin/rosters')}
+    />
+  }
+/>
+
       <Route
         path="/admin/staff"
         element={
@@ -275,78 +154,69 @@ function App() {
       />
 
       {/* User routes */}
-      <Route
-        path="/user/home"
-        element={
-          <UserHomePage
-            user={loggedInUser}
-            onGoHome={() => {}}
-            onGoRoster={() => {}}
-            onGoShiftPreference={() => {}}
-            onGoApplyLeave={() => {}}
-            onGoAccount={() => {}}
-            onLogout={handleLogout}
-          />
-        }
-      />
-      <Route
-        path="/user/roster"
-        element={
-          <UserRoster
-            onBack={() => {}}
-            onGoHome={() => {}}
-            onGoRoster={() => {}}
-            onGoShiftPreference={() => {}}
-            onGoApplyLeave={() => {}}
-            onGoAccount={() => {}}
-            onLogout={handleLogout}
-          />
-        }
-      />
-      <Route
-        path="/user/preferences"
-        element={
-          <UserShiftPref
-            onBack={() => {}}
-            onGoHome={() => {}}
-            onGoRoster={() => {}}
-            onGoShiftPreference={() => {}}
-            onGoApplyLeave={() => {}}
-            onGoAccount={() => {}}
-            onLogout={handleLogout}
-          />
-        }
-      />
-      <Route
-        path="/user/leave"
-        element={
-          <UserApplyLeave
-            loggedInUser={loggedInUser}
-            onBack={() => {}}
-            onGoHome={() => {}}
-            onGoRoster={() => {}}
-            onGoShiftPreference={() => {}}
-            onGoApplyLeave={() => {}}
-            onGoAccount={() => {}}
-            onLogout={handleLogout}
-          />
-        }
-      />
-      <Route
-        path="/user/account"
-        element={
-          <UserAccountInformation
-            onGoHome={() => {}}
-            onGoRoster={() => {}}
-            onGoShiftPreference={() => {}}
-            onGoApplyLeave={() => {}}
-            onGoAccount={() => {}}
-            onLogout={handleLogout}
-          />
-        }
-      />
+<Route
+  path="/user/home"
+  element={
+    <UserHomePage
+      user={loggedInUser}
+      onLogout={handleLogout}
+    />
+  }
+/>
+<Route
+  path="/user/roster"
+  element={
+    <UserRoster
+      onLogout={handleLogout}
+    />
+  }
+/>
+<Route
+  path="/user/preferences"
+  element={
+    <UserShiftPref
+      onBack={() => navigate('/user/home')}
+      onGoHome={() => navigate('/user/home')}
+      onGoRoster={() => navigate('/user/roster')}
+      onGoShiftPreference={() => navigate('/user/preferences')}
+      onGoApplyLeave={() => navigate('/user/leave')}
+      onGoAccount={() => navigate('/user/account')}
+      onLogout={handleLogout}
+    />
+  }
+/>
+<Route
+  path="/user/leave"
+  element={
+    <UserApplyLeave
+      loggedInUser={loggedInUser}
+      onBack={() => navigate('/user/home')}
+      onGoHome={() => navigate('/user/home')}
+      onGoRoster={() => navigate('/user/roster')}
+      onGoShiftPreference={() => navigate('/user/preferences')}
+      onGoApplyLeave={() => navigate('/user/leave')}
+      onGoAccount={() => navigate('/user/account')}
+      onLogout={handleLogout}
+    />
+  }
+/>
+<Route
+  path="/user/account"
+  element={
+    <UserAccountInformation
+      loggedInUser={loggedInUser}
+      onGoHome={() => navigate('/user/home')}
+      onGoRoster={() => navigate('/user/roster')}
+      onGoShiftPreference={() => navigate('/user/preferences')}
+      onGoApplyLeave={() => navigate('/user/leave')}
+      onGoAccount={() => navigate('/user/account')}
+      onLogout={handleLogout}
+    />
+  }
+/>
 
-      {/* Catch-all */}
+      
+
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
