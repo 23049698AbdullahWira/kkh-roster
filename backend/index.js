@@ -1176,6 +1176,40 @@ app.get('/api/rosters/:id/download', async (req, res) => {
   }
 });
 
+// --- API to check Roster Status for a specific month/year ---
+app.get('/api/get-roster-status', async (req, res) => {
+  const { month, year } = req.query;
+
+  // Validate that parameters are provided
+  if (!month || !year) {
+    return res.status(400).json({ error: "Month and Year are required." });
+  }
+
+  try {
+    // Query the rosters table based on your ERD
+    const query = `
+      SELECT status 
+      FROM rosters 
+      WHERE month = ? AND year = ? 
+      LIMIT 1
+    `;
+
+    const [rows] = await pool.query(query, [month, year]);
+
+    if (rows.length > 0) {
+      // Return the actual status (e.g., 'Preference Open', 'Drafting', 'Published')
+      res.json({ status: rows[0].status });
+    } else {
+      // If no roster is found for that month/year, we assume it's not open
+      res.json({ status: "No Roster Created" });
+    }
+
+  } catch (err) {
+    console.error("Error fetching roster status:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // --- 1. GET User's Shift Preferences ---
 app.get('/api/get-shift-preferences/:userId', async (req, res) => {
   const { userId } = req.params;
@@ -1203,61 +1237,44 @@ app.get('/api/get-shift-preferences/:userId', async (req, res) => {
   }
 });
 
-// --- 2. ADD New Shift Preference (Dynamic Roster Lookup) ---
+// --- Updated POST: Add Shift Preference with Status Check ---
 app.post('/api/add-shift-preference', async (req, res) => {
-  const { user_id, date, shift_code, remarks } = req.body; // Removed roster_id from input
-
-  if (!user_id || !date || !shift_code) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
+  const { user_id, date, shift_code, remarks } = req.body;
 
   try {
-    // A. Parse Date to get Month and Year
     const prefDate = new Date(date);
-    const targetMonth = prefDate.getMonth() + 1; // JS months are 0-11
+    const targetMonth = prefDate.getMonth() + 1;
     const targetYear = prefDate.getFullYear();
 
-    // B. Find the matching Roster ID
-    // We look for a roster that matches this specific month and year
+    // Check if the roster exists AND if its status is 'Preference Open'
     const [rosterRows] = await pool.query(
-      'SELECT roster_id FROM rosters WHERE month = ? AND year = ? LIMIT 1',
+      'SELECT roster_id, status FROM rosters WHERE month = ? AND year = ? LIMIT 1',
       [targetMonth, targetYear]
     );
 
     if (rosterRows.length === 0) {
-      return res.status(404).json({
-        error: `No roster created yet for ${targetMonth}/${targetYear}. You cannot submit preferences.`
+      return res.status(404).json({ error: "No roster found for this date." });
+    }
+
+    // STRICT STATUS CHECK
+    if (rosterRows[0].status !== 'Preference Open') {
+      return res.status(403).json({ 
+        error: `Submission blocked. Roster is currently in '${rosterRows[0].status}' status.` 
       });
     }
 
     const validRosterId = rosterRows[0].roster_id;
-
-    // C. Find the Shift Type ID (e.g., 'AM' -> 1)
-    const [shiftRows] = await pool.query(
-      'SELECT shift_type_id FROM shift_desc WHERE shift_code = ? LIMIT 1',
-      [shift_code]
-    );
-
-    if (shiftRows.length === 0) {
-      return res.status(400).json({ error: `Invalid Shift Code: ${shift_code}` });
-    }
-
+    const [shiftRows] = await pool.query('SELECT shift_type_id FROM shift_desc WHERE shift_code = ?', [shift_code]);
     const shiftTypeId = shiftRows[0].shift_type_id;
 
-    // D. Insert the Preference
-    const insertQuery = `
-      INSERT INTO shiftpref (user_id, date, shift_type_id, roster_id, remarks, status)
-      VALUES (?, ?, ?, ?, ?, 'Pending')
-    `;
-
+    const insertQuery = `INSERT INTO shiftpref (user_id, date, shift_type_id, roster_id, remarks, status) VALUES (?, ?, ?, ?, ?, 'Pending')`;
     await pool.query(insertQuery, [user_id, date, shiftTypeId, validRosterId, remarks]);
 
     res.json({ message: "Preference request submitted successfully" });
-
   } catch (err) {
-    console.error("Error adding preference:", err);
-    res.status(500).json({ error: "Failed to submit preference request" });
+    res.status(500).json({ error: "Server error" });
   }
+
   // --- 3. UPDATE Shift Preference ---
   app.put('/api/update-shift-preference/:id', async (req, res) => {
     const { id } = req.params;
