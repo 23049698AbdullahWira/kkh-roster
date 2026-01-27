@@ -1,238 +1,478 @@
-// src/UserRoster.js
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import UserNavbar from '../Nav/UserNavbar.js';
 
-const monthMeta = {
-  title: 'December Roster 2025',
-};
-
-const nurses = ['Jimmy', 'Tiffany', 'Vanessa', 'Robert'];
-
-const days = Array.from({ length: 7 }, (_, i) => ({
-  date: 21 + i,
-  label: `${21 + i} Dec`,
-}));
-
-// Simple static roster codes per nurse per day
-const rosterCodes = {
-  Jimmy:   ['NNJ', 'RD', 'NNJ', 'RD', 'RD', 'RD', 'RD'],
-  Tiffany: ['RD', 'RD', 'RD', 'RD', 'RD', 'RD', 'RD'],
-  Vanessa: ['AM', 'AM', 'PM', 'DO', 'AM', 'PM', 'DO'],
-  Robert:  ['PM', 'PM', 'PM', 'DO', 'AM', 'AM', 'DO'],
-};
-
-const codeColors = {
-  NNJ: '#FBBF24',
-  RD:  '#FEF3C7',
-  AM:  '#BFDBFE',
-  PM:  '#C7D2FE',
-  DO:  '#E5E7EB',
-};
-
-function UserRoster({
-  onBack,
-  onGoHome,
-  onGoRoster,
-  onGoShiftPreference,
-  onGoApplyLeave,
-  onGoAccount,
-  onLogout,
+function UserRoster({ 
+  onBack, 
+  onGoHome, 
+  onGoRoster, 
+  onGoShiftPreference, 
+  onGoApplyLeave, 
+  onGoAccount, 
+  onLogout 
 }) {
+  // --- STATE ---
+  const [availableRosters, setAvailableRosters] = useState([]);
+  const [selectedRoster, setSelectedRoster] = useState(null); 
+  const [days, setDays] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [shifts, setShifts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // --- MODAL STATES ---
+  const [viewModalData, setViewModalData] = useState(null); 
+  const [showRosterSelector, setShowRosterSelector] = useState(false); 
+  
+  // Reference Data
+  const [wardOptions, setWardOptions] = useState([]);
+  const [shiftOptions, setShiftOptions] = useState([]);
+
+  // --- 1. FETCH & INTELLIGENT DEFAULT SELECTION ---
+  useEffect(() => {
+    const fetchRosters = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/rosters');
+        const data = await res.json();
+        
+        // A. FILTER: Published Only
+        const published = data.filter(r => r.status === 'Published');
+
+        // B. SORT: Newest First
+        const monthMap = { "January": 0, "February": 1, "March": 2, "April": 3, "May": 4, "June": 5, "July": 6, "August": 7, "September": 8, "October": 9, "November": 10, "December": 11 };
+        
+        const sortedData = published.sort((a, b) => {
+           if (Number(a.year) !== Number(b.year)) return Number(b.year) - Number(a.year);
+           return monthMap[b.month] - monthMap[a.month];
+        });
+
+        setAvailableRosters(sortedData);
+
+        // C. SMART SELECTION (Closest Month Logic)
+        if (sortedData.length > 0) {
+          const now = new Date();
+          const currentVal = now.getFullYear() * 12 + now.getMonth();
+          const getRosterVal = (r) => Number(r.year) * 12 + monthMap[r.month];
+
+          // Find roster with smallest "distance" to today
+          const closestRoster = sortedData.reduce((prev, curr) => {
+            const prevDiff = Math.abs(getRosterVal(prev) - currentVal);
+            const currDiff = Math.abs(getRosterVal(curr) - currentVal);
+            return currDiff < prevDiff ? curr : prev;
+          });
+
+          setSelectedRoster(closestRoster);
+        } else {
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error("Failed to fetch roster list:", err);
+        setLoading(false);
+      }
+    };
+    fetchRosters();
+  }, []);
+
+  // --- 2. FETCH DATA ---
+  useEffect(() => {
+    if (!selectedRoster) return;
+
+    const activeId = selectedRoster.roster_id || selectedRoster.id;
+    if (!activeId) return;
+
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // A. Calendar Math
+        const monthIndex = new Date(`${selectedRoster.month} 1, ${selectedRoster.year}`).getMonth();
+        const daysInMonth = new Date(selectedRoster.year, monthIndex + 1, 0).getDate();
+        const tempDays = [];
+        const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        for (let i = 1; i <= daysInMonth; i++) {
+          const date = new Date(selectedRoster.year, monthIndex, i);
+          const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
+            .toISOString().split('T')[0];
+
+          tempDays.push({ day: i, label: daysOfWeek[date.getDay()], fullDate: localDate });
+        }
+        setDays(tempDays);
+
+        // B. API Calls
+        const [userRes, shiftRes, wardRes, typeRes] = await Promise.all([
+          fetch('http://localhost:5000/users'),
+          fetch(`http://localhost:5000/api/shifts/${activeId}`),
+          fetch('http://localhost:5000/api/wards'),
+          fetch('http://localhost:5000/api/shift-types')
+        ]);
+
+        const userData = await userRes.json();
+        const shiftData = await shiftRes.json();
+        const wardData = await wardRes.json();
+        const typeData = await typeRes.json();
+
+        setStaffList(userData.filter(u => u.role === 'APN' && u.status === 'Active'));
+        setShifts(shiftData);
+        setWardOptions(wardData);
+        setShiftOptions(typeData);
+        setLoading(false);
+
+      } catch (err) {
+        console.error("Error loading details:", err);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [selectedRoster]);
+
+  // --- 3. HELPERS ---
+  const getShift = (userId, dateStr) => {
+    const found = shifts.find(s => s.user_id === userId && s.shift_date.startsWith(dateStr));
+    if (found) {
+        return { 
+            code: found.shift_code, 
+            color: found.shift_color_hex, 
+            ward_id: found.ward_id,
+            shift_type_id: found.shift_type_id 
+        }; 
+    }
+    return { code: '', color: 'white' };
+  };
+
+  const getWardName = (wardId) => {
+    if (!wardId) return 'Not Assigned';
+    const ward = wardOptions.find(w => w.ward_id === Number(wardId));
+    return ward ? `${ward.ward_comments} (${ward.ward_name})` : 'Unknown Ward';
+  };
+
+  const getShiftTypeDetails = (shiftCode) => {
+    const type = shiftOptions.find(t => t.shift_code === shiftCode);
+    return type ? (type.is_work_shift === 'Y' ? 'Working Shift' : 'Leave / Off') : 'Unknown';
+  };
+
+  const getContrastTextColor = (hexColor) => {
+    if (!hexColor || hexColor === 'white') return '#1F2937';
+    const hex = hexColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16);
+    return ((r * 299) + (g * 587) + (b * 114)) / 1000 > 160 ? '#1F2937' : 'white';
+  };
+
+  const getInitials = (name) => {
+    if (!name) return '??';
+    return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+  };
+
+  const handleCellClick = (staff, dateString, shiftData) => {
+    if (shiftData.code) {
+        setViewModalData({
+            userId: staff.user_id,
+            nurseName: staff.full_name,
+            date: dateString,
+            shiftCode: shiftData.code,
+            color: shiftData.color,
+            wardId: shiftData.ward_id,
+            shiftId: shiftData.shift_type_id
+        });
+    }
+  };
+
+  // --- NEW: CALCULATE "MY SHIFT TODAY" ---
+  // =========================================================
+  // PASTE THE TESTING CODE HERE (Replace the old myTodayShift)
+  // =========================================================
+  const myTodayShift = useMemo(() => {
+    // 1. FOR TESTING: Hardcode '1' (or any valid user_id from your DB) if login is missing
+    const currentUserId = Number(localStorage.getItem('userId')) || 123; 
+    
+    if (!currentUserId || !selectedRoster) return null;
+
+    // 2. Find Today's Shift
+    const now = new Date();
+    // Adjust timezone to match DB date string (YYYY-MM-DD)
+    const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
+        .toISOString().split('T')[0];
+
+    // 3. Try to find a matching shift in the CURRENTLY LOADED list
+    // Note: If you are viewing a future roster, this list might not contain today's date.
+    const shift = shifts.find(s => s.user_id === currentUserId && s.shift_date.startsWith(localDate));
+    
+    if (shift) {
+        return {
+            code: shift.shift_code,
+            color: shift.shift_color_hex,
+            ward: getWardName(shift.ward_id),
+            desc: getShiftTypeDetails(shift.shift_code)
+        };
+    }
+    
+    // 4. Default / Fallback for testing visibility
+    return { code: '?', color: '#E5E7EB', ward: 'No Shift Found', desc: 'Check Data' };
+
+  }, [shifts, selectedRoster, wardOptions, shiftOptions]);
+  // =========================================================
+
+
+  // --- 4. GROUPING LOGIC ---
+  const SERVICE_PRIORITY = ['Acute', 'CE', 'Onco', 'PAS', 'PAME', 'Neonates'];
+  const groupedStaff = useMemo(() => {
+    const groups = {};
+    SERVICE_PRIORITY.forEach(s => groups[s] = []);
+    groups['General / Other'] = [];
+    const sorted = [...staffList].sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+    sorted.forEach(staff => {
+      const svc = staff.service ? staff.service.trim() : 'General / Other';
+      const foundKey = SERVICE_PRIORITY.find(key => svc.includes(key));
+      if (foundKey) groups[foundKey].push(staff);
+      else groups['General / Other'].push(staff);
+    });
+    return groups;
+  }, [staffList]);
+
+  // --- 5. RENDER ---
   return (
-    <div
-      style={{
-        width: '100%',
-        minHeight: '100vh',
-        background: '#EDF0F5',
-        overflowX: 'auto',
-        overflowY: 'auto',
-        fontFamily: 'Inter, sans-serif',
-      }}
-    >
-      <UserNavbar
-        active="roster"
-        onGoHome={onGoHome}
-        onGoRoster={onGoRoster}
-        onGoShiftPreference={onGoShiftPreference}
-        onGoApplyLeave={onGoApplyLeave}
-        onGoAccount={onGoAccount}
-        onLogout={onLogout}
-      />
+    <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
+      <UserNavbar active="roster" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoShiftPreference={onGoShiftPreference} onGoApplyLeave={onGoApplyLeave} onGoAccount={onGoAccount} onLogout={onLogout} />
 
-      {/* Header row with Back and title */}
-      <div
-        style={{
-          maxWidth: 1560,
-          margin: '20px auto 6px',
-          padding: '0 20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          boxSizing: 'border-box',
-          position: 'relative',       // <-- add
-        }}
-      >
-        <button
-  type="button"
-          onClick={() => onBack && onBack()}
-          style={{
-            padding: '8px 20px',
-            background: 'white',
-            boxShadow: '0 3px 3px rgba(0,0,0,0.18)',
-            borderRadius: 60,
-            border: 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            cursor: 'pointer',
-            fontFamily: 'Inter, sans-serif',
-            position: 'relative',      // <-- ensure on top
-            zIndex: 2,                 // <-- ensure clickable
-  }}
->
-  <span
-    style={{
-      fontSize: 18,
-      lineHeight: 1,
-    }}
-  >
-    ←
-  </span>
-  <span
-    style={{
-      color: 'black',
-      fontSize: 18,
-      fontWeight: 600,
-    }}
-  >
-    Back
-  </span>
-</button>
-
-
-        <div
-          style={{
-            flex: 1,
-            textAlign: 'center',
-            marginLeft: 0,             // simpler centering; avoid overlap
-            fontSize: 22,
-            fontWeight: 900,
-            pointerEvents: 'none',     // title never blocks clicks
-          }}
-        >
-          {monthMeta.title}
+      <main style={{ maxWidth: 1500, margin: '24px auto', padding: '0 32px', boxSizing: 'border-box' }}>
+        
+        {/* --- HEADER --- */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, position: 'relative', minHeight: 50 }}>
+          <div style={{ zIndex: 10 }}>
+            <button onClick={onBack} style={{ padding: '8px 20px', background: 'white', borderRadius: 68, border: '1px solid #DDD', cursor: 'pointer', fontWeight: 600 }}>← Back</button>
+          </div>
+          
+          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', width: 'max-content', zIndex: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            {availableRosters.length > 0 ? (
+              <button 
+                onClick={() => setShowRosterSelector(true)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '4px 12px', borderRadius: 8, transition: 'background 0.2s' }}
+                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, fontFamily: 'Inter, sans-serif', color: '#1F2937' }}>
+                  {selectedRoster ? `${selectedRoster.month} ${selectedRoster.year} Roster` : 'Select Roster'}
+                </h1>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1F2937" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+            ) : (
+              <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, fontFamily: 'Inter, sans-serif' }}>No Published Rosters</h1>
+            )}
+            
+            {selectedRoster && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginTop: 4, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    Status: <span style={{ color: selectedRoster.status === 'Preference Open' ? '#10B981' : (selectedRoster.status === 'Published' ? '#10B981' : '#F59E0B') }}>{selectedRoster.status}</span>
+                </div>
+            )}
+          </div>
+          
+          <div style={{ width: 100 }}></div> 
         </div>
 
-        <div style={{ width: 110 }} /> {/* spacer to balance back button width */}
-      </div>
+        {/* --- NEW: "MY SHIFT TODAY" CARD --- */}
+        {myTodayShift && (
+            <div style={{ 
+                background: 'white', borderRadius: 16, padding: '20px 24px', 
+                marginBottom: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                display: 'flex', alignItems: 'center', gap: 24, border: '1px solid #E5E7EB'
+            }}>
+                <div style={{ 
+                    width: 60, height: 60, borderRadius: 14, 
+                    background: myTodayShift.color, 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 20, fontWeight: 800, color: getContrastTextColor(myTodayShift.color),
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                }}>
+                    {myTodayShift.code}
+                </div>
+                <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Your Shift Today
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: '#1F2937', marginTop: 4 }}>
+                        {myTodayShift.desc}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#4B5563', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                        {myTodayShift.ward}
+                    </div>
+                </div>
+            </div>
+        )}
 
-      {/* Roster table */}
-      <div
-        style={{
-          maxWidth: 1560,
-          margin: '0 auto 32px',
-          padding: '0 20px',
-          boxSizing: 'border-box',
-        }}
-      >
+        {/* --- MAIN GRID --- */}
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40, fontSize: 18, color: '#666' }}>Loading Roster Data...</div>
+        ) : availableRosters.filter(r => r.status === 'Published').length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 40, background: 'white', borderRadius: 12 }}>No published schedules found.</div>
+        ) : (
+          <div style={{ background: 'white', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', borderRadius: 8, overflow: 'auto', maxHeight: '75vh' }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#F9FAFB' }}>
+                <tr>
+                  <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: '12px 14px', textAlign: 'left', minWidth: 150 }}>Nurse Name</th>
+                  {days.map(d => (
+                    <th key={d.day} style={{ borderLeft: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: 6, minWidth: 45, fontSize: 13 }}>{d.day}<br/><span style={{ fontSize: 11, fontWeight: 400 }}>{d.label}</span></th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(groupedStaff).map(([svc, members]) => {
+                  if (members.length === 0) return null;
+                  return (
+                    <React.Fragment key={svc}>
+                      {members.map((staff, idx) => {
+                        const isFirstInGroup = idx === 0;
+                        return (
+                          <tr key={staff.user_id}>
+                            <td style={{ position: 'sticky', left: 0, zIndex: 5, background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', borderTop: isFirstInGroup ? '3px solid #374151' : 'none', padding: '10px 14px' }}>
+                              {isFirstInGroup && <div style={{ fontSize: 10, fontWeight: 900, color: '#2563EB', textTransform: 'uppercase', marginBottom: 2 }}>{svc}</div>}
+                              <div style={{ fontWeight: 600, fontSize: 14, color: '#1F2937' }}>{staff.full_name}</div>
+                            </td>
+                            {days.map(d => {
+                              const shiftData = getShift(staff.user_id, d.fullDate);
+                              return (
+                                <td key={d.day} onClick={() => handleCellClick(staff, d.fullDate, shiftData)} style={{ background: shiftData.color, textAlign: 'center', fontWeight: 700, fontSize: 13, borderBottom: '1px solid #8C8C8C', borderLeft: '1px solid #8C8C8C', height: 40, borderTop: isFirstInGroup ? '3px solid #374151' : 'none', color: getContrastTextColor(shiftData.color), cursor: shiftData.code ? 'pointer' : 'default' }}>
+                                  {shiftData.code}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </main>
+
+      {/* --- POPUP: ROSTER SELECTION (With Greyed Out Drafts) --- */}
+      {showRosterSelector && (
         <div
+          onClick={() => setShowRosterSelector(false)}
           style={{
-            width: '100%',
-            background: 'white',
-            boxShadow: '0 3px 3px rgba(0,0,0,0.18)',
-            borderRadius: 8,
-            overflow: 'auto',
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}
         >
-          <div style={{ display: 'flex' }}>
-            {/* Nurse name column */}
-            <div style={{ minWidth: 150 }}>
-              <div
-                style={{
-                  padding: 8,
-                  background: 'white',
-                  borderTopLeftRadius: 8,
-                  borderRight: '1px #8C8C8C solid',
-                  borderBottom: '1px #8C8C8C solid',
-                  textAlign: 'center',
-                  fontSize: 16,
-                  fontWeight: 700,
-                }}
-              >
-                Nurse Name
-              </div>
-              {nurses.map((name, idx) => (
-                <div
-                  key={name}
-                  style={{
-                    padding: 8,
-                    background: 'white',
-                    borderTop: '1px #8C8C8C solid',
-                    borderRight: '1px #8C8C8C solid',
-                    borderBottom:
-                      idx === nurses.length - 1 ? '1px #8C8C8C solid' : 'none',
-                    textAlign: 'center',
-                    fontSize: 16,
-                    fontWeight: 600,
-                  }}
-                >
-                  {name}
-                </div>
-              ))}
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'white', borderRadius: 20,
+              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+              width: 400, maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+          >
+            <div style={{ padding: '24px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Select Roster</h3>
+              <button onClick={() => setShowRosterSelector(false)} style={{ background: 'transparent', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9CA3AF' }}>✕</button>
             </div>
+            
+            <div style={{ padding: 16, overflowY: 'auto' }}>
+              {availableRosters.map(r => {
+                const isActive = (selectedRoster?.roster_id || selectedRoster?.id) === (r.roster_id || r.id);
+                // CHECK: Is this roster Published?
+                const isPublished = r.status === 'Published';
 
-            {/* Day columns */}
-            <div style={{ flex: 1, display: 'flex', overflowX: 'auto' }}>
-              {days.map((day, dayIdx) => (
-                <div key={day.date} style={{ minWidth: 80 }}>
-                  {/* Header cell for day */}
-                  <div
+                return (
+                  <button
+                    key={r.roster_id || r.id}
+                    // Disable click if not published
+                    disabled={!isPublished}
+                    onClick={() => {
+                      if (isPublished) {
+                        setSelectedRoster(r);
+                        setShowRosterSelector(false);
+                      }
+                    }}
                     style={{
-                      padding: 8,
-                      background: '#F3F4F6',
-                      borderTop: '1px #8C8C8C solid',
-                      borderLeft: '1px #8C8C8C solid',
-                      borderRight: '1px #8C8C8C solid',
-                      textAlign: 'center',
-                      fontSize: 14,
-                      fontWeight: 700,
+                      width: '100%', padding: '16px', marginBottom: 8,
+                      // Grey out background if not published
+                      background: !isPublished ? '#F3F4F6' : (isActive ? '#EFF6FF' : 'white'),
+                      border: isActive ? '2px solid #2563EB' : '1px solid #E5E7EB',
+                      borderRadius: 12, 
+                      cursor: isPublished ? 'pointer' : 'not-allowed', 
+                      textAlign: 'left',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      transition: 'all 0.2s',
+                      opacity: !isPublished ? 0.6 : 1 // Faded look
+                    }}
+                    // Only hover effect if published
+                    onMouseOver={(e) => {
+                        if(isPublished && !isActive) e.currentTarget.style.background = '#F9FAFB';
+                    }}
+                    onMouseOut={(e) => {
+                        if(isPublished && !isActive) e.currentTarget.style.background = 'white';
                     }}
                   >
-                    {day.label}
-                  </div>
-
-                  {/* Body cells for each nurse */}
-                  {nurses.map((nurse, nurseIdx) => {
-                    const code = rosterCodes[nurse][dayIdx];
-                    const bg = codeColors[code] || 'white';
-                    const isLastRow = nurseIdx === nurses.length - 1;
-                    return (
-                      <div
-                        key={nurse}
-                        style={{
-                          padding: 8,
-                          background: bg,
-                          borderLeft: '1px #8C8C8C solid',
-                          borderTop: '1px #8C8C8C solid',
-                          borderRight: '1px #8C8C8C solid',
-                          borderBottom: isLastRow
-                            ? '1px #8C8C8C solid'
-                            : 'none',
-                          textAlign: 'center',
-                          fontSize: 16,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {code}
+                    <div>
+                      <div style={{ 
+                          fontSize: 16, 
+                          fontWeight: 700, 
+                          color: !isPublished ? '#9CA3AF' : (isActive ? '#2563EB' : '#1F2937') // Grey text if disabled
+                        }}>
+                        {r.month} {r.year}
                       </div>
-                    );
-                  })}
-                </div>
-              ))}
+                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                        Status: <span style={{ fontWeight: 600, color: isPublished ? '#10B981' : '#F59E0B' }}>{r.status}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Show Checkmark if Active */}
+                    {isActive && (
+                      <div style={{ color: '#2563EB' }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </div>
+                    )}
+
+                    {/* Optional: Show Lock Icon if Disabled */}
+                    {!isPublished && (
+                       <div style={{ color: '#9CA3AF' }}>
+                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                       </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* --- POPUP: SHIFT DETAILS (Read Only) --- */}
+      {viewModalData && (
+        <div onClick={() => setViewModalData(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 20, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', width: 440, overflow: 'hidden', animation: 'fadeIn 0.2s ease-out' }}>
+                <div style={{ background: viewModalData.color, padding: '36px 32px', textAlign: 'center', color: getContrastTextColor(viewModalData.color), position: 'relative' }}>
+                    <button onClick={() => setViewModalData(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.25)', border: 'none', color: 'currentColor', width: 36, height: 36, borderRadius: '50%', cursor: 'pointer', fontSize: 18 }}>✕</button>
+                    <h1 style={{ margin: 0, fontSize: 64, fontWeight: 900, letterSpacing: '-1.5px' }}>{viewModalData.shiftCode}</h1>
+                    <div style={{ display: 'inline-block', marginTop: 12, padding: '6px 16px', borderRadius: 20, background: 'rgba(255,255,255,0.25)', fontSize: 13, fontWeight: 800, textTransform: 'uppercase' }}>{getShiftTypeDetails(viewModalData.shiftCode)}</div>
+                </div>
+                <div style={{ padding: 32 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 28, paddingBottom: 28, borderBottom: '1px solid #F3F4F6' }}>
+                        <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#F3F4F6', color: '#9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700 }}>{getInitials(viewModalData.nurseName)}</div>
+                        <div><div style={{ fontSize: 12, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 4 }}>Assigned Nurse</div><div style={{ fontSize: 20, fontWeight: 700, color: '#1F2937' }}>{viewModalData.nurseName}</div></div>
+                    </div>
+                    <div style={{ display: 'grid', gap: 18 }}>
+                        <div style={{ background: '#F9FAFB', padding: 16, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
+                            <div style={{ background: 'white', padding: 10, borderRadius: 10, boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
+                            <div><div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' }}>LOCATION</div><div style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{getWardName(viewModalData.wardId)}</div></div>
+                        </div>
+                        <div style={{ background: '#F9FAFB', padding: 16, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
+                            <div style={{ background: 'white', padding: 10, borderRadius: 10, boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
+                            <div><div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' }}>DATE</div><div style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{viewModalData.date.split('-').reverse().join('-')}</div></div>
+                        </div>
+                    </div>
+                    <div style={{ marginTop: 32 }}><button onClick={() => setViewModalData(null)} style={{ width: '100%', padding: '14px', background: '#F3F4F6', color: '#374151', borderRadius: 14, border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}>Close</button></div>
+                </div>
+            </div>
+        </div>
+      )}
+
     </div>
   );
 }
