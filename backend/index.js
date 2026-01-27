@@ -1361,6 +1361,108 @@ app.delete('/api/delete-shift-preference/:id', async (req, res) => {
 });
 });
 
+// --- START: NEW ENDPOINT TO GET A USER'S UPCOMING SHIFTS ---
+
+// GET: a specific user's shifts from today onwards
+app.get('/api/users/:userId/shifts', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // This query joins shifts with their descriptions (AM/PM) and ward names.
+    // It filters for the specific user and ensures we only get shifts from today or in the future.
+    // We limit it to 8 to get today's shift + the next 7 days.
+    const query = `
+      SELECT 
+        s.shift_id,
+        s.shift_date,
+        sd.shift_code,
+        sd.shift_color_hex,
+        w.ward_name,
+        w.ward_comments
+      FROM shifts s
+      JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
+      LEFT JOIN ward w ON s.ward_id = w.ward_id
+      WHERE s.user_id = ? AND s.shift_date >= CURDATE()
+      ORDER BY s.shift_date ASC
+      LIMIT 8
+    `;
+
+    const [shifts] = await pool.query(query, [userId]);
+    res.json(shifts);
+
+  } catch (err) {
+    console.error(`Error fetching shifts for user ${userId}:`, err);
+    res.status(500).json({ error: "Failed to fetch user shifts" });
+  }
+});
+
+// --- END: NEW ENDPOINT ---
+
+// --- START: NEW ENDPOINT FOR MONTHLY CALENDAR SHIFTS ---
+
+// GET: a user's shifts for a specific month and year
+app.get('/api/users/:userId/shifts-by-month', async (req, res) => {
+  const { userId } = req.params;
+  const { year, month } = req.query; // e.g., year=2026, month=1
+
+  if (!year || !month) {
+    return res.status(400).json({ error: 'Year and month query parameters are required.' });
+  }
+
+  try {
+    const query = `
+      SELECT 
+        s.shift_id,
+        s.shift_date,
+        sd.shift_code,
+        sd.shift_color_hex,
+        w.ward_name
+      FROM shifts s
+      JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
+      LEFT JOIN ward w ON s.ward_id = w.ward_id
+      WHERE s.user_id = ? 
+        AND YEAR(s.shift_date) = ? 
+        AND MONTH(s.shift_date) = ?
+      ORDER BY s.shift_date ASC
+    `;
+
+    const [shifts] = await pool.query(query, [userId, year, month]);
+    res.json(shifts);
+
+  } catch (err) {
+    console.error(`Error fetching monthly shifts for user ${userId}:`, err);
+    res.status(500).json({ error: "Failed to fetch monthly shifts" });
+  }
+});
+  
+// --- START: NEW ENDPOINT TO GET PUBLISHED ROSTERS ---
+
+// GET: a list of all published rosters for the calendar dropdown
+app.get('/api/rosters/published', async (req, res) => {
+  try {
+    // We select the necessary fields and convert the month number to a name for easier use on the frontend.
+    // Ordering ensures the list is chronological.
+    const query = `
+      SELECT 
+        roster_id, 
+        month, 
+        year
+      FROM rosters 
+      WHERE status = 'Published'
+      ORDER BY year DESC, month DESC
+    `;
+
+    const [rosters] = await pool.query(query);
+    res.json(rosters);
+
+  } catch (err) {
+    console.error(`Error fetching published rosters:`, err);
+    res.status(500).json({ error: "Failed to fetch published rosters" });
+  }
+});
+
+// --- END: NEW ENDPOINT ---
+
 // ================= Action Logs =================
 app.get('/actionlogs', async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 6;
