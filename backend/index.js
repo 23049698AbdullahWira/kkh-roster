@@ -4,14 +4,13 @@ const pool = require('./db');
 const multer = require('multer');
 const path = require('path');
 const { generateRoster } = require('./services/rosterEngine');
-const ExcelJS = require('exceljs'); // Import at the top
+const ExcelJS = require('exceljs');
 require('dotenv').config();
 
 // Create the Express application instance
 const app = express();
 
 // ================= Helper Functions =================
-// Log user actions to actionlog table
 async function logAction({ userId, details }) {
   try {
     await pool.query(
@@ -21,7 +20,6 @@ async function logAction({ userId, details }) {
     );
   } catch (err) {
     console.error('Failed to insert action log:', err);
-    // Do NOT throw – app should still succeed even if logging fails
   }
 }
 
@@ -30,7 +28,6 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 1. Test Route
 // ================= Multer Config =================
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -98,11 +95,9 @@ app.get('/users/:id', async (req, res) => {
   }
 });
 
-// GET Request to fetch ROSTERS with Creator Name
+// ================= ROSTERS LIST =================
 app.get('/api/rosters', async (req, res) => {
   try {
-    // 1. Join 'rosters' with 'users' to get the creator's name
-    // NOTE: Check if your users table uses 'username', 'name', or 'full_name'
     const query = `
       SELECT 
         r.roster_id, 
@@ -117,51 +112,117 @@ app.get('/api/rosters', async (req, res) => {
       LEFT JOIN users u ON r.creator_user_id = u.user_id
       ORDER BY r.year DESC, r.month DESC
     `;
-    
     const [rows] = await pool.query(query);
 
-    // 2. Helper lists/dates
-    const monthNames = ["January", "February", "March", "April", "May", "June", 
-                        "July", "August", "September", "October", "November", "December"];
-    const today = new Date();
+    const monthNames = [
+      "January", "February", "March", "April", "May", "June", 
+      "July", "August", "September", "October", "November", "December"
+    ];
 
-    // 3. Transform data for React
     const formattedRosters = rows.map(row => {
-        // Calculate Status: If today is past publish_date, it is Published
-        // let status = 'Draft';
-        // if (row.publish_date && new Date(row.publish_date) <= today) {
-        //     status = 'Published';
-        // }
-
-        // Convert month number (1-12) to name (January)
-        // We subtract 1 because array starts at 0
-        const monthName = monthNames[row.month - 1] || 'Unknown';
-
-        return {
-            id: row.roster_id,
-            title: `${monthName} Roster ${row.year}`,
-            generatedBy: row.creator_name || 'Unknown', // This will show their email
-            createdOn: row.created_at,
-            deadline: row.publish_date,
-            // status: status,
-            status: row.status,
-            month: monthName,
-            year: row.year
-        };
+      const monthName = monthNames[row.month - 1] || 'Unknown';
+      return {
+        id: row.roster_id,
+        title: `${monthName} Roster ${row.year}`,
+        generatedBy: row.creator_name || 'Unknown',
+        createdOn: row.created_at,
+        deadline: row.publish_date,
+        status: row.status,
+        month: monthName,
+        year: row.year
+      };
     });
 
     res.json(formattedRosters);
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/rosters
+// ================= NEW DASHBOARD HELPERS =================
+
+// 1) Pending leave requests count (leave_has_users)
+app.get('/api/leave/pending-count', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS pendingCount
+       FROM leave_has_users
+       WHERE status = 'Pending'`
+    );
+    res.json({ pendingCount: rows[0].pendingCount });
+  } catch (err) {
+    console.error('Error fetching pending leave count:', err);
+    res.status(500).json({ error: 'Failed to fetch pending leave count' });
+  }
+});
+
+// 2) Pending shift preferences count (shiftpref)
+app.get('/api/shiftpref/pending-count', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS pendingCount
+       FROM shiftpref
+       WHERE status = 'Submitted'` // change to your actual "pending" value
+    );
+    res.json({ pendingCount: rows[0].pendingCount });
+  } catch (err) {
+    console.error('Error fetching pending shift preference count:', err);
+    res.status(500).json({ error: 'Failed to fetch pending shift preference count' });
+  }
+});
+
+// 3) Next roster status (next month from today in rosters)
+app.get('/api/rosters/next', async (req, res) => {
+  try {
+    // 1. Work out next month & year from today
+    const today = new Date();
+    let month = today.getMonth() + 1; // JS: 0-11, DB: 1-12
+    let year = today.getFullYear();
+
+    month += 1;            // move to next month
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+
+    // 2. Query the roster for that month/year
+    const [rows] = await pool.query(
+      `SELECT roster_id, month, year, status
+       FROM rosters
+       WHERE month = ? AND year = ?
+       LIMIT 1`,
+      [month, year]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'No roster found for next month' });
+    }
+
+    const row = rows[0];
+
+    // 3. Convert numeric month to name for the frontend
+    const monthNames = [
+      'January','February','March','April','May','June',
+      'July','August','September','October','November','December'
+    ];
+    const monthValue = monthNames[row.month - 1];
+
+    res.json({
+      roster_id: row.roster_id,
+      month: monthValue,
+      year: row.year,
+      status: row.status,
+    });
+  } catch (err) {
+    console.error('Error fetching next roster:', err);
+    res.status(500).json({ error: 'Failed to fetch next roster' });
+  }
+});
+
+
+// ================= ROSTER CREATION =================
 app.post('/api/rosters', async (req, res) => {
-  // 1. EXTRACT DATA
-  // We no longer need 'title' or 'notes' from the body
   const { month, year, userId } = req.body; 
 
   if (!month || !year) {
@@ -169,33 +230,24 @@ app.post('/api/rosters', async (req, res) => {
   }
 
   try {
-    // 2. PREPARE DATA
-    // Convert "January" -> 1 (if your DB stores months as Integers)
     const monthMap = {
       "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6,
       "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12
     };
     const monthInt = monthMap[month] || month; 
     
-    // Auto-Generate the Title (Remarks)
     const autoRemarks = `${month} ${year} Roster`;
-    
-    // Fallback ID
     const creatorId = userId || 1; 
 
-    // --- 3. DUPLICATE CHECK ---
-    // Before inserting, check if this month/year combo exists
     const [existing] = await pool.query(
       "SELECT roster_id FROM rosters WHERE month = ? AND year = ?",
       [monthInt, year]
     );
 
     if (existing.length > 0) {
-      // Return 409 Conflict so the frontend knows to show the red error box
       return res.status(409).json({ message: `A roster for ${month} ${year} already exists.` });
     }
 
-    // --- 4. INSERT ---
     const sql = `
       INSERT INTO rosters (month, year, remarks, status, created_at, creator_user_id) 
       VALUES (?, ?, ?, 'Preference Open', NOW(), ?)
@@ -204,7 +256,7 @@ app.post('/api/rosters', async (req, res) => {
     const [result] = await pool.query(sql, [
       monthInt, 
       year, 
-      autoRemarks, // Use the auto-generated title
+      autoRemarks,
       creatorId
     ]);
 
@@ -212,17 +264,15 @@ app.post('/api/rosters', async (req, res) => {
       message: 'Roster created successfully', 
       rosterId: result.insertId 
     });
-
   } catch (err) {
     console.error("Error creating roster:", err);
     res.status(500).json({ message: 'Database error creating roster' });
   }
 });
 
-// GET: Fetch all available shift types from the database
+// ================= SHIFT TYPES =================
 app.get('/api/shift-types', async (req, res) => {
   try {
-    // --- CHANGED: Added 'shift_type_id' ---
     const [rows] = await pool.query('SELECT shift_type_id, shift_code, shift_color_hex, is_work_shift FROM shift_desc');
     res.json(rows);
   } catch (err) {
@@ -231,10 +281,9 @@ app.get('/api/shift-types', async (req, res) => {
   }
 });
 
-// GET: Fetch all wards
+// ================= WARDS =================
 app.get('/api/wards', async (req, res) => {
   try {
-    // We select ward_name (the code) and ward_comments (the full name)
     const [rows] = await pool.query('SELECT ward_id, ward_name, ward_comments FROM ward'); 
     res.json(rows);
   } catch (err) {
@@ -243,18 +292,16 @@ app.get('/api/wards', async (req, res) => {
   }
 });
 
-// POST: Create or Update a Shift
+// ================= SHIFTS UPDATE =================
 app.post('/api/shifts/update', async (req, res) => {
   const { userId, date, shiftTypeId, rosterId, wardId } = req.body;
 
   try {
-    // If shiftTypeId is missing or "OFF", delete the shift
     if (!shiftTypeId || shiftTypeId === 'OFF') {
       await pool.query('DELETE FROM shifts WHERE user_id = ? AND shift_date = ?', [userId, date]);
       return res.json({ message: 'Shift removed' });
     }
 
-    // Insert or Update (Upsert)
     const sql = `
       INSERT INTO shifts (user_id, shift_date, shift_type_id, roster_id, ward_id)
       VALUES (?, ?, ?, ?, ?)
@@ -272,12 +319,11 @@ app.post('/api/shifts/update', async (req, res) => {
   }
 });
 
-// GET Request to fetch SHIFTS with detailed info (Color & Code)
+// ================= SHIFTS FETCH =================
 app.get('/api/shifts/:rosterId', async (req, res) => {
   const { rosterId } = req.params;
   
   try {
-    // We join 'shifts' with 'shift_desc' to get the color and short code (e.g., 'PM')
     const query = `
       SELECT 
         s.shift_id, 
@@ -304,15 +350,13 @@ app.get('/api/shifts/:rosterId', async (req, res) => {
   }
 });
 
-// Update Roster Status
-// POST /api/rosters/update-status
+// ================= ROSTER STATUS UPDATE =================
 app.post('/api/rosters/update-status', async (req, res) => {
   const { rosterId, status } = req.body;
 
   try {
     let sql = 'UPDATE rosters SET status = ? WHERE roster_id = ?';
     
-    // --- NEW LOGIC: If Publishing, also set the date ---
     if (status === 'Published') {
       sql = 'UPDATE rosters SET status = ?, publish_date = NOW() WHERE roster_id = ?';
     }
@@ -326,7 +370,7 @@ app.post('/api/rosters/update-status', async (req, res) => {
   }
 });
 
-// Get Roster Details (To know the current status)
+// ================= ROSTER DETAILS =================
 app.get('/api/rosters/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -341,14 +385,13 @@ app.get('/api/rosters/:id', async (req, res) => {
   }
 });
 
-// UPDATE User (PUT /users/:id) - Handles Contact Update
+// ================= UPDATE USER =================
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
   
   const { full_name, email, role, status, password, avatar_url, contact } = req.body;
 
   try {
-
     const [check] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
     if (check.length === 0) {
       return res.status(404).json({ message: 'User not found' });
@@ -372,13 +415,13 @@ app.put('/users/:id', async (req, res) => {
     await pool.query(query, params);
 
     res.json({ message: 'User updated successfully' });
-
   } catch (err) {
     console.error("Error updating user:", err);
     res.status(500).json({ error: "Failed to update user" });
   }
 });
 
+// ================= CHANGE PASSWORD =================
 app.post('/users/:id/change-password', async (req, res) => {
   const { id } = req.params;
   const { currentPassword, newPassword } = req.body;
@@ -407,18 +450,13 @@ app.post('/users/:id/change-password', async (req, res) => {
     );
 
     res.json({ message: 'Password changed successfully.' });
-
   } catch (err) {
     console.error("Error changing password:", err);
     res.status(500).json({ error: "Failed to change password." });
   }
 });
 
-// ---------------------------------------------------------
-//  SHIFT DISTRIBUTION ROUTES (From previous tasks)
-// ---------------------------------------------------------
-
-// Get Available Years
+// ================= SHIFT DISTRIBUTION =================
 app.get('/available-years', async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -433,9 +471,6 @@ app.get('/available-years', async (req, res) => {
   }
 });
 
-// Get Shift Distribution Stats
-// Get Shift Distribution Stats (Fixed to show ALL users)
-// Get Shift Distribution Stats (ONLY APN)
 app.get('/shift-distribution', async (req, res) => {
   const { year } = req.query;
   const targetYear = year || new Date().getFullYear();
@@ -446,28 +481,18 @@ app.get('/shift-distribution', async (req, res) => {
         u.user_id,
         u.full_name,
         u.role,
-        -- Count Public Holidays
         COALESCE(SUM(CASE 
           WHEN sd.shift_code IN ('PH', 'PHO', 'HOL') THEN 1 
           ELSE 0 
         END), 0) AS ph_count,
-        
-        -- Count Sundays
         COALESCE(SUM(CASE 
           WHEN DAYOFWEEK(s.shift_date) = 1 THEN 1 
           ELSE 0 
         END), 0) AS sun_count
-
       FROM users u
-      
-      -- LEFT JOIN ensures APNs appear even if they have 0 shifts this year
       LEFT JOIN shifts s ON u.user_id = s.user_id AND YEAR(s.shift_date) = ?
-      
       LEFT JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
-      
-      -- CHANGED: Strictly filter for 'APN' role only
       WHERE u.role = 'APN'
-      
       GROUP BY u.user_id, u.full_name, u.role
       ORDER BY u.full_name ASC;
     `;
@@ -481,11 +506,7 @@ app.get('/shift-distribution', async (req, res) => {
   }
 });
 
-// ---------------------------------------------------------
-//  AUTH ROUTES
-// ---------------------------------------------------------
-
-// ================= Leave Types =================
+// ================= LEAVE TYPES =================
 app.get('/leave_type', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM leave_type');
@@ -495,7 +516,8 @@ app.get('/leave_type', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-// GET roles for dropdown
+
+// ================= ROLES =================
 app.get('/roles', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT DISTINCT role FROM users WHERE role IS NOT NULL ORDER BY role');
@@ -507,7 +529,7 @@ app.get('/roles', async (req, res) => {
   }
 });
 
-// ================= Leave Applications =================
+// ================= LEAVE APPLICATIONS =================
 app.get('/leave_has_users', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT * FROM leave_has_users');
@@ -518,7 +540,6 @@ app.get('/leave_has_users', async (req, res) => {
   }
 });
 
-// ================= Create Leave =================
 app.post(
   '/leave_has_users',
   upload.single('leave_document'),
@@ -571,7 +592,6 @@ app.post(
   }
 );
 
-// ================= Update Leave Status =================
 app.patch('/leave_has_users/:id/status', async (req, res) => {
   const { id } = req.params;
   const { status, approverId } = req.body;
@@ -590,8 +610,8 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
     const [leaveDetails] = await pool.query(
       `SELECT 
          lhu.user_id, 
-          lhu.leave_start,
-          lhu.leave_end,   
+         lhu.leave_start,
+         lhu.leave_end,   
          u_applicant.full_name AS applicant_name, 
          lt.leave_type
        FROM leave_has_users lhu
@@ -620,67 +640,54 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
         .json({ success: false, message: 'Leave request not found during update.' });
     }
 
-    // =========================================================
-    // ROSTER UPDATE LOGIC
-    // =========================================================
     if (status === 'Approved') {
-        const typeMap = {
-            'Annual Leave': 'AL',
-            'Sick Leave': 'MC',
-            'Maternity Leave': 'ML',
-            'Hospitalisation Leave': 'HL',
-            'Day-Off': 'DO'
-        };
-        const finalCode = typeMap[leave_type] || 'AL'; 
+      const typeMap = {
+        'Annual Leave': 'AL',
+        'Sick Leave': 'MC',
+        'Maternity Leave': 'ML',
+        'Hospitalisation Leave': 'HL',
+        'Day-Off': 'DO'
+      };
+      const finalCode = typeMap[leave_type] || 'AL'; 
 
-        console.log("DEBUG: Mapped Code is", finalCode); // <--- DEBUG 1
+      const [typeResult] = await pool.query(
+        "SELECT shift_type_id FROM shift_desc WHERE shift_code = ?", 
+        [finalCode]
+      );
 
-        // --- FIX 2: Use correct table 'shift_desc' ---
-        const [typeResult] = await pool.query(
-            "SELECT shift_type_id FROM shift_desc WHERE shift_code = ?", 
-            [finalCode]
-        );
+      if (typeResult.length > 0) {
+        const shiftTypeId = typeResult[0].shift_type_id;
+        const start = new Date(leave_start);
+        const end = new Date(leave_end);
 
-        if (typeResult.length > 0) {
-            console.log("DEBUG: Found Shift Type ID:", typeResult[0].shift_type_id); // <--- DEBUG 2
-            const shiftTypeId = typeResult[0].shift_type_id;
-            const start = new Date(leave_start);
-            const end = new Date(leave_end);
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          
+          const [rosterCheck] = await pool.query(
+            `SELECT roster_id FROM rosters 
+             WHERE month = MONTH(?) 
+             AND year = YEAR(?) LIMIT 1`,
+            [dateStr, dateStr]
+          );
 
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const dateStr = d.toISOString().split('T')[0];
-                
-                // --- FIX 3: Find Roster ID safely using MONTH() ---
-                const [rosterCheck] = await pool.query(
-                    `SELECT roster_id FROM rosters 
-                     WHERE month = MONTH(?) 
-                     AND year = YEAR(?) LIMIT 1`,
-                    [dateStr, dateStr]
-                );
+          if (rosterCheck.length > 0) {
+            const validRosterId = rosterCheck[0].roster_id;
 
-                if (rosterCheck.length > 0) {
-                    const validRosterId = rosterCheck[0].roster_id;
+            await pool.query(
+              "DELETE FROM shifts WHERE user_id = ? AND shift_date = ?",
+              [user_id, dateStr]
+            );
 
-                    // Delete old shift
-                    await pool.query(
-                        "DELETE FROM shifts WHERE user_id = ? AND shift_date = ?",
-                        [user_id, dateStr]
-                    );
-
-                    // Insert new Leave shift
-                    await pool.query(`
-                        INSERT INTO shifts (user_id, shift_date, shift_type_id, roster_id, ward_id)
-                        VALUES (?, ?, ?, ?, 2) 
-                    `, [user_id, dateStr, shiftTypeId, validRosterId]);
-                    
-                } else {
-                  console.log("DEBUG: Roster check failed for month:", d.getMonth() + 1); // <--- DEBUG 3
-                  console.warn(`Skipping roster update: No roster found for ${dateStr}.`);
-                }
-            }
+            await pool.query(`
+              INSERT INTO shifts (user_id, shift_date, shift_type_id, roster_id, ward_id)
+              VALUES (?, ?, ?, ?, 2) 
+            `, [user_id, dateStr, shiftTypeId, validRosterId]);
+          } else {
+            console.warn(`Skipping roster update: No roster found for ${dateStr}.`);
+          }
         }
+      }
     }
-    // =========================================================
 
     if (approverId) {
       const [approverRows] = await pool.query(
@@ -711,39 +718,32 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
   }
 });
 
-// ================= Auth: Register & Login =================
-// Register staff accounts (called from Admin UI)
-// Note: this is not public self‑signup; admins call this to create staff.
+// ================= AUTH =================
 app.post('/api/auth/register', async (req, res) => {
   const { firstName, lastName, email, phone, password, role, createdByUserId, createdByName, createdByRole } = req.body;
 
   try {
-    // Check if email is already used
     const [existing] = await pool.query('SELECT user_id FROM users WHERE email = ?', [email]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
 
-    // Combine first and last name into full_name
     const fullName = `${firstName} ${lastName}`.trim();
 
-    // Insert new user with default 'Active' status
     const [result] = await pool.query(
       `INSERT INTO users (full_name, email, contact, role, password, status) 
        VALUES (?, ?, ?, ?, ?, 'Active')`,
       [fullName, email, phone, role, password]
     );
 
-    // Log the creation action if creator info is provided
     if (createdByUserId) {
-      const creatorRole = (createdByRole || '').toUpperCase();   // e.g. 'SUPERADMIN'
-      const creatorName = createdByName || 'Unknown User';        // e.g. 'Super Admin'
-      const newRole = (role || '').toUpperCase();                 // e.g. 'APN'
+      const creatorRole = (createdByRole || '').toUpperCase();
+      const creatorName = createdByName || 'Unknown User';
+      const newRole = (role || '').toUpperCase();
 
       const details =
         `${creatorRole} ${creatorName} created ${newRole} Account named "${fullName}".`;
 
-      // Fire-and-forget logging (no await on purpose)
       logAction({ userId: createdByUserId, details });
     }
 
@@ -758,13 +758,10 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// Login route for both admins and regular users
-// Uses plain password comparison (no hashing in this snippet)
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Look up user by email
     const [rows] = await pool.query(
       'SELECT user_id, email, password, role, full_name FROM users WHERE email = ?',
       [email]
@@ -776,18 +773,15 @@ app.post('/api/auth/login', async (req, res) => {
     }
     const user = rows[0];
 
-    // Compare passwords directly (in production, use hashing)
     if (user.password !== password) {
       return res
         .status(401)
         .json({ success: false, message: 'Incorrect password' });
     }
 
-    // Log successful login action
     const details = `${user.role || 'User'} ${user.full_name} logged in.`;
     logAction({ userId: user.user_id, details });
 
-    // Return minimal user info (no token here)
     res.json({
       success: true,
       user: {
@@ -803,7 +797,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// --- AUTO-FILL ROSTER ROUTE (Optimized: Bulk Insert) ---
+// ================= AUTO-FILL ROSTER =================
 app.post('/api/rosters/auto-fill', async (req, res) => {
   const { rosterId, month, year } = req.body;
 
@@ -811,7 +805,6 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
   await connection.beginTransaction();
 
   try {
-    // 1. Fetch Data
     const [users] = await connection.query("SELECT * FROM users WHERE role = 'APN'");
     const [existingShifts] = await connection.query(
       `SELECT s.*, sd.shift_code 
@@ -822,29 +815,23 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
     );
     const [shiftTypes] = await connection.query("SELECT shift_type_id, shift_code FROM shift_desc");
 
-    // 2. Map Codes -> IDs
     const typeMap = {};
     shiftTypes.forEach(t => typeMap[t.shift_code] = t.shift_type_id);
 
-    // 3. Run Engine (Fast in-memory calculation)
     const newAssignments = await generateRoster(month, year, users, existingShifts);
 
-    // 4. Prepare Data for Bulk Insert
     const valuesToInsert = [];
-    const newlyAddedSet = new Set(); // Internal Duplicate Guard
+    const newlyAddedSet = new Set();
 
     for (const item of newAssignments) {
-      // Create a unique key for this batch (User + Date)
       const shiftKey = `${item.user_id}-${item.shift_date}`;
 
-      // Check 1: Does it exist in DB? (JS Check)
       const existsInDB = existingShifts.find(e => {
         const dbDate = new Date(e.shift_date);
         const dbDateStr = dbDate.toLocaleDateString('en-CA');
         return e.user_id === item.user_id && dbDateStr === item.shift_date;
       });
 
-      // Check 2: Did we already add it to the 'valuesToInsert' list in this loop?
       const existsInBatch = newlyAddedSet.has(shiftKey);
 
       if (!existsInDB && !existsInBatch) {
@@ -860,16 +847,13 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
             finalWardId
           ]);
 
-          // Mark this slot as 'filled' for this batch
           newlyAddedSet.add(shiftKey);
         }
       }
     }
 
-    // 5. Execute ONE Big Query (With Safety)
     let addedCount = 0;
     if (valuesToInsert.length > 0) {
-      // FIX: Use 'INSERT IGNORE' to safely skip any database duplicates
       const [result] = await connection.query(
         `INSERT IGNORE INTO shifts 
         (user_id, roster_id, shift_type_id, shift_date, ward_id) 
@@ -883,7 +867,6 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
     connection.release();
 
     res.json({ success: true, message: `Auto-fill complete! Added ${addedCount} shifts.` });
-
   } catch (err) {
     await connection.rollback();
     connection.release();
@@ -892,15 +875,15 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
   }
 });
 
-// --- UPDATE ROSTER SETTINGS ROUTE (FIXED FIELD NAMES) ---
+// ================= ROSTER SETTINGS UPDATE =================
 app.put('/api/rosters/:id/settings', async (req, res) => {
   const { id } = req.params;
-  const { remarks, publish_date } = req.body; // <--- Reading correct DB column names
+  const { remarks, publish_date } = req.body;
 
   try {
     const [result] = await pool.query(
       "UPDATE rosters SET remarks = ?, publish_date = ? WHERE roster_id = ?",
-      [remarks, publish_date, id] // <--- Mapping to correct DB columns
+      [remarks, publish_date, id]
     );
 
     if (result.affectedRows === 0) {
@@ -914,7 +897,7 @@ app.put('/api/rosters/:id/settings', async (req, res) => {
   }
 });
 
-// --- DELETE ROSTER ROUTE ---
+// ================= DELETE ROSTER =================
 app.delete('/api/rosters/:id', async (req, res) => {
   const rosterId = req.params.id;
   
@@ -922,22 +905,17 @@ app.delete('/api/rosters/:id', async (req, res) => {
   await connection.beginTransaction();
 
   try {
-    // 1. First, delete all shifts belonging to this roster
-    // (We must do this first, or the database will block us for safety)
     await connection.query('DELETE FROM shifts WHERE roster_id = ?', [rosterId]);
 
-    // 2. Now it is safe to delete the roster itself
     const [result] = await connection.query('DELETE FROM rosters WHERE roster_id = ?', [rosterId]);
 
     if (result.affectedRows === 0) {
-      // If no rows were deleted, the ID didn't exist
       await connection.rollback();
       return res.status(404).json({ error: "Roster not found" });
     }
 
     await connection.commit();
     res.json({ success: true, message: 'Roster and all associated shifts deleted.' });
-
   } catch (err) {
     await connection.rollback();
     console.error("Delete Roster Error:", err);
@@ -947,25 +925,22 @@ app.delete('/api/rosters/:id', async (req, res) => {
   }
 });
 
-// GET /api/rosters/:id/download
+// ================= ROSTER DOWNLOAD =================
 app.get('/api/rosters/:id/download', async (req, res) => {
   const rosterId = req.params.id;
 
   const connection = await pool.getConnection();
   try {
-    // 1. Fetch Roster Info
     const [rosterMeta] = await connection.query("SELECT * FROM rosters WHERE roster_id = ?", [rosterId]);
     if (rosterMeta.length === 0) return res.status(404).send("Roster not found");
     
     const { month, year } = rosterMeta[0];
 
-    // 2. Fetch Shifts + Colors
-    // We now grab 'shift_color_hex' from the database
     const [shifts] = await connection.query(`
       SELECT 
         s.shift_date, 
         sd.shift_code, 
-        sd.shift_color_hex,  /* <--- Get the Hex Color */
+        sd.shift_color_hex,
         u.full_name 
       FROM shifts s
       JOIN users u ON s.user_id = u.user_id
@@ -974,19 +949,16 @@ app.get('/api/rosters/:id/download', async (req, res) => {
       ORDER BY u.full_name, s.shift_date
     `, [rosterId]);
 
-    // 3. Setup Workbook
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(`${month} ${year}`);
 
-    // 4. Columns
     const daysInMonth = new Date(year, new Date(`${month} 1, 2000`).getMonth() + 1, 0).getDate();
     const columns = [{ header: 'Nurse Name', key: 'name', width: 25 }];
     for (let i = 1; i <= daysInMonth; i++) columns.push({ header: `${i}`, key: `day_${i}`, width: 6 });
     worksheet.columns = columns;
 
-    // 5. Process Data & Build Color Map
     const nurseMap = {};
-    const colorMap = {}; // <--- Stores 'AM' -> '#10B981'
+    const colorMap = {};
 
     shifts.forEach(shift => {
       const name = shift.full_name;
@@ -995,20 +967,16 @@ app.get('/api/rosters/:id/download', async (req, res) => {
         : shift.shift_date.toISOString().split('T')[0];
       const day = parseInt(dateStr.split('-')[2], 10);
 
-      // Store Row Data
       if (!nurseMap[name]) nurseMap[name] = { name: name };
       nurseMap[name][`day_${day}`] = shift.shift_code;
 
-      // Store Color Mapping (if exists)
       if (shift.shift_code && shift.shift_color_hex) {
         colorMap[shift.shift_code] = shift.shift_color_hex;
       }
     });
 
-    // 6. Add Rows
     Object.values(nurseMap).forEach(row => worksheet.addRow(row));
 
-    // 7. Styling with Database Colors
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber === 1) {
         row.font = { bold: true };
@@ -1016,7 +984,6 @@ app.get('/api/rosters/:id/download', async (req, res) => {
       }
 
       row.eachCell((cell, colNumber) => {
-        // Basic Alignment & Border
         cell.alignment = { vertical: 'middle', horizontal: 'center' };
         cell.border = {
           top: { style: 'thin', color: { argb: 'FFD1D5DB' } },
@@ -1025,37 +992,28 @@ app.get('/api/rosters/:id/download', async (req, res) => {
           right: { style: 'thin', color: { argb: 'FFD1D5DB' } }
         };
 
-        // Apply Color if it's a shift cell
         if (colNumber > 1) { 
-            const code = cell.value;
-            const hex = colorMap[code]; // Look up the color from DB
+          const code = cell.value;
+          const hex = colorMap[code];
 
-            if (hex) {
-                // Excel expects ARGB (FF + Hex without #)
-                // Example: #10B981 -> FF10B981
-                const cleanHex = hex.replace('#', '');
-                const argbColor = `FF${cleanHex}`;
+          if (hex) {
+            const cleanHex = hex.replace('#', '');
+            const argbColor = `FF${cleanHex}`;
 
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: argbColor }
-                };
-
-                // OPTIONAL: Make text white if background is dark?
-                // For now, let's keep it black unless you want "smart text color" logic.
-                // cell.font = { color: { argb: 'FFFFFFFF' } }; 
-            }
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: argbColor }
+            };
+          }
         }
       });
     });
 
-    // 8. Send File
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename=${month}_${year}_Roster.xlsx`);
     await workbook.xlsx.write(res);
     res.end();
-
   } catch (err) {
     console.error("Excel Generation Error:", err);
     res.status(500).send("Error generating file");
@@ -1064,10 +1022,9 @@ app.get('/api/rosters/:id/download', async (req, res) => {
   }
 });
 
-// ================= Action Logs =================
-// Fetch recent action logs for the Admin Activity Log UI
+// ================= ACTION LOGS =================
 app.get('/actionlogs', async (req, res) => {
-  const limit = parseInt(req.query.limit, 10) || 6; // default to 6 logs
+  const limit = parseInt(req.query.limit, 10) || 6;
   try {
     const [rows] = await pool.query(
       `SELECT log_id, log_details, log_datetime
@@ -1081,7 +1038,7 @@ app.get('/actionlogs', async (req, res) => {
     console.error('Error fetching action logs:', err);
     res.status(500).json({ success: false, message: 'Failed to fetch action logs' });
   }
-});  
+}); 
 
 // ================= Server =================
 const PORT = process.env.PORT || 5000;

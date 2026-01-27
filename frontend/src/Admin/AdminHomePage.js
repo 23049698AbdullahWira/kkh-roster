@@ -18,7 +18,54 @@ const todoItems = [
 
 function AdminHome({ user }) {
   const [logs, setLogs] = useState([]);
+
+  // Dashboard data – now driven by real APIs
+  const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
+  const [pendingPrefCount, setPendingPrefCount] = useState(0);
+  const [nextRosterLabel, setNextRosterLabel] = useState('');
+  const [nextRosterStatus, setNextRosterStatus] = useState(''); // e.g. Pending / Drafting / Published
+
   const navigate = useNavigate();
+
+  // ---- NEW: fetch helpers ----
+  const fetchPendingLeaveCount = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/leave/pending-count');
+      const data = await res.json();
+      setPendingLeaveCount(data.pendingCount ?? 0);
+    } catch (err) {
+      console.error('Failed to fetch pending leave count:', err);
+    }
+  };
+
+  const fetchPendingShiftPrefCount = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/shiftpref/pending-count');
+      const data = await res.json();
+      setPendingPrefCount(data.pendingCount ?? 0);
+    } catch (err) {
+      console.error('Failed to fetch pending shift preference count:', err);
+    }
+  };
+
+  const fetchNextRosterStatus = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/rosters/next');
+      if (!res.ok) {
+        // No rosters found or server error
+        setNextRosterLabel('No roster found');
+        setNextRosterStatus('N/A');
+        return;
+      }
+      const data = await res.json();
+      setNextRosterLabel(`${data.month} ${data.year}`);
+      setNextRosterStatus(data.status || 'Unknown');
+    } catch (err) {
+      console.error('Failed to fetch next roster status:', err);
+      setNextRosterLabel('Error');
+      setNextRosterStatus('N/A');
+    }
+  };
 
   useEffect(() => {
     async function fetchLogs() {
@@ -30,7 +77,11 @@ function AdminHome({ user }) {
         console.error('Failed to fetch action logs:', err);
       }
     }
+
     fetchLogs();
+    fetchPendingLeaveCount();
+    fetchPendingShiftPrefCount();
+    fetchNextRosterStatus();
   }, []);
 
   const formatTimeAgo = (isoString) => {
@@ -70,11 +121,6 @@ function AdminHome({ user }) {
     return () => {};
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
-
   return (
     <div
       style={{
@@ -106,258 +152,207 @@ function AdminHome({ user }) {
           Welcome back, {user?.fullName || 'Admin'}!
         </h1>
 
+        {/* Summary cards row + main left/right layout */}
         <section
-          style={{
-            background: 'white',
-            borderRadius: 10,
-            padding: '16px 24px',
-            marginBottom: 16,
-            boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 800,
-              marginBottom: 12,
-            }}
-          >
-            Roster Status Timeline : November Roster
-          </div>
-          <div
-            style={{
-              background: '#EDF0F5',
-              borderRadius: 999,
-              padding: '8px 32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
-            }}
-          >
-            <span style={{ fontSize: 14, fontWeight: 800 }}>Preference Open</span>
-            <img style={{ width: 24, height: 24 }} src="/greenCheckMark.png" alt="" />
-            <div
-              style={{
-                flex: 1,
-                height: 6,
-                background: '#00AE06',
-                borderRadius: 999,
-                marginRight: 16,
-              }}
-            />
-            <span style={{ fontSize: 14, fontWeight: 800 }}>Reviewing Draft</span>
-            <img style={{ width: 24, height: 24 }} src="/greenCheckMark.png" alt="" />
-            <div
-              style={{
-                flex: 1,
-                height: 6,
-                background: '#8C8C8C',
-                borderRadius: 999,
-                marginRight: 16,
-              }}
-            />
-            <span style={{ fontSize: 14, fontWeight: 800 }}>Published Roster</span>
-            <img style={{ width: 24, height: 24 }} src="/loadingCircle.png" alt="" />
-          </div>
-        </section>
-
-        <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1.4fr)',
             gap: 24,
           }}
         >
+          {/* LEFT COLUMN: three cards stacked nicely */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <section
-              style={{
-                background: 'white',
-                borderRadius: 10,
-                padding: 18,
-                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 12,
-                }}
-              >
-                <div style={{ fontSize: 18, fontWeight: 800 }}>
-                  Critical Staffing Shortage
-                </div>
-                <div style={{ display: 'flex', gap: 16, fontSize: 14, fontWeight: 600 }}>
-                  <span>Urgent</span>
-                  <div
-                    style={{
-                      width: 6,
-                      height: 20,
-                      background: '#FF2525',
-                      borderRadius: 12,
-                    }}
-                  />
-                  <span>Action Needed</span>
-                  <div
-                    style={{
-                      width: 6,
-                      height: 20,
-                      background: '#F0DC00',
-                      borderRadius: 12,
-                    }}
-                  />
-                </div>
-              </div>
+            {/* Pending leave requests */}
+<div
+  style={{
+    background: 'white',
+    borderRadius: 10,
+    padding: '16px 20px',
+    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',   // NEW
+    minHeight: 90,
+  }}
+>
+  {/* left text block */}
+  <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        color: '#6B7280',
+        textTransform: 'uppercase',
+        marginBottom: 6,
+      }}
+    >
+      Pending leave requests
+    </div>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+      <span
+        style={{
+          fontSize: 28,
+          fontWeight: 900,
+          color: '#111827',
+        }}
+      >
+        {pendingLeaveCount}
+      </span>
+      <span style={{ fontSize: 13, color: '#6B7280' }}>
+        awaiting approval
+      </span>
+    </div>
+  </div>
 
-              <div
-                style={{
-                  background: '#EDF0F5',
-                  borderRadius: 8,
-                  padding: '12px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  position: 'relative',
-                  marginTop: 0,
-                }}
-              >
-                <img
-                  style={{ width: 30, height: 30, marginRight: 20 }}
-                  src="/redWarning.png"
-                  alt="Warning"
-                />
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  WARNING:
-                  <br />
-                  Understaffed RRT PM Shift on 18 Oct (1 RRT Short)
-                </div>
-                <div
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 10,
-                    background: '#FF2525',
-                    borderTopRightRadius: 8,
-                    borderBottomRightRadius: 8,
-                  }}
-                />
-              </div>
+  {/* right icon */}
+  <img
+    src={pendingLeaveCount === 0 ? '/greenCheckMark.png' : '/yellowWarning.png'}
+    alt=""
+    style={{ width: 70, height: 70, flexShrink: 0 }}
+  />
+</div>
 
-              <div
-                style={{
-                  background: '#EDF0F5',
-                  borderRadius: 8,
-                  padding: '12px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  position: 'relative',
-                  marginTop: 8,
-                }}
-              >
-                <img
-                  style={{ width: 30, height: 30, marginRight: 20 }}
-                  src="/yellowWarning.png"
-                  alt="Contradicting Shift"
-                />
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  CONTRADICTING SHIFT:
-                  <br />
-                  Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)
-                </div>
-                <div
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 10,
-                    background: '#F0DC00',
-                    borderTopRightRadius: 8,
-                    borderBottomRightRadius: 8,
-                  }}
-                />
-              </div>
-            </section>
 
-            <section
-              style={{
-                background: 'white',
-                borderRadius: 10,
-                padding: 18,
-                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 800,
-                  marginBottom: 12,
-                }}
-              >
-                To-Do List / Action Items
-              </div>
+            {/* Pending shift preferences */}
+<div
+  style={{
+    background: 'white',
+    borderRadius: 10,
+    padding: '16px 20px',
+    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',   // NEW
+    minHeight: 90,
+  }}
+>
+  <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        color: '#6B7280',
+        textTransform: 'uppercase',
+        marginBottom: 6,
+      }}
+    >
+      Pending shift preferences
+    </div>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+      <span
+        style={{
+          fontSize: 28,
+          fontWeight: 900,
+          color: '#111827',
+        }}
+      >
+        {pendingPrefCount}
+      </span>
+      <span style={{ fontSize: 13, color: '#6B7280' }}>
+        unreviewed submissions
+      </span>
+    </div>
+  </div>
 
-              {todoItems.map((item, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: '#EDF0F5',
-                    borderRadius: 16,
-                    overflow: 'hidden',
-                    marginBottom: idx === todoItems.length - 1 ? 0 : 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      background: '#5091CD',
-                      color: 'white',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      padding: '6px 16px',
-                    }}
-                  >
-                    {item.header}
-                  </div>
-                  <div style={{ padding: '10px 16px' }}>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 700,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {item.title}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        marginBottom: 6,
-                      }}
-                    >
-                      {item.body}
-                    </div>
-                    <button
-                      type="button"
-                      style={{
-                        padding: 0,
-                        border: 'none',
-                        background: 'none',
-                        fontSize: 14,
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      More Info
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </section>
+  <img
+    src={pendingPrefCount === 0 ? '/greenCheckMark.png' : '/yellowWarning.png'}
+    alt=""
+    style={{ width: 70, height: 70, flexShrink: 0 }}
+  />
+</div>
+
+
+            {/* Next month roster status */}
+<div
+  style={{
+    background: 'white',
+    borderRadius: 10,
+    padding: '16px 20px',
+    boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',   // NEW
+    minHeight: 90,
+  }}
+>
+  {/* left text block */}
+  <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        color: '#6B7280',
+        textTransform: 'uppercase',
+        marginBottom: 6,
+      }}
+    >
+      Next roster status
+    </div>
+    <div
+      style={{
+        fontSize: 15,
+        fontWeight: 700,
+        color: '#111827',
+        marginBottom: 4,
+      }}
+    >
+      {nextRosterLabel || 'Loading...'}
+    </div>
+    <div
+      style={{
+        fontSize: 13,
+        fontWeight: 700,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        color:
+          nextRosterStatus === 'Published'
+            ? '#16A34A'
+            : nextRosterStatus === 'Drafting'
+            ? '#F97316'
+            : nextRosterStatus === 'Preference Open'
+            ? '#DC2626'
+            : '#6B7280',
+      }}
+    >
+      <span
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background:
+            nextRosterStatus === 'Published'
+              ? '#16A34A'
+              : nextRosterStatus === 'Drafting'
+              ? '#F97316'
+              : nextRosterStatus === 'Preference Open'
+              ? '#DC2626'
+              : '#6B7280',
+        }}
+      />
+      {nextRosterStatus || 'Loading...'}
+    </div>
+  </div>
+
+  {/* right icon */}
+  <img
+    src={
+      nextRosterStatus === 'Published'
+        ? '/greenCheckMark.png'
+        : nextRosterStatus === 'Drafting'
+        ? '/yellowWarning.png'
+        : nextRosterStatus === 'Preference Open'
+        ? '/redWarning.png'
+        : '/yellowWarning.png'
+    }
+    alt=""
+    style={{ width: 70, height: 70, flexShrink: 0 }}
+  />
+</div>
+
           </div>
 
+          {/* RIGHT COLUMN: Quick Links + Activity Log (unchanged) */}
           <div
             style={{
               display: 'flex',
@@ -609,7 +604,9 @@ function AdminHome({ user }) {
                         gap: 16,
                         padding: '6px 0',
                         borderTop: '1px solid #E0E0E0',
+                        cursor: 'pointer',
                       }}
+                      onClick={onClick}
                     >
                       <img
                         style={{ width: 26, height: 26 }}
@@ -624,7 +621,6 @@ function AdminHome({ user }) {
                       >
                         {formatTimeAgo(log.log_datetime)}, {log.log_details}
                       </div>
-                      
                     </div>
                   );
                 })}
@@ -644,7 +640,7 @@ function AdminHome({ user }) {
               </div>
             </section>
           </div>
-        </div>
+        </section>
       </main>
     </div>
   );
