@@ -1242,6 +1242,43 @@ app.delete('/api/delete-shift-preference/:id', async (req, res) => {
   }
 });
 
+// --- START: NEW ENDPOINT TO GET A USER'S UPCOMING SHIFTS ---
+
+// GET: a specific user's shifts from today onwards
+app.get('/api/users/:userId/shifts', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // This query joins shifts with their descriptions (AM/PM) and ward names.
+    // It filters for the specific user and ensures we only get shifts from today or in the future.
+    // We limit it to 8 to get today's shift + the next 7 days.
+    const query = `
+      SELECT 
+        s.shift_id,
+        s.shift_date,
+        sd.shift_code,
+        sd.shift_color_hex,
+        w.ward_name,
+        w.ward_comments
+      FROM shifts s
+      JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
+      LEFT JOIN ward w ON s.ward_id = w.ward_id
+      WHERE s.user_id = ? AND s.shift_date >= CURDATE()
+      ORDER BY s.shift_date ASC
+      LIMIT 8
+    `;
+
+    const [shifts] = await pool.query(query, [userId]);
+    res.json(shifts);
+
+  } catch (err) {
+    console.error(`Error fetching shifts for user ${userId}:`, err);
+    res.status(500).json({ error: "Failed to fetch user shifts" });
+  }
+});
+
+// --- END: NEW ENDPOINT ---
+
 // ================= Action Logs =================
 app.get('/actionlogs', async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 6;

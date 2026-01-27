@@ -18,25 +18,54 @@ function UserRoster({
   const [shifts, setShifts] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // --- NEW: STATE FOR REAL-TIME SHIFT ---
+  const [todayShiftData, setTodayShiftData] = useState(null); 
+
   // --- MODAL STATES ---
   const [viewModalData, setViewModalData] = useState(null); 
   const [showRosterSelector, setShowRosterSelector] = useState(false); 
   
-  // Reference Data
   const [wardOptions, setWardOptions] = useState([]);
   const [shiftOptions, setShiftOptions] = useState([]);
 
-  // --- 1. FETCH & INTELLIGENT DEFAULT SELECTION ---
+  // --- 1. INITIAL FETCH ---
   useEffect(() => {
-    const fetchRosters = async () => {
+    const initData = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/rosters');
-        const data = await res.json();
+        // --- GET USER ID ---
+        let currentUserId = 1; 
         
-        // A. FILTER: Published Only
-        const published = data.filter(r => r.status === 'Published');
+        const storedUserStr = localStorage.getItem('user');
+        
+        if (storedUserStr) {
+            try {
+                const userObj = JSON.parse(storedUserStr);
+                currentUserId = userObj.userId; 
+            } catch (e) {
+                console.error("Failed to parse user object", e);
+            }
+        }
+        
+        console.log("Logged In User ID found:", currentUserId); 
 
-        // B. SORT: Newest First
+        const [rosterRes, wardRes, typeRes, myShiftRes] = await Promise.all([
+            fetch('http://localhost:5000/api/rosters'),
+            fetch('http://localhost:5000/api/wards'),
+            fetch('http://localhost:5000/api/shift-types'),
+            fetch(`http://localhost:5000/api/users/${currentUserId}/shifts`) 
+        ]);
+
+        const rosterData = await rosterRes.json();
+        const wardData = await wardRes.json();
+        const typeData = await typeRes.json();
+        const myShiftData = await myShiftRes.json();
+
+        setWardOptions(wardData);
+        setShiftOptions(typeData);
+        setTodayShiftData(myShiftData);
+
+        // Sort & Default Selection Logic
+        const published = rosterData.filter(r => r.status === 'Published');
         const monthMap = { "January": 0, "February": 1, "March": 2, "April": 3, "May": 4, "June": 5, "July": 6, "August": 7, "September": 8, "October": 9, "November": 10, "December": 11 };
         
         const sortedData = published.sort((a, b) => {
@@ -46,13 +75,11 @@ function UserRoster({
 
         setAvailableRosters(sortedData);
 
-        // C. SMART SELECTION (Closest Month Logic)
         if (sortedData.length > 0) {
           const now = new Date();
           const currentVal = now.getFullYear() * 12 + now.getMonth();
           const getRosterVal = (r) => Number(r.year) * 12 + monthMap[r.month];
 
-          // Find roster with smallest "distance" to today
           const closestRoster = sortedData.reduce((prev, curr) => {
             const prevDiff = Math.abs(getRosterVal(prev) - currentVal);
             const currDiff = Math.abs(getRosterVal(curr) - currentVal);
@@ -63,26 +90,25 @@ function UserRoster({
         } else {
           setLoading(false);
         }
+
       } catch (err) {
-        console.error("Failed to fetch roster list:", err);
+        console.error("Failed to initialize data:", err);
         setLoading(false);
       }
     };
-    fetchRosters();
+
+    initData();
   }, []);
 
-  // --- 2. FETCH DATA ---
+  // --- 2. FETCH ROSTER DETAILS ---
   useEffect(() => {
     if (!selectedRoster) return;
-
     const activeId = selectedRoster.roster_id || selectedRoster.id;
     if (!activeId) return;
 
-    const fetchData = async () => {
+    const fetchRosterDetails = async () => {
       try {
         setLoading(true);
-
-        // A. Calendar Math
         const monthIndex = new Date(`${selectedRoster.month} 1, ${selectedRoster.year}`).getMonth();
         const daysInMonth = new Date(selectedRoster.year, monthIndex + 1, 0).getDate();
         const tempDays = [];
@@ -90,39 +116,30 @@ function UserRoster({
 
         for (let i = 1; i <= daysInMonth; i++) {
           const date = new Date(selectedRoster.year, monthIndex, i);
-          const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000))
-            .toISOString().split('T')[0];
-
+          const localDate = date.toLocaleDateString('en-CA'); 
           tempDays.push({ day: i, label: daysOfWeek[date.getDay()], fullDate: localDate });
         }
         setDays(tempDays);
 
-        // B. API Calls
-        const [userRes, shiftRes, wardRes, typeRes] = await Promise.all([
+        const [userRes, shiftRes] = await Promise.all([
           fetch('http://localhost:5000/users'),
-          fetch(`http://localhost:5000/api/shifts/${activeId}`),
-          fetch('http://localhost:5000/api/wards'),
-          fetch('http://localhost:5000/api/shift-types')
+          fetch(`http://localhost:5000/api/shifts/${activeId}`)
         ]);
 
         const userData = await userRes.json();
         const shiftData = await shiftRes.json();
-        const wardData = await wardRes.json();
-        const typeData = await typeRes.json();
 
         setStaffList(userData.filter(u => u.role === 'APN' && u.status === 'Active'));
         setShifts(shiftData);
-        setWardOptions(wardData);
-        setShiftOptions(typeData);
         setLoading(false);
 
       } catch (err) {
-        console.error("Error loading details:", err);
+        console.error("Error loading roster details:", err);
         setLoading(false);
       }
     };
 
-    fetchData();
+    fetchRosterDetails();
   }, [selectedRoster]);
 
   // --- 3. HELPERS ---
@@ -176,43 +193,33 @@ function UserRoster({
     }
   };
 
-  // --- NEW: CALCULATE "MY SHIFT TODAY" ---
-  // =========================================================
-  // PASTE THE TESTING CODE HERE (Replace the old myTodayShift)
-  // =========================================================
+  // --- 4. CALCULATE "MY SHIFT TODAY" ---
   const myTodayShift = useMemo(() => {
-    // 1. FOR TESTING: Hardcode '1' (or any valid user_id from your DB) if login is missing
-    const currentUserId = Number(localStorage.getItem('userId')) || 123; 
-    
-    if (!currentUserId || !selectedRoster) return null;
+    if (!todayShiftData || todayShiftData.length === 0) {
+        return { code: 'OFF', color: '#F3F4F6', ward: 'No Shift', desc: 'Rest Day' };
+    }
 
-    // 2. Find Today's Shift
-    const now = new Date();
-    // Adjust timezone to match DB date string (YYYY-MM-DD)
-    const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
-        .toISOString().split('T')[0];
+    const localDate = new Date().toLocaleDateString('en-CA'); 
+    const upcomingShift = todayShiftData[0];
+    const apiDate = upcomingShift.shift_date.split('T')[0];
 
-    // 3. Try to find a matching shift in the CURRENTLY LOADED list
-    // Note: If you are viewing a future roster, this list might not contain today's date.
-    const shift = shifts.find(s => s.user_id === currentUserId && s.shift_date.startsWith(localDate));
-    
-    if (shift) {
+    if (apiDate === localDate) {
         return {
-            code: shift.shift_code,
-            color: shift.shift_color_hex,
-            ward: getWardName(shift.ward_id),
-            desc: getShiftTypeDetails(shift.shift_code)
+            code: upcomingShift.shift_code,
+            color: upcomingShift.shift_color_hex,
+            ward: upcomingShift.ward_name 
+                ? `${upcomingShift.ward_comments || ''} (${upcomingShift.ward_name})` 
+                : 'Not Assigned',
+            desc: getShiftTypeDetails(upcomingShift.shift_code)
         };
     }
-    
-    // 4. Default / Fallback for testing visibility
-    return { code: '?', color: '#E5E7EB', ward: 'No Shift Found', desc: 'Check Data' };
 
-  }, [shifts, selectedRoster, wardOptions, shiftOptions]);
-  // =========================================================
+    return { code: 'OFF', color: '#F3F4F6', ward: 'No Shift', desc: 'Rest Day' };
+
+  }, [todayShiftData, shiftOptions]);
 
 
-  // --- 4. GROUPING LOGIC ---
+  // --- 5. GROUPING LOGIC ---
   const SERVICE_PRIORITY = ['Acute', 'CE', 'Onco', 'PAS', 'PAME', 'Neonates'];
   const groupedStaff = useMemo(() => {
     const groups = {};
@@ -228,7 +235,7 @@ function UserRoster({
     return groups;
   }, [staffList]);
 
-  // --- 5. RENDER ---
+  // --- 6. RENDER ---
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
       <UserNavbar active="roster" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoShiftPreference={onGoShiftPreference} onGoApplyLeave={onGoApplyLeave} onGoAccount={onGoAccount} onLogout={onLogout} />
@@ -236,11 +243,12 @@ function UserRoster({
       <main style={{ maxWidth: 1500, margin: '24px auto', padding: '0 32px', boxSizing: 'border-box' }}>
         
         {/* --- HEADER --- */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, position: 'relative', minHeight: 50 }}>
-          <div style={{ zIndex: 10 }}>
-            <button onClick={onBack} style={{ padding: '8px 20px', background: 'white', borderRadius: 68, border: '1px solid #DDD', cursor: 'pointer', fontWeight: 600 }}>← Back</button>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, position: 'relative', minHeight: 60 }}>
           
+          {/* LEFT: SPACER (Increased width to balance the wider card on the right) */}
+          <div style={{ width: 240 }}></div>
+          
+          {/* CENTER: ROSTER SELECTOR */}
           <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', width: 'max-content', zIndex: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             {availableRosters.length > 0 ? (
               <button 
@@ -265,39 +273,46 @@ function UserRoster({
             )}
           </div>
           
-          <div style={{ width: 100 }}></div> 
-        </div>
-
-        {/* --- NEW: "MY SHIFT TODAY" CARD --- */}
-        {myTodayShift && (
-            <div style={{ 
-                background: 'white', borderRadius: 16, padding: '20px 24px', 
-                marginBottom: 24, boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-                display: 'flex', alignItems: 'center', gap: 24, border: '1px solid #E5E7EB'
-            }}>
+          {/* RIGHT: MY SHIFT CARD (WIDER) */}
+          <div style={{ zIndex: 10, width: 450, display: 'flex', justifyContent: 'flex-end' }}>
+            {myTodayShift && (
                 <div style={{ 
-                    width: 60, height: 60, borderRadius: 14, 
-                    background: myTodayShift.color, 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, fontWeight: 800, color: getContrastTextColor(myTodayShift.color),
-                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                    display: 'flex', alignItems: 'center', gap: 14, 
+                    background: 'white', 
+                    // Made wider by setting minWidth and increasing padding
+                    minWidth: 200,
+                    padding: '8px 24px 8px 16px',  
+                    borderRadius: 12, 
+                    border: '1px solid #E5E7EB',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
+                    height: 54
                 }}>
-                    {myTodayShift.code}
+                    <div style={{ 
+                        width: 38, height: 38, borderRadius: 8, 
+                        background: myTodayShift.color, 
+                        color: getContrastTextColor(myTodayShift.color),
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontWeight: 800, fontSize: 14,
+                        flexShrink: 0 // Prevents the box from shrinking if text is long
+                    }}>
+                        {myTodayShift.code}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', lineHeight: 1, marginBottom: 4 }}>
+                            TODAY
+                        </div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', lineHeight: 1, whiteSpace: 'nowrap' }}>
+                            {myTodayShift.ward !== 'Not Assigned' && myTodayShift.ward !== 'No Shift' 
+                                ? myTodayShift.ward 
+                                : myTodayShift.desc}
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                        Your Shift Today
-                    </div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: '#1F2937', marginTop: 4 }}>
-                        {myTodayShift.desc}
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: '#4B5563', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                        {myTodayShift.ward}
-                    </div>
-                </div>
-            </div>
-        )}
+            )}
+          </div>
+          
+        </div>
 
         {/* --- MAIN GRID --- */}
         {loading ? (
@@ -348,7 +363,7 @@ function UserRoster({
         )}
       </main>
 
-      {/* --- POPUP: ROSTER SELECTION (With Greyed Out Drafts) --- */}
+      {/* --- POPUP: ROSTER SELECTION --- */}
       {showRosterSelector && (
         <div
           onClick={() => setShowRosterSelector(false)}
@@ -375,13 +390,11 @@ function UserRoster({
             <div style={{ padding: 16, overflowY: 'auto' }}>
               {availableRosters.map(r => {
                 const isActive = (selectedRoster?.roster_id || selectedRoster?.id) === (r.roster_id || r.id);
-                // CHECK: Is this roster Published?
                 const isPublished = r.status === 'Published';
 
                 return (
                   <button
                     key={r.roster_id || r.id}
-                    // Disable click if not published
                     disabled={!isPublished}
                     onClick={() => {
                       if (isPublished) {
@@ -391,7 +404,6 @@ function UserRoster({
                     }}
                     style={{
                       width: '100%', padding: '16px', marginBottom: 8,
-                      // Grey out background if not published
                       background: !isPublished ? '#F3F4F6' : (isActive ? '#EFF6FF' : 'white'),
                       border: isActive ? '2px solid #2563EB' : '1px solid #E5E7EB',
                       borderRadius: 12, 
@@ -399,42 +411,21 @@ function UserRoster({
                       textAlign: 'left',
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       transition: 'all 0.2s',
-                      opacity: !isPublished ? 0.6 : 1 // Faded look
+                      opacity: !isPublished ? 0.6 : 1
                     }}
-                    // Only hover effect if published
-                    onMouseOver={(e) => {
-                        if(isPublished && !isActive) e.currentTarget.style.background = '#F9FAFB';
-                    }}
-                    onMouseOut={(e) => {
-                        if(isPublished && !isActive) e.currentTarget.style.background = 'white';
-                    }}
+                    onMouseOver={(e) => { if(isPublished && !isActive) e.currentTarget.style.background = '#F9FAFB'; }}
+                    onMouseOut={(e) => { if(isPublished && !isActive) e.currentTarget.style.background = 'white'; }}
                   >
                     <div>
-                      <div style={{ 
-                          fontSize: 16, 
-                          fontWeight: 700, 
-                          color: !isPublished ? '#9CA3AF' : (isActive ? '#2563EB' : '#1F2937') // Grey text if disabled
-                        }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: !isPublished ? '#9CA3AF' : (isActive ? '#2563EB' : '#1F2937') }}>
                         {r.month} {r.year}
                       </div>
                       <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
                         Status: <span style={{ fontWeight: 600, color: isPublished ? '#10B981' : '#F59E0B' }}>{r.status}</span>
                       </div>
                     </div>
-                    
-                    {/* Show Checkmark if Active */}
-                    {isActive && (
-                      <div style={{ color: '#2563EB' }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                      </div>
-                    )}
-
-                    {/* Optional: Show Lock Icon if Disabled */}
-                    {!isPublished && (
-                       <div style={{ color: '#9CA3AF' }}>
-                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                       </div>
-                    )}
+                    {isActive && <div style={{ color: '#2563EB' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>}
+                    {!isPublished && <div style={{ color: '#9CA3AF' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>}
                   </button>
                 );
               })}
@@ -443,7 +434,7 @@ function UserRoster({
         </div>
       )}
 
-      {/* --- POPUP: SHIFT DETAILS (Read Only) --- */}
+      {/* --- POPUP: SHIFT DETAILS --- */}
       {viewModalData && (
         <div onClick={() => setViewModalData(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 20, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', width: 440, overflow: 'hidden', animation: 'fadeIn 0.2s ease-out' }}>
