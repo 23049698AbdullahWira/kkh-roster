@@ -311,8 +311,15 @@ const Field = ({ label, name, value, isEditing, onChange, type = 'text', maxLeng
 );
 
 const styles = {
-  page: { width: '100%', minHeight: '100vh', background: '#F8F9FA', fontFamily: "'Inter', sans-serif" },
-  mainContent: { maxWidth: 1400, width: '100%', margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' },
+page: { 
+    width: '100%', 
+    minHeight: '100vh', 
+    background: '#F8F9FA', 
+    fontFamily: "'Inter', sans-serif",
+    // --- ADD THESE TWO LINES ---
+    display: 'flex',
+    flexDirection: 'column',
+  },  mainContent: { maxWidth: 1400, width: '100%', margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' },
   header: { width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
   title: { fontSize: 28, fontWeight: 800, margin: 0, textAlign: 'center' },
   container: { width: '100%', maxWidth: 954, margin: '0 auto', background: 'white', borderRadius: 12, border: '1px solid #E6E6E6', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' },

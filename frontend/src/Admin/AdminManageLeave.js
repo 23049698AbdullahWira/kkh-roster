@@ -163,10 +163,10 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
       
       <main style={styles.mainContent}>
         <header style={styles.header}>
-          {/* <button type="button" onClick={onBack} style={styles.backButton}>
+          <button type="button" onClick={onBack} style={styles.backButton}>
             <span style={styles.backArrow} />
             Back
-          </button> */}
+          </button>
           <h1 style={styles.title}>Manage Leave</h1>
           <div style={styles.actionButtonsContainer}> {/* Container for action buttons */}
             <ActionButton
@@ -354,13 +354,13 @@ const styles = {
 header: {
     width: '100%',
     display: 'flex',
-    // Change 1: Push the buttons to the far right
-    justifyContent: 'flex-end', 
+    // CHANGE THIS: 'space-between' pushes the first item (Back) to the left 
+    // and the last item (Actions) to the right.
+    justifyContent: 'space-between', 
     alignItems: 'center',
     marginBottom: 24,
-    // Change 2: Set relative positioning so the title can anchor to this
     position: 'relative', 
-    height: 40, // Optional: Ensures header has height even if items float
+    height: 40,
   },
   title: {
     fontSize: 28,
@@ -374,18 +374,18 @@ header: {
     // Change 4: Prevent title from overlapping buttons on small screens
     whiteSpace: 'nowrap', 
   },
-  // backButton: {
-  //   display: 'inline-flex',
-  //   alignItems: 'center',
-  //   gap: 8,
-  //   padding: '8px 20px',
-  //   background: 'white',
-  //   borderRadius: 68,
-  //   border: '1px solid #DDDDDD',
-  //   cursor: 'pointer',
-  //   fontSize: 16,
-  //   fontWeight: 600,
-  // },
+  backButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '8px 20px',
+    background: 'white',
+    borderRadius: 68,
+    border: '1px solid #DDDDDD',
+    cursor: 'pointer',
+    fontSize: 16,
+    fontWeight: 600,
+  },
   backArrow: {
     display: 'inline-block',
     width: 12,
