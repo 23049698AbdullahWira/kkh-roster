@@ -1,0 +1,195 @@
+/* src/UserHomePage.css */
+
+/* --- CALENDAR CONTAINER & GENERAL --- */
+.rbc-calendar {
+  border: none;
+  font-family: 'Inter', sans-serif;
+  color: black;
+}
+
+/* --- TOOLBAR (Month Title & Arrows) --- */
+.rbc-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 0 4px;
+}
+
+/* The Month/Year Title (Dropdown or Label) */
+.rbc-toolbar .rbc-toolbar-label,
+.rbc-toolbar select {
+  font-size: 20px; /* Match Widget Header Size */
+  font-weight: 800; /* Extra Bold */
+  color: black;     /* Requested Black Color */
+  text-transform: capitalize;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+
+.rbc-toolbar select:focus {
+  outline: none;
+}
+
+/* Navigation Buttons (< >) */
+.rbc-toolbar button {
+  border: none;
+  background-color: #EDF0F5; /* Grey background like other widgets */
+  color: black;
+  font-size: 22px; /* Slightly larger for the arrow symbol */
+  font-weight: bold;
+  cursor: pointer;
+  width: 40px; 
+  height: 40px;
+  border-radius: 50%; /* Make them perfect circles */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, transform 0.1s;
+  padding-bottom: 4px; /* Slight visual adjustment for center alignment */
+}
+
+.rbc-toolbar button:hover {
+  background-color: #D1D5DB; /* Darker grey on hover */
+}
+
+.rbc-toolbar button:active {
+  transform: scale(0.95);
+}
+
+/* Hide default button group junk */
+.rbc-btn-group {
+  display: none;
+}
+
+/* --- WEEKDAY HEADERS (Sun, Mon, Tue...) --- */
+.rbc-month-view {
+  border: none;
+}
+
+.rbc-header {
+  border: none;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: black; /* Requested Black Color */
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  
+  /* Make the header row look like a bar */
+  background-color: #EDF0F5; 
+  margin-bottom: 10px; /* Space between header and days */
+}
+
+/* Round the corners of the header bar */
+.rbc-header:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+.rbc-header:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+/* --- DATE CELLS --- */
+.rbc-month-row {
+  border: none;
+  display: flex;
+  min-height: 80px; 
+  margin-bottom: 4px; /* Tiny gap between rows */
+}
+
+.rbc-day-bg {
+  border: none;
+}
+
+/* Custom Date Cell Wrapper */
+.custom-date-cell {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  height: 100%;
+  padding-top: 8px;
+  border-radius: 8px; /* Soft rounded corners for every day */
+  transition: background-color 0.2s;
+}
+
+/* Hover effect on days */
+.custom-date-cell:hover {
+  background-color: #f8f9fa;
+}
+
+/* The number (1, 2, 3...) */
+.custom-date-cell .date-number {
+  font-size: 15px;
+  font-weight: 600;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  margin-bottom: 6px;
+  color: #4b5563;
+}
+
+/* Dates not in current month */
+.rbc-off-range .custom-date-cell .date-number {
+  color: #E5E7EB; 
+}
+
+/* --- TODAY STYLE --- */
+.custom-date-cell.today .date-number {
+  background-color: #0EA5E9; /* Bright Blue */
+  color: white;
+  font-weight: 700;
+  box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.4); /* Nice shadow */
+}
+
+/* --- EVENT DOTS --- */
+.event-dots-container {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.event-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+/* Hide default events */
+.rbc-event {
+  display: none;
+}
+
+/* --- SCROLLABLE LIST (Shift Widget) --- */
+.scrollable-shift-list {
+  height: 450px; /* MATCHES CALENDAR HEIGHT */
+  overflow-y: auto; 
+  padding-right: 8px; 
+}
+
+/* Custom Scrollbar */
+.scrollable-shift-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollable-shift-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.scrollable-shift-list::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.scrollable-shift-list::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
