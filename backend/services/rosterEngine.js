@@ -1,294 +1,399 @@
 // backend/services/rosterEngine.js
 
 // ==========================================
-// 1. CONFIGURATION
+// 1. CONFIGURATION & PROTOCOLS
 // ==========================================
 const MAX_CONSECUTIVE_DAYS = 6;
-const TARGET_WEEKEND_PERCENTAGE = 0.5; // Target 50% staff working on weekends
 
-// --- WARD DEFINITIONS ---
-const WARDS = {
-    PAS_85: 16,   
-    PAS_55: 6,    
-    ONCO_76: 13,  
-    ONCO_75: 12,  
-    CICU: 3,      
-    NICU: 4,
-    W65: 10,
-    CE: 2
+// Defines allowed random shifts per service.
+const SERVICE_PROTOCOLS = {
+    'CE':       ['AM', 'PM', 'ND'],      
+    'ONCO':     ['AM', 'PM'],            
+    'PAS':      ['AM'],                  
+    'PAME':     ['AM', 'PM'],            
+    'ACUTE':    ['AM', 'PM'],
+    'NEONATES': ['AM', 'PM'] 
 };
 
-// --- WARD POOLS (Distribute staff to real locations) ---
-const WARD_POOLS = {
-    // Acute: Randomly assigned to CICU or W65
-    Acute: [WARDS.CICU, WARDS.W65], 
+// "Highest Priority" services for RRT Tie-Breaking
+const RRT_PRIORITY_TEAMS = ['ACUTE', 'NEONATES', 'CE'];
+
+// ==========================================
+// 2. HELPER FUNCTIONS
+// ==========================================
+
+const getShiftId = (types, code) => {
+    // 1. Try finding exact code matches
+    let t = types.find(t => t.shift_code === code);
     
-    // Onco: Covers W75 and W76
-    Onco: [WARDS.ONCO_75, WARDS.ONCO_76],
-
-    // PAME / CE: General Wards (W31, W56, W62, W63, W66, W82, W83, W86)
-    // (Using IDs derived from your previous screenshots)
-    General: [5, 7, 8, 9, 11, 14, 15, 17] 
+    // 2. Fallback for Special/Rest Codes
+    if (!t) {
+        if (code === 'OFF' || code === 'RD') t = types.find(t => t.shift_type_id === 14) || types.find(t => t.shift_code === 'RD');
+        // Add fallbacks for new codes if they don't match exactly in DB
+        if (code === 'NHOME') t = types.find(t => t.shift_code.includes('NHOME'));
+        if (code === 'KHOME') t = types.find(t => t.shift_code.includes('KHOME'));
+        if (code === 'GPAPN') t = types.find(t => t.shift_code.includes('GPAPN'));
+        
+        if (!t && (code === 'OFF' || code === 'RD')) return 14; 
+    }
+    return t?.shift_type_id || null;
 };
 
-const SHIFTS = {
-    AM: 'AM', PM: 'PM', STR: '8-5', RRT: 'RRT', 
-    NNJ: 'NNJ', NHOME: 'NHOME', RD: 'RD'
+const getWardId = (wards, name) => wards.find(w => w.ward_name.includes(name))?.ward_id || null;
+
+const toDateStr = (date) => {
+    const offset = date.getTimezoneOffset() * 60000;
+    const localDate = new Date(date.getTime() - offset);
+    return localDate.toISOString().split('T')[0];
 };
 
-const toDateString = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+const getMonthIndex = (m) => {
+    if (!m) return 0;
+    if (typeof m === 'number') return m - 1;
+    if (!isNaN(parseInt(m))) return parseInt(m) - 1;
+    const months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+    return Math.max(0, months.indexOf(m.toString().toLowerCase().substring(0, 3)));
 };
 
-const getWeekNumber = (date) => {
-    const startOfYear = new Date(date.getFullYear(), 0, 1);
-    const pastDays = (date - startOfYear) / 86400000;
-    return Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
-};
+/**
+ * Determine Fixed Ward
+ * PRIORITY: 1. Live DB (user.ward_id) -> 2. Name Pattern -> 3. Default
+ */
+const determineFixedWard = (user, wardMap) => {
+    if (user.ward_id) return user.ward_id;
 
-// --- HELPER: PICK A WARD BASED ON SERVICE ---
-const getAssignedWard = (userService) => {
-    let pool = [];
+    const name = (user.full_name || "").toUpperCase();
+    const svc = (user.service || "").toUpperCase();
 
-    if (userService === 'Acute') pool = WARD_POOLS.Acute;
-    else if (userService === 'Onco') pool = WARD_POOLS.Onco;
-    else pool = WARD_POOLS.General; // PAME, CE, etc.
-
-    // Pick random ward from the allowed pool
-    const randomIndex = Math.floor(Math.random() * pool.length);
-    return pool[randomIndex];
+    if (svc === 'PAME') {
+        if (name.includes("86")) return wardMap.W86;
+        if (name.includes("31")) return wardMap.W31;
+        if (name.includes("75")) return wardMap.W75;
+        if (name.includes("66")) return wardMap.W66;
+        if (name.includes("62") || name.includes("RESP")) return wardMap.W62;
+        if (name.includes("56")) return wardMap.W56;
+        return wardMap.W86;
+    }
+    if (svc === 'ACUTE' || svc === 'NEONATES' || name.includes("NEO")) {
+        if (name.includes("65")) return wardMap.W65;
+        if (name.includes("CICU")) return wardMap.CICU;
+        if (name.includes("NEO")) return wardMap.NICU;
+        return wardMap.W65;
+    }
+    if (svc === 'ONCO') {
+        if (name.includes("ONCO B") || name.includes("ONCO D") || name.includes("75")) return wardMap.W75;
+        return wardMap.ONCO_76;
+    }
+    if (svc === 'PAS') {
+        if (name.includes("85")) return wardMap.PAS_85;
+        if (name.includes("55")) return wardMap.PAS_55;
+        return wardMap.PAS_85;
+    }
+    return wardMap.CE;
 };
 
 // ==========================================
-// 2. THE ENGINE
+// 3. MAIN ENGINE
 // ==========================================
-async function generateRoster(month, year, rawStaffList, existingShifts) {
-    console.log(`Starting Safe Auto-Fill for ${month} ${year}...`);
+async function generateRoster(month, year, dbUsers, dbHistory, dbWards, dbShiftTypes) {
+    console.log(`Starting Roster Engine for ${month}/${year}...`);
 
-    // --- STEP A: PREPARE STAFF ---
-    const activeStaff = rawStaffList.filter(u => u.service && u.service !== 'null');
-    
-    const staffByService = {
-        Onco: activeStaff.filter(u => u.service === 'Onco'),
-        PAS: activeStaff.filter(u => u.service === 'PAS'),
-        CE: activeStaff.filter(u => u.service === 'CE'),
-        PAME: activeStaff.filter(u => u.service === 'PAME'),
-        Acute: activeStaff.filter(u => u.service === 'Acute'),
-        Neonates: activeStaff.filter(u => u.service === 'Neonates'),
+    if (!dbWards || !dbShiftTypes) throw new Error("Missing Reference Tables!");
+    if (!dbUsers || dbUsers.length === 0) throw new Error("No Users provided!");
+
+    // 1. Map IDs
+    const RRT_TYPE_ID = getShiftId(dbShiftTypes, 'RRT'); 
+
+    const WARD_IDS = {
+        CE: getWardId(dbWards, "CE") || 1,
+        PAS_85: getWardId(dbWards, "85"),
+        PAS_55: getWardId(dbWards, "55"),
+        ONCO_76: getWardId(dbWards, "76"),
+        W75: getWardId(dbWards, "75"),
+        CICU: getWardId(dbWards, "CICU"),
+        NICU: getWardId(dbWards, "NICU"),
+        W65: getWardId(dbWards, "65"),
+        W66: getWardId(dbWards, "66"),
+        W62: getWardId(dbWards, "62"),
+        W56: getWardId(dbWards, "56"),
+        W31: getWardId(dbWards, "31"),
+        W86: getWardId(dbWards, "86")
     };
 
-    let rosterMap = {};
-    let nurseStats = {};
+    // 2. Initialize Stats
+    let stats = {};
+    dbUsers.forEach(u => {
+        let svc = (u.service || "").toUpperCase();
+        if (u.full_name.toUpperCase().includes("NEO")) svc = "NEONATES";
 
-    // Initialize Stats
-    activeStaff.forEach(n => {
-        nurseStats[n.user_id] = { totalShifts: 0, weekendShifts: 0, consecutiveDays: 0 };
+        stats[u.user_id] = { 
+            consecutive: 0,
+            nnjCount: 0, 
+            rrtCount: 0, 
+            nhomeCount: 0, // NEW
+            gpapnCount: 0, // NEW
+            khomeCount: 0, // NEW
+            amCount: 0, 
+            pmCount: 0, 
+            fixedWardId: determineFixedWard(u, WARD_IDS),
+            service: svc
+        };
     });
 
-    // --- STEP B: LOAD EXISTING SHIFTS (Crucial for "Gap Filling") ---
-    // We load your manual shifts first so the engine works AROUND them.
-    existingShifts.forEach(s => {
-        const d = s.shift_date.includes('T') ? s.shift_date.split('T')[0] : s.shift_date;
+    // 3. Load History
+    let rosterMap = {}; 
+    dbHistory.forEach(s => {
+        const d = s.shift_date instanceof Date ? toDateStr(s.shift_date) : s.shift_date.substring(0, 10);
+        
         if (!rosterMap[d]) rosterMap[d] = {};
-        
-        // Lock this shift in
-        rosterMap[d][s.user_id] = { code: s.shift_code, wardId: s.ward_id, isExisting: true };
+        rosterMap[d][s.user_id] = { shiftId: s.shift_type_id, wardId: s.ward_id, existing: true };
 
-        // Update stats so the math stays correct
-        // (e.g. If you manually assigned 3 shifts, we count them so they don't get overworked)
-        if (nurseStats[s.user_id]) {
-            if (!['RD', 'DO', 'MC', 'AL', 'HL', 'PH'].includes(s.shift_code)) {
-                nurseStats[s.user_id].totalShifts++;
-                nurseStats[s.user_id].consecutiveDays++;
-            } else {
-                nurseStats[s.user_id].consecutiveDays = 0; 
-            }
+        const shiftCode = dbShiftTypes.find(t => t.shift_type_id === s.shift_type_id)?.shift_code || 'OFF';
+        
+        // Stats Update
+        if (shiftCode === 'NNJ') stats[s.user_id].nnjCount++;
+        if (shiftCode === 'RRT') stats[s.user_id].rrtCount++;
+        if (shiftCode === 'NHOME') stats[s.user_id].nhomeCount++;
+        if (shiftCode === 'KHOME') stats[s.user_id].khomeCount++;
+        if (shiftCode === 'GPAPN') stats[s.user_id].gpapnCount++;
+        if (shiftCode === 'AM') stats[s.user_id].amCount++;
+        if (shiftCode === 'PM') stats[s.user_id].pmCount++;
+
+        // Reset counters on Rest Days
+        if (['OFF','RD','AL','MC','HL'].includes(shiftCode) || s.shift_type_id === 14) {
+            if(stats[s.user_id]) stats[s.user_id].consecutive = 0;
+        } else {
+            if(stats[s.user_id]) stats[s.user_id].consecutive++;
         }
     });
 
-    const monthIndex = new Date(`${month} 1, ${year}`).getMonth();
-    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const isAvailable = (uid, date) => !rosterMap[date]?.[uid] && stats[uid].consecutive < MAX_CONSECUTIVE_DAYS;
 
-    // Helper: Safely Assign Shift (Won't overwrite manual work)
-    const setShift = (dateStr, userId, code, wardId) => {
-        if (!rosterMap[dateStr]) rosterMap[dateStr] = {};
+    const setShift = (date, uid, code, wardIdOverride = null) => {
+        if (!rosterMap[date]) rosterMap[date] = {};
+        if (rosterMap[date][uid]) return; 
+
+        const shiftId = getShiftId(dbShiftTypes, code);
         
-        // 🔒 SAFETY LOCK: If something is already here (Manual or Auto), DO NOT touch it.
-        if (rosterMap[dateStr][userId]) return; 
-
-        rosterMap[dateStr][userId] = { code, wardId, isExisting: false };
-
-        if (code !== SHIFTS.RD) {
-            nurseStats[userId].totalShifts++;
-            nurseStats[userId].consecutiveDays++;
-        } else {
-            nurseStats[userId].consecutiveDays = 0;
-        }
-    };
-
-    // Helper: Check Availability (Respects manual shifts)
-    const isAvailable = (userId, dateStr) => {
-        if (rosterMap[dateStr]?.[userId]) return false; // Already busy
-        if (nurseStats[userId].consecutiveDays >= MAX_CONSECUTIVE_DAYS) return false;
-        return true;
-    };
-
-    // ============================================================
-    // ROSTER GENERATION LAYERS
-    // ============================================================
-    for (let day = 1; day <= daysInMonth; day++) {
-        const dateObj = new Date(year, monthIndex, day, 12);
-        const dateStr = toDateString(dateObj);
-        const weekNum = getWeekNumber(dateObj);
-        const dayOfWeek = dateObj.getDay(); 
-        const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
-
-        // --- LAYER 1: STRICT ROLES (PAS & ONCO) ---
-        if (isWeekend) {
-            // Weekends: Use "General" pool location for RDs
-            staffByService.PAS.forEach(u => setShift(dateStr, u.user_id, SHIFTS.RD, WARDS.CE));
-            staffByService.Onco.forEach(u => setShift(dateStr, u.user_id, SHIFTS.RD, WARDS.CE));
-        } else {
-            // PAS Logic (Fixed Wards 85/55)
-            staffByService.PAS.forEach((u, idx) => {
-                if (isAvailable(u.user_id, dateStr)) {
-                    setShift(dateStr, u.user_id, SHIFTS.AM, idx === 0 ? WARDS.PAS_85 : WARDS.PAS_55);
-                }
-            });
-            // Onco Leader (Fixed W76)
-            if (staffByService.Onco.length > 0) {
-                const apnA = staffByService.Onco[0];
-                if (isAvailable(apnA.user_id, dateStr)) setShift(dateStr, apnA.user_id, SHIFTS.STR, WARDS.ONCO_76);
-            }
-        }
-
-        // --- LAYER 2: SPECIALIZED TASKS ---
-        
-        // A. NNJ@Home (Neonates) -> Fixed Ward: NICU
-        const neonatesTeam = staffByService.Neonates;
-        if (neonatesTeam.length > 0) {
-            const activeNeonatesIdx = weekNum % neonatesTeam.length; 
-            const activeNeonate = neonatesTeam[activeNeonatesIdx];
-            if (isAvailable(activeNeonate.user_id, dateStr)) {
-                setShift(dateStr, activeNeonate.user_id, SHIFTS.NHOME, WARDS.NICU);
-            }
-        }
-
-        // B. RRT (Weekdays) - STRICT ALTERNATION
-        if (!isWeekend) {
-            const priorityOrder = [staffByService.Acute, staffByService.CE, staffByService.Onco, staffByService.PAS, staffByService.PAME];
-            let rrtAssigned = false;
+        if(shiftId) {
+            const finalWard = wardIdOverride || stats[uid].fixedWardId;
+            rosterMap[date][uid] = { shiftId, wardId: finalWard, existing: false };
             
-            // 1. Calculate Yesterday's Date
-            const yesterdayObj = new Date(dateObj);
-            yesterdayObj.setDate(dateObj.getDate() - 1);
-            const yesterdayStr = toDateString(yesterdayObj);
+            const isRest = (code === 'OFF' || code === 'RD' || shiftId === 14);
 
-            for (const group of priorityOrder) {
-                if (rrtAssigned) break;
-
-                // 2. Filter available people first
-                let candidates = group.filter(u => isAvailable(u.user_id, dateStr));
-
-                // 3. CHECK HISTORY: Did anyone in this group do RRT yesterday?
-                // We look at the rosterMap for yesterday to see if anyone here had code 'RRT'
-                const tiredPerson = candidates.find(u => 
-                    rosterMap[yesterdayStr]?.[u.user_id]?.code === SHIFTS.RRT
-                );
-
-                if (tiredPerson) {
-                    // If Justin did RRT yesterday, put him at the VERY END of the list
-                    candidates = candidates.filter(u => u.user_id !== tiredPerson.user_id); // Remove him
-                    candidates.push(tiredPerson); // Add him back at the end (as backup only)
-                } else {
-                    // If nobody worked yesterday (or it was Sunday), just shuffle randomly to be fair
-                    candidates.sort(() => Math.random() - 0.5);
-                }
-
-                // 4. Assign to the first person in our smart list
-                if (candidates.length > 0) {
-                    setShift(dateStr, candidates[0].user_id, SHIFTS.RRT, WARDS.CE);
-                    rrtAssigned = true;
-                }
-            }
-        }
-
-        // C. NNJ Clinic (Sunday) -> Fixed Location: General/CE
-        if (dayOfWeek === 0) { 
-            const nnjPool = [...staffByService.PAME, ...staffByService.CE, ...staffByService.Neonates];
-            nnjPool.sort((a, b) => nurseStats[a.user_id].weekendShifts - nurseStats[b.user_id].weekendShifts);
-            let assignedCount = 0;
-            for (const u of nnjPool) {
-                if (assignedCount >= 2) break;
-                if (isAvailable(u.user_id, dateStr)) {
-                    setShift(dateStr, u.user_id, SHIFTS.NNJ, WARDS.CE);
-                    nurseStats[u.user_id].weekendShifts++;
-                    assignedCount++;
-                }
-            }
-        }
-
-        // --- LAYER 3: GENERAL COVERAGE (REAL WARD DISTRIBUTION) ---
-        const remainingStaff = activeStaff.filter(u => isAvailable(u.user_id, dateStr));
-        remainingStaff.sort(() => Math.random() - 0.5);
-
-        remainingStaff.forEach(u => {
-            // Weekend Skeleton Logic
-            if (isWeekend) {
-                if (nurseStats[u.user_id].weekendShifts >= 4 || Math.random() > TARGET_WEEKEND_PERCENTAGE) {
-                    setShift(dateStr, u.user_id, SHIFTS.RD, WARDS.CE);
-                    return;
-                }
-            }
-
-            // Assign Shift Type
-            let code = SHIFTS.RD;
-            if (u.service === 'CE') {
-                code = Math.random() > 0.5 ? SHIFTS.AM : SHIFTS.PM;
-            } else if (isWeekend) {
-                code = SHIFTS.AM;
-                nurseStats[u.user_id].weekendShifts++;
+            if (!isRest) {
+                stats[uid].consecutive++;
+                if (code === 'NNJ') stats[uid].nnjCount++;
+                if (code === 'RRT') stats[uid].rrtCount++;
+                if (code === 'NHOME') stats[uid].nhomeCount++;
+                if (code === 'KHOME') stats[uid].khomeCount++;
+                if (code === 'GPAPN') stats[uid].gpapnCount++;
+                if (code === 'AM') stats[uid].amCount++;
+                if (code === 'PM') stats[uid].pmCount++;
             } else {
-                code = Math.random() > 0.4 ? SHIFTS.PM : SHIFTS.AM;
+                stats[uid].consecutive = 0;
             }
+        } else {
+            console.warn(`Warning: Could not find Shift ID for code '${code}'`);
+        }
+    };
 
-            if (code !== SHIFTS.RD) {
-                // Pick a real ward based on their Service
-                const assignedWard = getAssignedWard(u.service);
-                setShift(dateStr, u.user_id, code, assignedWard);
+    // ==========================================
+    // 4. GENERATION LOOP
+    // ==========================================
+    const mIdx = getMonthIndex(month);
+    const daysInMonth = new Date(year, mIdx + 1, 0).getDate();
+
+    // --- PHASE 0: WEEKLY BLOCKS (NHOME) ---
+    // NHOME: 2 Neonates APNs cover 1 week each. Fallback to PAME.
+    const neonatesTeam = dbUsers.filter(u => stats[u.user_id].service === 'NEONATES');
+    const pameTeam = dbUsers.filter(u => stats[u.user_id].service === 'PAME');
+    // Combine for pool, prioritize Neonates
+    const nhomePool = [...neonatesTeam, ...pameTeam]; 
+
+    // We process week by week
+    let currentWeekStart = 1;
+    let poolIndex = 0; // Simple rotation index
+
+    while (currentWeekStart <= daysInMonth) {
+        let end = Math.min(currentWeekStart + 6, daysInMonth);
+        
+        // Pick one APN for this whole week
+        // Note: Real rotation should check previous months, but here we just rotate per week in this batch
+        const assignedAPN = nhomePool[poolIndex % nhomePool.length];
+        
+        if (assignedAPN) {
+            for (let d = currentWeekStart; d <= end; d++) {
+                const dDate = new Date(year, mIdx, d);
+                const dStr = toDateStr(dDate);
+                // Try to assign NHOME if available.
+                // If they are busy (e.g. Leave), we might skip specific days, 
+                // but usually Weekly Block implies strict assignment.
+                if (isAvailable(assignedAPN.user_id, dStr)) {
+                    setShift(dStr, assignedAPN.user_id, 'NHOME', WARD_IDS.NICU);
+                }
+            }
+        }
+        currentWeekStart += 7;
+        poolIndex++;
+    }
+
+    // --- PHASE 1: DAILY LOOP ---
+    for (let day = 1; day <= daysInMonth; day++) {
+        const dateObj = new Date(year, mIdx, day);
+        const dateStr = toDateStr(dateObj);
+        
+        // RRT Logic Helper: Get yesterday
+        const yesterday = new Date(year, mIdx, day - 1);
+        const yesterdayStr = toDateStr(yesterday);
+
+        const dow = dateObj.getDay(); 
+        const isWeekend = (dow === 0 || dow === 6);
+
+        // --- LAYER 1: SPECIAL DAILY SHIFTS ---
+        
+        // A. GPAPN (Wednesdays only, PAME)
+        if (dow === 3) { // Wednesday
+            // Filter PAME from specific wards (75, 56, 62, 66)
+            let gpCandidates = dbUsers.filter(u => {
+                const s = stats[u.user_id];
+                if (s.service !== 'PAME') return false;
+                if (!isAvailable(u.user_id, dateStr)) return false;
+                
+                // Specific Wards check based on your note
+                const wId = s.fixedWardId;
+                return (wId === WARD_IDS.W75 || wId === WARD_IDS.W56 || wId === WARD_IDS.W62 || wId === WARD_IDS.W66);
+            });
+            
+            // Sort by fairness
+            gpCandidates.sort((a, b) => stats[a.user_id].gpapnCount - stats[b.user_id].gpapnCount);
+
+            if (gpCandidates[0]) {
+                setShift(dateStr, gpCandidates[0].user_id, 'GPAPN', WARD_IDS.CE);
+            }
+        }
+
+        // B. KHOME (Daily, 1 PAME APN)
+        // Can overlap NHOME, but our engine assigns one primary shift.
+        // We look for a PAME APN available.
+        let khomeCandidates = dbUsers.filter(u => 
+            stats[u.user_id].service === 'PAME' && 
+            isAvailable(u.user_id, dateStr)
+        );
+        khomeCandidates.sort((a, b) => stats[a.user_id].khomeCount - stats[b.user_id].khomeCount);
+        if (khomeCandidates[0]) {
+            // Note: KHOME ward ID might be dynamic, but assuming Fixed Ward for now
+            setShift(dateStr, khomeCandidates[0].user_id, 'KHOME', null);
+        }
+
+        // C. NNJ (Sundays) - 2 APNs
+        if (dow === 0) {
+            let nnjCandidates = dbUsers.filter(u => 
+                ['CE','PAME','ACUTE','NEONATES'].includes(stats[u.user_id].service) && 
+                isAvailable(u.user_id, dateStr)
+            );
+            nnjCandidates.sort((a, b) => stats[a.user_id].nnjCount - stats[b.user_id].nnjCount);
+            
+            if (nnjCandidates[0]) setShift(dateStr, nnjCandidates[0].user_id, 'NNJ', WARD_IDS.CE);
+            if (nnjCandidates[1]) setShift(dateStr, nnjCandidates[1].user_id, 'NNJ', WARD_IDS.CE);
+        }
+
+        // D. SMART RRT (Weekdays)
+        if (!isWeekend) {
+            const eligibleServices = ['ACUTE', 'CE', 'ONCO', 'PAS', 'PAME', 'NEONATES'];
+            
+            let rrtCandidates = dbUsers.filter(u => {
+                const s = stats[u.user_id];
+                if (!eligibleServices.includes(s.service)) return false;
+                if (!isAvailable(u.user_id, dateStr)) return false;
+
+                const prevShift = rosterMap[yesterdayStr]?.[u.user_id];
+                if (prevShift && prevShift.shiftId === RRT_TYPE_ID) return false;
+                
+                return true;
+            });
+
+            rrtCandidates.sort((a, b) => {
+                const countDiff = stats[a.user_id].rrtCount - stats[b.user_id].rrtCount;
+                if (countDiff !== 0) return countDiff; 
+
+                const aIsPriority = RRT_PRIORITY_TEAMS.includes(stats[a.user_id].service);
+                const bIsPriority = RRT_PRIORITY_TEAMS.includes(stats[b.user_id].service);
+                
+                if (aIsPriority && !bIsPriority) return -1; 
+                if (!aIsPriority && bIsPriority) return 1;  
+                return Math.random() - 0.5;
+            });
+
+            if (rrtCandidates.length > 0) {
+                setShift(dateStr, rrtCandidates[0].user_id, 'RRT', WARD_IDS.CE);
+            }
+        }
+
+        // --- LAYER 2: FIXED ROLES ---
+        dbUsers.forEach(u => {
+            if (!isAvailable(u.user_id, dateStr)) return;
+            const name = u.full_name;
+            const svc = stats[u.user_id].service;
+            
+            if (svc === 'ONCO') {
+                if (name.includes("Onco A")) setShift(dateStr, u.user_id, isWeekend ? 'OFF' : '8-5');
+                else if (name.includes("Onco C") && dow === 2) setShift(dateStr, u.user_id, 'PM');
+            }
+            if (svc === 'PAME') {
+                if (name.includes("31")) setShift(dateStr, u.user_id, isWeekend ? 'OFF' : '8-5'); 
             }
         });
 
-        // --- LAYER 4: CLEANUP ---
-        activeStaff.forEach(u => {
+        // --- LAYER 3: RANDOM FILL ---
+        dbUsers.forEach(u => {
+            if (!isAvailable(u.user_id, dateStr)) return;
+
+            const svc = stats[u.user_id].service;
+            const allowedShifts = SERVICE_PROTOCOLS[svc] || ['AM']; 
+            let shiftCode = 'AM';
+
+            if (isWeekend) {
+                if (svc === 'PAS') shiftCode = 'OFF';
+                else shiftCode = (Math.random() > 0.6) ? 'OFF' : 'AM';
+            } else {
+                if (allowedShifts.includes('AM') && allowedShifts.includes('PM')) {
+                    if (stats[u.user_id].amCount > stats[u.user_id].pmCount) shiftCode = 'PM';
+                    else if (stats[u.user_id].pmCount > stats[u.user_id].amCount) shiftCode = 'AM';
+                    else shiftCode = Math.random() > 0.5 ? 'AM' : 'PM';
+                } else {
+                    shiftCode = allowedShifts[0];
+                }
+            }
+            setShift(dateStr, u.user_id, shiftCode);
+        });
+
+        // --- LAYER 4: REST DAY CLEANUP ---
+        dbUsers.forEach(u => {
             if (!rosterMap[dateStr]?.[u.user_id]) {
-                setShift(dateStr, u.user_id, SHIFTS.RD, WARDS.CE);
+                setShift(dateStr, u.user_id, 'OFF', null); 
             }
         });
     }
 
-    // --- STEP C: EXPORT ONLY NEW SHIFTS ---
-    const newShiftsArray = [];
+    // --- 5. EXPORT ---
+    const newShifts = [];
     Object.keys(rosterMap).forEach(date => {
-        Object.keys(rosterMap[date]).forEach(userId => {
-            const assignment = rosterMap[date][userId];
-            // Only save if it was NOT existing (i.e., newly generated)
-            if (assignment.isExisting === false) {
-                newShiftsArray.push({
-                    user_id: userId,
+        Object.keys(rosterMap[date]).forEach(uid => {
+            const s = rosterMap[date][uid];
+            if (!s.existing && s.shiftId) {
+                newShifts.push({
                     shift_date: date,
-                    shift_code: assignment.code,
-                    ward_id: assignment.wardId
+                    user_id: uid,
+                    shift_type_id: s.shiftId,
+                    ward_id: s.wardId, 
+                    roster_id: null
                 });
             }
         });
     });
 
-    console.log(`Generated ${newShiftsArray.length} NEW shifts.`);
-    return newShiftsArray;
+    return newShifts;
 }
 
 module.exports = { generateRoster };

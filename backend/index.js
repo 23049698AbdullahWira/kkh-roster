@@ -932,7 +932,18 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
   await connection.beginTransaction();
 
   try {
+    console.log(`\n--- Starting Auto-Fill for Roster ${rosterId} (${month}/${year}) ---`);
+
+    // 1. Fetch Users (APN Role)
+    // NOTE: If this returns 0, check if your database role is 'apn' (lowercase) or 'APN'
     const [users] = await connection.query("SELECT * FROM users WHERE role = 'APN'");
+    console.log(`✅ Users Found: ${users.length}`);
+
+    if (users.length === 0) {
+      throw new Error("No APN users found. Check 'role' in users table.");
+    }
+
+    // 2. Fetch History (Existing Shifts)
     const [existingShifts] = await connection.query(
       `SELECT s.*, sd.shift_code 
        FROM shifts s 
@@ -940,45 +951,64 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
        WHERE s.roster_id = ?`,
       [rosterId]
     );
-    const [shiftTypes] = await connection.query("SELECT shift_type_id, shift_code FROM shift_desc");
+    console.log(`✅ Existing Shifts in DB: ${existingShifts.length}`);
 
-    const typeMap = {};
-    shiftTypes.forEach(t => typeMap[t.shift_code] = t.shift_type_id);
+    // 3. Fetch Shift Types (Required for Engine)
+    const [shiftTypes] = await connection.query("SELECT * FROM shift_desc");
 
-    const newAssignments = await generateRoster(month, year, users, existingShifts);
+    // 4. Fetch Wards (Required for Engine)
+    const [wards] = await connection.query("SELECT * FROM ward");
 
+    // 5. Run the Engine
+    // Order: month, year, users, history, wards, shiftTypes
+    const newAssignments = await generateRoster(
+        month, 
+        year, 
+        users, 
+        existingShifts, 
+        wards, 
+        shiftTypes
+    );
+    console.log(`✅ Engine Generated: ${newAssignments.length} new shifts`);
+
+    // 6. Prepare Bulk Insert
     const valuesToInsert = [];
     const newlyAddedSet = new Set();
 
     for (const item of newAssignments) {
+      // Validate Data Integrity
+      if (!item.user_id || !item.shift_type_id || !item.shift_date) {
+          console.warn("⚠️ Skipping invalid assignment:", item);
+          continue;
+      }
+
+      // Create unique key to prevent duplicates in this batch
       const shiftKey = `${item.user_id}-${item.shift_date}`;
+      
+      // Double-check against DB (Safety Net)
       const existsInDB = existingShifts.find(e => {
         const dbDate = new Date(e.shift_date);
-        const dbDateStr = dbDate.toLocaleDateString('en-CA');
+        // Adjust for timezone if necessary, but string comparison is usually safest
+        const dbDateStr = dbDate.toISOString().split('T')[0]; 
         return e.user_id === item.user_id && dbDateStr === item.shift_date;
       });
 
-      const existsInBatch = newlyAddedSet.has(shiftKey);
-
-      if (!existsInDB && !existsInBatch) {
-        const typeId = typeMap[item.shift_code];
-        const finalWardId = item.ward_id || null;
-
-        if (typeId) {
+      if (!existsInDB && !newlyAddedSet.has(shiftKey)) {
           valuesToInsert.push([
             item.user_id,
             rosterId,
-            typeId,
+            item.shift_type_id,
             item.shift_date,
-            finalWardId
+            item.ward_id || null // Allow NULL if no ward required
           ]);
           newlyAddedSet.add(shiftKey);
-        }
       }
     }
 
+    // 7. Execute Insert (CRITICAL FIX: Only if data exists)
     let addedCount = 0;
     if (valuesToInsert.length > 0) {
+      console.log(`📝 Inserting ${valuesToInsert.length} shifts into database...`);
       const [result] = await connection.query(
         `INSERT IGNORE INTO shifts 
          (user_id, roster_id, shift_type_id, shift_date, ward_id) 
@@ -986,17 +1016,21 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
         [valuesToInsert]
       );
       addedCount = result.affectedRows;
+    } else {
+      console.log("ℹ️ No new shifts to insert (Roster is full or Engine returned duplicates).");
     }
 
     await connection.commit();
-    connection.release();
-
+    console.log("--- Auto-Fill Complete ---\n");
+    
     res.json({ success: true, message: `Auto-fill complete! Added ${addedCount} shifts.` });
+
   } catch (err) {
     await connection.rollback();
-    connection.release();
-    console.error("Auto-Fill Error:", err);
+    console.error("❌ Auto-Fill Error:", err);
     res.status(500).json({ error: err.message });
+  } finally {
+    connection.release();
   }
 });
 
