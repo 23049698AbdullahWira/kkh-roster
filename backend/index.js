@@ -72,10 +72,11 @@ app.get('/test-db', async (req, res) => {
 
 // ================= User Routes =================
 
-// GET All Users (excluding Superadmin)
+// GET All Users (excluding Superadmin AND filtering only Active users)
 app.get('/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM users WHERE role != "SUPERADMIN"');
+    // MODIFIED: Added 'AND status = "Active"' to the query
+    const [rows] = await pool.query('SELECT * FROM users WHERE role != "SUPERADMIN" AND status = "Active"');
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -634,7 +635,7 @@ app.get('/shift-distribution', async (req, res) => {
       queryParams = [targetYear];
     }
 
-    const query = `
+const query = `
       SELECT 
         u.user_id, 
         u.full_name, 
@@ -647,7 +648,7 @@ app.get('/shift-distribution', async (req, res) => {
         ${dateCondition}
       LEFT JOIN shift_desc sd
         ON s.shift_type_id = sd.shift_type_id
-      WHERE u.role = 'APN'
+      WHERE u.role = 'APN' AND u.status = 'Active' 
       ORDER BY u.full_name ASC
     `;
 
