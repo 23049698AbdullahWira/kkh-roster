@@ -1463,6 +1463,61 @@ app.get('/api/rosters/published', async (req, res) => {
 
 // --- END: NEW ENDPOINT ---
 
+// ==================================================================
+//  NEW DEDICATED PROFILE ENDPOINTS (Updated with Avatar Support)
+// ==================================================================
+
+// 1. GET Profile Data
+app.get('/api/profile/:id', async (req, res) => {
+  const userId = req.params.id;
+  try {
+    const [rows] = await pool.query(
+      `SELECT user_id, full_name, email, contact, avatar_url 
+       FROM users WHERE user_id = ?`,
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Error fetching profile:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. PUT Profile Data (Now includes avatar_url)
+app.put('/api/profile/:id', async (req, res) => {
+  const { id } = req.params;
+  // Added avatar_url to the destructuring
+  const { full_name, email, contact, avatar_url } = req.body;
+
+  try {
+    // Added avatar_url to the SQL Update
+    const query = `
+      UPDATE users 
+      SET full_name = ?, email = ?, contact = ?, avatar_url = ? 
+      WHERE user_id = ?
+    `;
+
+    const [result] = await pool.query(query, [full_name, email, contact, avatar_url, id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User not found or no changes made' });
+    }
+
+    res.json({ 
+      message: 'Profile updated successfully',
+      user: { user_id: id, full_name, email, contact, avatar_url }
+    });
+
+  } catch (err) {
+    console.error("Error updating profile:", err);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
 // ================= Action Logs =================
 app.get('/actionlogs', async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 6;
