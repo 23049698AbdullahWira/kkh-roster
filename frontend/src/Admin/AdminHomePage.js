@@ -3,8 +3,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../Nav/navbar.js';
 
-function AdminHome({ user }) {
-  const [logs, setLogs] = useState([]);
+function AdminHome({ user, onGoHome, onGoRoster, onGoStaff, onGoShift, onGoManageLeave, onLogout }) {
+  const goRoster = onGoRoster;
+  const goNewStaff = onGoStaff;
+  const goManageLeave = onGoManageLeave;
+  const goStaffPreferences = onGoShift;
 
   // Dashboard data – now driven by real APIs
   const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
@@ -18,7 +21,6 @@ function AdminHome({ user }) {
   // how many logs to show in the UI
   const [visibleLogCount, setVisibleLogCount] = useState(6);
 
-  const navigate = useNavigate();
 
   useEffect(() => {
     async function fetchAll() {
@@ -84,11 +86,7 @@ function AdminHome({ user }) {
     return '/calendar.png';
   };
 
-  // Navigation helpers (Quick Links + Activity Log)
-  const goRoster = () => navigate('/admin/rosters');
-  const goNewStaff = () => navigate('/admin/staff');
-  const goManageLeave = () => navigate('/admin/manage-leave');
-  const goStaffPreferences = () => navigate('/admin/shift-distribution');
+  const [logs, setLogs] = useState([]);
 
   // Only some log types are clickable; others are plain rows
   const getLogClickHandler = (type) => {
@@ -129,7 +127,15 @@ function AdminHome({ user }) {
         fontFamily: 'Inter, sans-serif',
       }}
     >
-      <Navbar active="home" />
+      <Navbar
+  active="home"
+  onGoHome={onGoHome}
+  onGoRoster={onGoRoster}
+  onGoStaff={onGoStaff}
+  onGoShift={onGoShift}
+  onLogout={onLogout}
+/>
+
 
       <main
         style={{

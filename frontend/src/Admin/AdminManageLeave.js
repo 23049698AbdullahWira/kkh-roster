@@ -351,18 +351,28 @@ const styles = {
     alignItems: 'center',
     flex: 1,
   },
-  header: {
+header: {
     width: '100%',
     display: 'flex',
-    justifyContent: 'space-between',
+    // CHANGE THIS: 'space-between' pushes the first item (Back) to the left 
+    // and the last item (Actions) to the right.
+    justifyContent: 'space-between', 
     alignItems: 'center',
     marginBottom: 24,
+    position: 'relative', 
+    height: 40,
   },
   title: {
     fontSize: 28,
     fontWeight: 800,
     margin: 0,
     textAlign: 'center',
+    // Change 3: absolutely center the title
+    position: 'absolute',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    // Change 4: Prevent title from overlapping buttons on small screens
+    whiteSpace: 'nowrap', 
   },
   backButton: {
     display: 'inline-flex',

@@ -56,12 +56,20 @@ function App() {
   }, []);
 
   const navProps = {
-    onGoHome: () => {},
-    onGoRoster: () => {},
-    onGoStaff: () => {},
-    onGoShift: () => {},
-    onLogout: handleLogout,
-  };
+  onGoHome: () => navigate('/admin/home'),
+  onGoRoster: () => navigate('/admin/rosters'),
+  onGoStaff: () => navigate('/admin/staff'),
+  onGoShift: () => navigate('/admin/shift-distribution'),
+  onGoManageLeave: () => navigate('/admin/manage-leave'),
+  onLogout: handleLogout,
+};
+
+
+  const handleUserGoHome = () => navigate('/user/home');
+  const handleUserGoRoster = () => navigate('/user/roster');
+  const handleUserGoShiftPref = () => navigate('/user/preferences');
+  const handleUserGoLeave = () => navigate('/user/leave');
+  const handleUserGoAccount = () => navigate('/user/account');
 
   return (
     <Routes>
@@ -88,13 +96,10 @@ function App() {
         path="/admin/home"
         element={
           <AdminHomePage
-            {...navProps}
-            user={loggedInUser}
-            onStartNewRoster={() => {}}
-            onAddNewStaff={() => {}}
-            onManageLeave={() => {}}
-            onStaffPreferences={() => {}}
-          />
+  {...navProps}
+  user={loggedInUser}
+/>
+
         }
       />
       <Route
@@ -153,12 +158,19 @@ function App() {
         element={<AdminNewAccounts {...navProps} />}
       />
 
+      
+
       {/* User routes */}
 <Route
   path="/user/home"
   element={
     <UserHomePage
       user={loggedInUser}
+      onGoHome={handleUserGoHome}
+      onGoRoster={handleUserGoRoster}
+      onGoShiftPreference={handleUserGoShiftPref}
+      onGoApplyLeave={handleUserGoLeave}
+      onGoAccount={handleUserGoAccount}
       onLogout={handleLogout}
     />
   }
@@ -167,10 +179,16 @@ function App() {
   path="/user/roster"
   element={
     <UserRoster
+      onGoHome={() => navigate('/user/home')}
+      onGoRoster={() => navigate('/user/roster')}
+      onGoShiftPreference={() => navigate('/user/preferences')}
+      onGoApplyLeave={() => navigate('/user/leave')}
+      onGoAccount={() => navigate('/user/account')}
       onLogout={handleLogout}
     />
   }
 />
+
 <Route
   path="/user/preferences"
   element={

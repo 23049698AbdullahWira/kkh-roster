@@ -1,30 +1,43 @@
-import React, { useState, useEffect } from 'react';
-import Navbar from '../Nav/navbar';
+import React, { useState, useEffect, useCallback } from 'react';
+import Navbar from '../Nav/navbar.js';
 
-function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout, }) {
+// --- HELPER: Status Colors ---
+// Interprets 'Heavy' as 'High Count' and 'Light' as 'Low Count'
+const getWorkloadStatus = (total, targetVal) => {
+  const diff = total - targetVal;
+  if (diff === 0) return { label: 'Balanced', color: '#166534', bg: '#DCFCE7' }; // Green
+  if (diff > 0) return { label: `High (+${diff})`, color: '#991B1B', bg: '#FEE2E2' }; // Red
+  return { label: `Low (${diff})`, color: '#854D0E', bg: '#FEF9C3' }; // Yellow/Brown
+};
+
+function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }) {
   // --- 1. STATE ---
   const [shiftData, setShiftData] = useState([]);
   const [availableYears, setAvailableYears] = useState([]); 
   const [isLoading, setIsLoading] = useState(true);
   
-  // Filter States
+  // Filters
   const [year, setYear] = useState(''); 
-  const [shiftType] = useState('NNJ'); 
-  const [target, setTarget] = useState(2);
+  const [shiftType, setShiftType] = useState('NNJ'); // Now Dynamic: 'NNJ' or 'AL'
+  const [target, setTarget] = useState(2); 
 
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);    
+  const itemsPerPage = 6;
 
-  // --- 2. HELPER: Workload Calculation ---
-  const getWorkloadStatus = (total, targetVal) => {
-    const diff = total - targetVal;
-    if (diff === 0) return { label: 'Balanced', color: '#166534', bg: '#DCFCE7' }; 
-    if (diff > 0) return { label: `Heavy (+${diff})`, color: '#991B1B', bg: '#FEE2E2' };
-    return { label: `Light (${diff})`, color: '#854D0E', bg: '#FEF9C3' };
+  // --- 2. HANDLER: Switch Shift Type ---
+  const handleShiftTypeChange = (e) => {
+    const newType = e.target.value;
+    setShiftType(newType);
+    // Auto-set target based on type
+    if (newType === 'AL') {
+      setTarget(14);
+    } else {
+      setTarget(2);
+    }
   };
 
-  // --- 3. FETCH AVAILABLE YEARS (Initial Load) ---
+  // --- 3. EFFECT: Fetch Available Years ---
   useEffect(() => {
     const fetchYears = async () => {
       try {
@@ -32,9 +45,12 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
         const dbYears = await response.json(); 
         
         const currentSystemYear = new Date().getFullYear();
-        const nextYear = currentSystemYear + 1; 
+        const maxAllowedYear = currentSystemYear + 1; 
 
-        const uniqueYears = [...new Set([...dbYears, currentSystemYear, nextYear])].sort((a, b) => b - a);
+        const validDbYears = dbYears.filter(y => y <= maxAllowedYear);
+        const uniqueYears = [...new Set([...validDbYears, currentSystemYear, maxAllowedYear])]
+          .sort((a, b) => b - a); 
+
         setAvailableYears(uniqueYears);
 
         if (uniqueYears.includes(currentSystemYear)) {
@@ -54,14 +70,14 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
     fetchYears();
   }, []);
 
-  // --- 4. FETCH TABLE DATA ---
+  // --- 4. EFFECT: Fetch Analysis Data ---
   useEffect(() => {
     if (!year) return; 
 
     setIsLoading(true);
-    // Reset to page 1 when filter changes
-    setCurrentPage(1);
+    setCurrentPage(1); 
 
+    // The backend endpoint remains the same, but we pass the dynamic shiftType ('NNJ' or 'AL')
     const url = `http://localhost:5000/shift-distribution?year=${year}&shiftType=${encodeURIComponent(shiftType)}`;
 
     fetch(url)
@@ -71,15 +87,32 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
       })
       .then(data => {
         const formattedData = data.map(item => {
-          const ph = Number(item.ph_count);
-          const sunday = Number(item.sun_count);
+          
+          let ph = 0;
+          let sunday = 0;
+          let al = 0;
+          let total = 0;
+
+          // Logic for Annual Leave (AL)
+          if (shiftType === 'AL') {
+             al = Number(item.al_count || item.total_count || 0); // Expecting al_count from DB
+             total = al;
+          } 
+          // Logic for NNJ
+          else {
+             ph = Number(item.ph_count || 0);
+             sunday = Number(item.sun_count || 0);
+             total = ph + sunday;
+          }
+
           return {
             id: item.user_id,
-            name: item.full_name,
+            name: item.name || item.full_name || 'Unknown Staff', 
             role: item.role || 'APN',
             ph: ph, 
             sunday: sunday,
-            total: ph + sunday 
+            al: al,
+            total: total 
           };
         });
         setShiftData(formattedData);
@@ -93,37 +126,32 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
 
   }, [year, shiftType]); 
 
-  // --- 5. PAGINATION LOGIC ---
+  // --- 5. CALCULATIONS & PAGINATION ---
+  const totalShifts = shiftData.reduce((sum, row) => sum + row.total, 0);
+  const unbalancedCount = shiftData.filter(row => (row.total - target) !== 0).length;
+
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentData = shiftData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(shiftData.length / itemsPerPage);
 
-  const handleNextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
-  };
+  const handleNextPage = () => { if (currentPage < totalPages) setCurrentPage(prev => prev + 1); };
+  const handlePrevPage = () => { if (currentPage > 1) setCurrentPage(prev => prev - 1); };
 
-  const handlePrevPage = () => {
-    if (currentPage > 1) setCurrentPage(prev => prev - 1);
-  };
-
-  // --- 6. SUMMARY METRICS ---
-  const totalShifts = shiftData.reduce((sum, row) => sum + row.total, 0);
-  const unbalancedCount = shiftData.filter(row => (row.total - target) !== 0).length;
-
-  // --- STYLE CONSTANTS ---
+  // --- 6. RENDER ---
   const gridLayout = '2.5fr 1fr 1fr 1fr 1.5fr';
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', background: '#F3F4F6', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ width: '100%', minHeight: '100vh', background: '#F8F9FA', fontFamily: 'Inter, sans-serif' }}>
       <Navbar active="shift" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout}/>
 
       <main style={{ maxWidth: 1200, margin: '40px auto', padding: '0 32px' }}>
+        
         <h1 style={{ fontSize: 24, fontWeight: 900, marginBottom: 24, color: '#111827' }}>
-          Annual Shift Distribution Analysis
+          Annual Distribution Analysis
         </h1>
 
-        {/* --- FILTER & METRICS SECTION --- */}
+        {/* --- CONTROLS & METRICS CARD --- */}
         <section style={{ 
           background: 'white', 
           borderRadius: 16, 
@@ -134,10 +162,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 40 }}>
             
-            {/* LEFT SIDE: CONTROLS */}
             <div style={{ display: 'flex', gap: 24, flex: 1 }}>
-                
-                {/* Year Control */}
                 <div style={controlGroupStyle}>
                     <label style={labelStyle}>Analysis Year</label>
                     <div style={{ position: 'relative' }}>
@@ -158,15 +183,22 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
                     </div>
                 </div>
 
-                {/* Mode Control (Read Only Badge) */}
                 <div style={controlGroupStyle}>
                     <label style={labelStyle}>Shift Mode</label>
-                    <div style={badgeStyle}>
-                        <span style={{ marginRight: 6 }}>NNJ Analysis</span>
+                    {/* CHANGED: From Div Badge to Select Dropdown */}
+                    <div style={{ position: 'relative' }}>
+                        <select
+                            value={shiftType}
+                            onChange={handleShiftTypeChange}
+                            style={{ ...selectStyle, borderColor: '#FCD34D', backgroundColor: '#FFFBEB', color: '#92400E' }}
+                        >
+                            <option value="NNJ">NNJ Analysis</option>
+                            <option value="AL">Annual Leave</option>
+                        </select>
+                        <div style={{...chevronStyle, color: '#92400E'}}>▼</div>
                     </div>
                 </div>
 
-                {/* Target Control */}
                 <div style={controlGroupStyle}>
                     <label style={labelStyle}>Target Count</label>
                     <div style={inputContainerStyle}>
@@ -181,10 +213,11 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
                 </div>
             </div>
 
-            {/* RIGHT SIDE: METRICS */}
             <div style={{ display: 'flex', gap: 40, paddingLeft: 40, borderLeft: '2px solid #F3F4F6' }}>
                 <div style={{ textAlign: 'right' }}>
-                    <div style={metricLabelStyle}>Total Shifts</div>
+                    <div style={metricLabelStyle}>
+                        {shiftType === 'AL' ? 'Total Leave Days' : 'Total Shifts'}
+                    </div>
                     <div style={metricValueStyle}>
                         {isLoading ? '...' : totalShifts}
                     </div>
@@ -196,27 +229,36 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
                     </div>
                 </div>
             </div>
-
           </div>
         </section>
 
-        {/* --- DATA TABLE SECTION --- */}
+        {/* --- DATA TABLE --- */}
         <section style={{ background: 'white', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-          {/* Table Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '16px 24px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '16px 24px', background: 'white', borderBottom: '1px solid #E5E7EB' }}>
             <div style={headerStyle}>Staff Member</div>
-            <div style={headerStyle}>PH Count</div>
-            <div style={headerStyle}>Sun Count</div>
+            
+            {/* DYNAMIC HEADERS based on Shift Type */}
+            {shiftType === 'NNJ' ? (
+                <>
+                    <div style={headerStyle}>PH Count</div>
+                    <div style={headerStyle}>Sun Count</div>
+                </>
+            ) : (
+                <>
+                    <div style={headerStyle}>Leave Taken</div>
+                    <div style={headerStyle}></div> {/* Spacer */}
+                </>
+            )}
+
             <div style={headerStyle}>Total</div>
-            <div style={headerStyle}>Workload Status</div>
+            <div style={headerStyle}>Status</div>
           </div>
 
-          {/* Table Body */}
           <div>
             {isLoading ? (
                <div style={{ padding: '60px', textAlign: 'center', color: '#6B7280' }}>Loading analysis data...</div>
             ) : shiftData.length === 0 ? (
-               <div style={{ padding: '60px', textAlign: 'center', color: '#6B7280' }}>No data found for this selection.</div>
+               <div style={{ padding: '60px', textAlign: 'center', color: '#6B7280' }}>No data found for this year.</div>
             ) : (
               currentData.map((row, idx) => {
                 const status = getWorkloadStatus(row.total, target);
@@ -227,16 +269,26 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
                     padding: '16px 24px', 
                     alignItems: 'center',
                     borderTop: idx === 0 ? 'none' : '1px solid #E5E7EB',
-                    backgroundColor: idx % 2 === 0 ? 'white' : '#F9FAFB'
+                    backgroundColor:'white'
                   }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{row.name}</div>
                       <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{row.role}</div>
                     </div>
                     
-                    <div style={{ fontSize: 14, color: '#4B5563' }}>{row.ph}</div>
-                    <div style={{ fontSize: 14, color: '#4B5563' }}>{row.sunday}</div>
-                    
+                    {/* DYNAMIC ROWS based on Shift Type */}
+                    {shiftType === 'NNJ' ? (
+                        <>
+                            <div style={{ fontSize: 14, color: '#4B5563', fontWeight: 500 }}>{row.ph}</div>
+                            <div style={{ fontSize: 14, color: '#4B5563', fontWeight: 500 }}>{row.sunday}</div>
+                        </>
+                    ) : (
+                        <>
+                            <div style={{ fontSize: 14, color: '#4B5563', fontWeight: 500 }}>{row.al} days</div>
+                            <div></div> {/* Spacer */}
+                        </>
+                    )}
+
                     <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{row.total}</div>
                     
                     <div>
@@ -258,51 +310,16 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
             )}
           </div>
 
-          {/* Pagination Footer (Centered) */}
           {shiftData.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid #E6E6E6', background: 'white' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    
-                    {/* First Page */}
-                    <button 
-                        onClick={() => setCurrentPage(1)} 
-                        disabled={currentPage === 1}
-                        style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}
-                    >
-                        «
-                    </button>
-
-                    {/* Previous Page */}
-                    <button 
-                        onClick={handlePrevPage} 
-                        disabled={currentPage === 1}
-                        style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}
-                    >
-                        ‹
-                    </button>
-
-                    {/* Text Indicator */}
+                    <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}>«</button>
+                    <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}>‹</button>
                     <span style={{ fontSize: 13, color: '#6B7280', margin: '0 12px', fontWeight: 500, minWidth: 60, textAlign: 'center' }}>
-                         {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, shiftData.length)} of {shiftData.length}
+                          {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, shiftData.length)} of {shiftData.length}
                     </span>
-
-                    {/* Next Page */}
-                    <button 
-                        onClick={handleNextPage} 
-                        disabled={currentPage === totalPages}
-                        style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}
-                    >
-                        ›
-                    </button>
-
-                    {/* Last Page */}
-                    <button 
-                        onClick={() => setCurrentPage(totalPages)} 
-                        disabled={currentPage === totalPages}
-                        style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}
-                    >
-                        »
-                    </button>
+                    <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}>›</button>
+                    <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}>»</button>
                 </div>
             </div>
           )}
@@ -313,89 +330,17 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
   );
 }
 
-// --- UPDATED STYLES ---
-
-// Filter Section Styles
+// --- CSS STYLES ---
 const controlGroupStyle = { display: 'flex', flexDirection: 'column', gap: 6 };
 const labelStyle = { fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' };
-
-// Styled Select
-const selectStyle = { 
-    appearance: 'none', 
-    padding: '10px 32px 10px 12px', 
-    background: '#F9FAFB', 
-    border: '1px solid #D1D5DB', 
-    borderRadius: 8, 
-    fontSize: 14, 
-    fontWeight: 500,
-    minWidth: 140, 
-    cursor: 'pointer',
-    color: '#111827',
-    outline: 'none'
-};
+const selectStyle = { appearance: 'none', padding: '10px 32px 10px 12px', background: '#F9FAFB', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14, fontWeight: 500, minWidth: 140, cursor: 'pointer', color: '#111827', outline: 'none' };
 const chevronStyle = { position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#6B7280', pointerEvents: 'none' };
-
-// Styled Badge for Mode
-const badgeStyle = {
-    padding: '10px 16px', 
-    background: '#FFFBEB', // Light yellow
-    border: '1px solid #FCD34D', // Yellow border
-    borderRadius: 8, 
-    fontSize: 14, 
-    fontWeight: 600, 
-    color: '#92400E',
-    minWidth: 120,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    userSelect: 'none'
-};
-
-// Styled Input Container for Target
-const inputContainerStyle = { 
-    display: 'flex', 
-    alignItems: 'center', 
-    background: '#F9FAFB', 
-    borderRadius: 8, 
-    border: '1px solid #D1D5DB', 
-    padding: '0 12px',
-    height: 40 // Matches select height roughly
-};
-const inputStyle = { 
-    padding: '8px 0', 
-    background: 'transparent', 
-    border: 'none', 
-    fontSize: 15, 
-    fontWeight: 700, 
-    color: '#2563EB', 
-    width: 40, 
-    textAlign: 'center', 
-    outline: 'none' 
-};
+const inputContainerStyle = { display: 'flex', alignItems: 'center', background: '#F9FAFB', borderRadius: 8, border: '1px solid #D1D5DB', padding: '0 12px', height: 40 };
+const inputStyle = { padding: '8px 0', background: 'transparent', border: 'none', fontSize: 15, fontWeight: 700, color: '#2563EB', width: 40, textAlign: 'center', outline: 'none' };
 const suffixStyle = { fontSize: 14, color: '#9CA3AF', fontWeight: 500 };
-
-// Metric Styles
 const metricLabelStyle = { fontSize: 12, textTransform: 'uppercase', color: '#9CA3AF', fontWeight: 700, marginBottom: 4, letterSpacing: '0.05em' };
 const metricValueStyle = { fontSize: 28, fontWeight: 800, color: '#111827', lineHeight: 1 };
-
-// Table Styles
 const headerStyle = { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#6B7280', letterSpacing: '0.05em' };
-
-// Pagination Styles
-const paginationButtonStyle = { 
-    width: 32, 
-    height: 32, 
-    display: 'flex', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    background: 'white', 
-    border: '1px solid #E5E7EB', 
-    borderRadius: 8, 
-    color: '#374151', 
-    fontSize: 18, 
-    lineHeight: 1, 
-    transition: 'all 0.2s', 
-    outline: 'none' 
-};
+const paginationButtonStyle = { width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, color: '#374151', fontSize: 18, lineHeight: 1, transition: 'all 0.2s', outline: 'none' };
 
 export default AdminShiftDistributionPage;
