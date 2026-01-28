@@ -159,7 +159,7 @@ function AdminHome({ user }) {
         >
           {/* LEFT COLUMN: three cards stacked nicely */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Pending leave requests */}
+            {/* 1. Pending leave requests */}
             <div
               style={{
                 background: 'white',
@@ -168,12 +168,32 @@ function AdminHome({ user }) {
                 boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
                 minHeight: 90,
-                borderLeft: `6px solid ${getLeaveBorderColor()}`,
+                // Border moved to the right
+                borderRight: `6px solid ${getLeaveBorderColor()}`,
+                // Added gap to separate icon from text
+                gap: 16,
               }}
             >
-              {/* left text block */}
+              {/* Icon moved to the left and resized */}
+              <img
+                src={
+                  isLoadingDashboard
+                    ? '/loadingCircle.png'
+                    : pendingLeaveCount === 0
+                    ? '/greenCheckMark.png'
+                    : '/yellowWarning.png'
+                }
+                alt=""
+                style={{
+                  width: isLoadingDashboard ? 20 : 46,
+                  height: isLoadingDashboard ? 20 : 46,
+                  flexShrink: 0,
+                  objectFit: 'contain',
+                }}
+              />
+
+              {/* Text Block */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div
                   style={{
@@ -201,26 +221,9 @@ function AdminHome({ user }) {
                   </span>
                 </div>
               </div>
-
-              {/* right icon */}
-              <img
-                src={
-                  isLoadingDashboard
-                    ? '/loadingCircle.png'
-                    : pendingLeaveCount === 0
-                    ? '/greenCheckMark.png'
-                    : '/yellowWarning.png'
-                }
-                alt=""
-                style={{
-                  width: isLoadingDashboard ? 20 : 70,
-                  height: isLoadingDashboard ? 20 : 70,
-                  flexShrink: 0,
-                }}
-              />
             </div>
 
-            {/* Pending shift preferences */}
+            {/* 2. Pending shift preferences */}
             <div
               style={{
                 background: 'white',
@@ -229,11 +232,29 @@ function AdminHome({ user }) {
                 boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
                 minHeight: 90,
-                borderLeft: `6px solid ${getPrefBorderColor()}`,
+                borderRight: `6px solid ${getPrefBorderColor()}`,
+                gap: 16,
               }}
             >
+              {/* Icon moved to left and resized */}
+              <img
+                src={
+                  isLoadingDashboard
+                    ? '/loadingCircle.png'
+                    : pendingPrefCount === 0
+                    ? '/greenCheckMark.png'
+                    : '/yellowWarning.png'
+                }
+                alt=""
+                style={{
+                  width: isLoadingDashboard ? 20 : 46,
+                  height: isLoadingDashboard ? 20 : 46,
+                  flexShrink: 0,
+                  objectFit: 'contain',
+                }}
+              />
+
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div
                   style={{
@@ -261,25 +282,9 @@ function AdminHome({ user }) {
                   </span>
                 </div>
               </div>
-
-              <img
-                src={
-                  isLoadingDashboard
-                    ? '/loadingCircle.png'
-                    : pendingPrefCount === 0
-                    ? '/greenCheckMark.png'
-                    : '/yellowWarning.png'
-                }
-                alt=""
-                style={{
-                  width: isLoadingDashboard ? 20 : 70,
-                  height: isLoadingDashboard ? 20 : 70,
-                  flexShrink: 0,
-                }}
-              />
             </div>
 
-            {/* Next month roster status */}
+            {/* 3. Next month roster status */}
             <div
               style={{
                 background: 'white',
@@ -288,12 +293,33 @@ function AdminHome({ user }) {
                 boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
                 minHeight: 90,
-                borderLeft: `6px solid ${getRosterBorderColor()}`,
+                borderRight: `6px solid ${getRosterBorderColor()}`,
+                gap: 16,
               }}
             >
-              {/* left text block */}
+              {/* Icon moved to left and resized */}
+              <img
+                src={
+                  isLoadingDashboard
+                    ? '/loadingCircle.png'
+                    : nextRosterStatus === 'Published'
+                    ? '/greenCheckMark.png'
+                    : nextRosterStatus === 'Drafting'
+                    ? '/yellowWarning.png'
+                    : nextRosterStatus === 'Preference Open'
+                    ? '/redWarning.png'
+                    : '/yellowWarning.png'
+                }
+                alt=""
+                style={{
+                  width: isLoadingDashboard ? 20 : 46,
+                  height: isLoadingDashboard ? 20 : 46,
+                  flexShrink: 0,
+                  objectFit: 'contain',
+                }}
+              />
+
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div
                   style={{
@@ -351,27 +377,6 @@ function AdminHome({ user }) {
                   {nextRosterStatus || 'Loading...'}
                 </div>
               </div>
-
-              {/* right icon */}
-              <img
-                src={
-                  isLoadingDashboard
-                    ? '/loadingCircle.png'
-                    : nextRosterStatus === 'Published'
-                    ? '/greenCheckMark.png'
-                    : nextRosterStatus === 'Drafting'
-                    ? '/yellowWarning.png'
-                    : nextRosterStatus === 'Preference Open'
-                    ? '/redWarning.png'
-                    : '/yellowWarning.png'
-                }
-                alt=""
-                style={{
-                  width: isLoadingDashboard ? 20 : 70,
-                  height: isLoadingDashboard ? 20 : 70,
-                  flexShrink: 0,
-                }}
-              />
             </div>
           </div>
 
