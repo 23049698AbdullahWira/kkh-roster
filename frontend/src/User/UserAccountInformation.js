@@ -47,7 +47,8 @@ function UserAccountInformation({
       }
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:5000/users/${loggedInUser.userId}`);
+        // Using the new dedicated endpoint
+        const response = await fetch(`http://localhost:5000/api/profile/${loggedInUser.userId}`);
         if (!response.ok) throw new Error('Failed to fetch user data.');
         const data = await response.json();
         setUserData(data);
@@ -101,6 +102,7 @@ function UserAccountInformation({
     const trimmedFullName = userData.full_name ? userData.full_name.trim() : '';
     const trimmedEmail = userData.email ? userData.email.trim() : '';
     const trimmedContact = userData.contact ? String(userData.contact).trim() : '';
+    const trimmedAvatar = userData.avatar_url ? userData.avatar_url.trim() : '';
 
     // --- VALIDATION LOGIC ---
     if (!trimmedFullName) {
@@ -115,18 +117,21 @@ function UserAccountInformation({
       setEditError("Contact cannot be empty.");
       return;
     }
+    // Optional: You could validate that trimmedAvatar looks like a URL here if you want.
+    
     // --- END OF VALIDATION ---
 
     const payload = {
-      ...userData,
       full_name: trimmedFullName,
       email: trimmedEmail,
       contact: trimmedContact,
+      avatar_url: trimmedAvatar,
     };
 
     const hasChanged = initialUserData.full_name !== payload.full_name ||
       initialUserData.email !== payload.email ||
-      initialUserData.contact !== payload.contact;
+      initialUserData.contact !== payload.contact ||
+      initialUserData.avatar_url !== payload.avatar_url;
 
     if (!hasChanged) {
       setIsEditing(false);
@@ -134,7 +139,7 @@ function UserAccountInformation({
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/users/${userData.user_id}`, {
+      const response = await fetch(`http://localhost:5000/api/profile/${userData.user_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -144,8 +149,9 @@ function UserAccountInformation({
       setSuccessMessage('Account Details Updated Successfully');
       setTimeout(() => setSuccessMessage(''), 4000);
 
-      setUserData(payload);
-      setInitialUserData(payload);
+      const updatedData = { ...userData, ...payload };
+      setUserData(updatedData);
+      setInitialUserData(updatedData);
       setIsEditing(false);
     } catch (err) {
       setError(err.message);
@@ -220,7 +226,13 @@ function UserAccountInformation({
         <div style={styles.container}>
           <div style={styles.profileGrid}>
             <div style={styles.avatarColumn}>
-              <img style={styles.avatar} src={userData.avatar_url || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png'} alt="Profile Avatar" />
+              {/* Image updates live as user types in the URL box below */}
+              <img 
+                style={styles.avatar} 
+                src={userData.avatar_url || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png'} 
+                alt="Profile Avatar" 
+                onError={(e) => { e.target.src = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png'; }}
+              />
               <div style={styles.avatarName}>{userData.full_name}</div>
               <div style={styles.avatarEmail}>{userData.email}</div>
             </div>
@@ -244,6 +256,9 @@ function UserAccountInformation({
               <Field label="Full Name" name="full_name" value={userData.full_name} isEditing={isEditing} onChange={handleInputChange} maxLength={50} />
               <Field label="Email" name="email" value={userData.email} isEditing={isEditing} onChange={handleInputChange} maxLength={50} />
               <Field label="Contact" name="contact" value={userData.contact} isEditing={isEditing} onChange={handleInputChange} />
+              
+              {/* NEW FIELD: Avatar URL */}
+              <Field label="Avatar URL" name="avatar_url" value={userData.avatar_url} isEditing={isEditing} onChange={handleInputChange} />
 
               <div style={styles.divider} />
 
@@ -284,16 +299,27 @@ const Field = ({ label, name, value, isEditing, onChange, type = 'text', maxLeng
         onChange={onChange}
         style={styles.input}
         maxLength={maxLength}
+        placeholder={name === 'avatar_url' ? 'https://example.com/image.png' : ''}
       />
     ) : (
-      <div style={{ ...styles.input, ...styles.inputDisabled, ...styles.displayField }}>{value}</div>
+      <div style={{ ...styles.input, ...styles.inputDisabled, ...styles.displayField }}>
+        {/* If it's the avatar URL, we might want to truncate it if it's super long */}
+        {value || (name === 'avatar_url' ? 'No custom avatar set' : '')}
+      </div>
     )}
   </div>
 );
 
 const styles = {
-  page: { width: '100%', minHeight: '100vh', background: '#F8F9FA', fontFamily: "'Inter', sans-serif" },
-  mainContent: { maxWidth: 1400, width: '100%', margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' },
+page: { 
+    width: '100%', 
+    minHeight: '100vh', 
+    background: '#F8F9FA', 
+    fontFamily: "'Inter', sans-serif",
+    // --- ADD THESE TWO LINES ---
+    display: 'flex',
+    flexDirection: 'column',
+  },  mainContent: { maxWidth: 1400, width: '100%', margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' },
   header: { width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
   title: { fontSize: 28, fontWeight: 800, margin: 0, textAlign: 'center' },
   container: { width: '100%', maxWidth: 954, margin: '0 auto', background: 'white', borderRadius: 12, border: '1px solid #E6E6E6', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' },

@@ -1279,6 +1279,126 @@ app.get('/api/users/:userId/shifts', async (req, res) => {
 
 // --- END: NEW ENDPOINT ---
 
+// --- START: NEW ENDPOINT FOR MONTHLY CALENDAR SHIFTS ---
+
+// GET: a user's shifts for a specific month and year
+app.get('/api/users/:userId/shifts-by-month', async (req, res) => {
+  const { userId } = req.params;
+  const { year, month } = req.query; // e.g., year=2026, month=1
+
+  if (!year || !month) {
+    return res.status(400).json({ error: 'Year and month query parameters are required.' });
+  }
+
+  try {
+    const query = `
+      SELECT 
+        s.shift_id,
+        s.shift_date,
+        sd.shift_code,
+        sd.shift_color_hex,
+        w.ward_name
+      FROM shifts s
+      JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id
+      LEFT JOIN ward w ON s.ward_id = w.ward_id
+      WHERE s.user_id = ? 
+        AND YEAR(s.shift_date) = ? 
+        AND MONTH(s.shift_date) = ?
+      ORDER BY s.shift_date ASC
+    `;
+
+    const [shifts] = await pool.query(query, [userId, year, month]);
+    res.json(shifts);
+
+  } catch (err) {
+    console.error(`Error fetching monthly shifts for user ${userId}:`, err);
+    res.status(500).json({ error: "Failed to fetch monthly shifts" });
+  }
+});
+  
+// --- START: NEW ENDPOINT TO GET PUBLISHED ROSTERS ---
+
+// GET: a list of all published rosters for the calendar dropdown
+app.get('/api/rosters/published', async (req, res) => {
+  try {
+    // We select the necessary fields and convert the month number to a name for easier use on the frontend.
+    // Ordering ensures the list is chronological.
+    const query = `
+      SELECT 
+        roster_id, 
+        month, 
+        year
+      FROM rosters 
+      WHERE status = 'Published'
+      ORDER BY year DESC, month DESC
+    `;
+
+    const [rosters] = await pool.query(query);
+    res.json(rosters);
+
+  } catch (err) {
+    console.error(`Error fetching published rosters:`, err);
+    res.status(500).json({ error: "Failed to fetch published rosters" });
+  }
+});
+
+// --- END: NEW ENDPOINT ---
+
+// ==================================================================
+//  NEW DEDICATED PROFILE ENDPOINTS (Updated with Avatar Support)
+// ==================================================================
+
+// 1. GET Profile Data
+app.get('/api/profile/:id', async (req, res) => {
+  const userId = req.params.id;
+  try {
+    const [rows] = await pool.query(
+      `SELECT user_id, full_name, email, contact, avatar_url 
+       FROM users WHERE user_id = ?`,
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    res.json(rows[0]);
+  } catch (err) {
+    console.error("Error fetching profile:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 2. PUT Profile Data (Now includes avatar_url)
+app.put('/api/profile/:id', async (req, res) => {
+  const { id } = req.params;
+  // Added avatar_url to the destructuring
+  const { full_name, email, contact, avatar_url } = req.body;
+
+  try {
+    // Added avatar_url to the SQL Update
+    const query = `
+      UPDATE users 
+      SET full_name = ?, email = ?, contact = ?, avatar_url = ? 
+      WHERE user_id = ?
+    `;
+
+    const [result] = await pool.query(query, [full_name, email, contact, avatar_url, id]);
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'User not found or no changes made' });
+    }
+
+    res.json({ 
+      message: 'Profile updated successfully',
+      user: { user_id: id, full_name, email, contact, avatar_url }
+    });
+
+  } catch (err) {
+    console.error("Error updating profile:", err);
+    res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
 // ================= Action Logs =================
 app.get('/actionlogs', async (req, res) => {
   const limit = parseInt(req.query.limit, 10) || 6;

@@ -205,14 +205,14 @@ function UserApplyLeave({
 
       <main style={styles.mainContent}>
         <header style={styles.header}>
-          <button
+          {/* <button
             type="button"
             onClick={onBack}
             style={{ ...styles.backButton, visibility: isSubmitted ? 'hidden' : 'visible' }}
           >
             <span style={styles.backArrow} />
             Back
-          </button>
+          </button> */}
           <h1 style={styles.title}>
             {isSubmitted ? 'Submission Successful' : 'Apply Leave'}
           </h1>
@@ -315,31 +315,38 @@ const styles = {
     flexDirection: 'column',
     alignItems: 'center',
   },
-  header: {
+header: {
     width: '100%',
     display: 'flex',
-    justifyContent: 'space-between',
+    justifyContent: 'center', // Center the contents
     alignItems: 'center',
     marginBottom: 24,
+    position: 'relative', // Allows the title to be absolutely positioned relative to this
+    height: 40, // Ensures header has height even if items are hidden
   },
   title: {
     fontSize: 28,
     fontWeight: 800,
     margin: 0,
     textAlign: 'center',
+    // These 3 lines force the title to the exact center
+    position: 'absolute',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    whiteSpace: 'nowrap',
   },
-  backButton: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '8px 20px',
-    background: 'white',
-    borderRadius: 68,
-    border: '1px solid #DDDDDD',
-    cursor: 'pointer',
-    fontSize: 16,
-    fontWeight: 600,
-  },
+  // backButton: {
+  //   display: 'inline-flex',
+  //   alignItems: 'center',
+  //   gap: 8,
+  //   padding: '8px 20px',
+  //   background: 'white',
+  //   borderRadius: 68,
+  //   border: '1px solid #DDDDDD',
+  //   cursor: 'pointer',
+  //   fontSize: 16,
+  //   fontWeight: 600,
+  // },
   backArrow: {
     display: 'inline-block',
     width: 12,
