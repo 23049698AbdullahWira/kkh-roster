@@ -1,4 +1,7 @@
+// src/UserNavbar.js
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 
 // --- CONFIGURATION ---
 const API_BASE_URL = "http://localhost:5000";
@@ -6,13 +9,14 @@ const DEFAULT_AVATAR = "https://i.pinimg.com/736x/9e/83/75/9e837528f01cf3f42119c
 
 function UserNavbar({
   active = 'home',
+  onLogout,
   onGoHome,
   onGoRoster,
   onGoShiftPreference,
   onGoApplyLeave,
   onGoAccount,
-  onLogout,
 }) {
+
 
   // --- HELPERS ---
   const getStoredData = () => {

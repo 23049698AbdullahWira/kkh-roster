@@ -211,7 +211,7 @@ function UserAccountInformation({
   return (
     <div style={styles.page}>
       <UserNavbar
-        active="roster"
+        active="account" 
         onGoHome={onGoHome}
         onGoRoster={onGoRoster}
         onGoShiftPreference={onGoShiftPreference}

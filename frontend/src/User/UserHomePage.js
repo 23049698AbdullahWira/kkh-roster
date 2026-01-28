@@ -1,5 +1,6 @@
 // src/UserHomePage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import UserNavbar from '../Nav/UserNavbar.js';
 
 // --- CALENDAR IMPORTS ---
@@ -200,14 +201,16 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       }}
     >
       <UserNavbar
-        active="home"
-        onGoHome={onGoHome}
-        onGoRoster={onGoRoster}
-        onGoShiftPreference={onGoShiftPreference}
-        onGoApplyLeave={onGoApplyLeave}
-        onGoAccount={onGoAccount}
-        onLogout={onLogout}
-      />
+  active="home"
+  onLogout={onLogout}
+  onGoHome={onGoHome}
+  onGoRoster={onGoRoster}
+  onGoShiftPreference={onGoShiftPreference}
+  onGoApplyLeave={onGoApplyLeave}
+  onGoAccount={onGoAccount}
+/>
+
+
 
       <main
         style={{
@@ -327,19 +330,19 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
               <h2 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 12px 0' }}>Quick Links</h2>
               <div style={{ display: 'flex', justifyContent: 'space-around', gap: 16 }}>
                 <button type="button" onClick={onGoRoster} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
-                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="userViewRoster.png" alt="View Monthly Roster" /></div>
+                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="/userViewRoster.png" alt="View Monthly Roster" /></div>
                   <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, whiteSpace: 'pre-line' }}>{'View\nMonthly Roster'}</div>
                 </button>
                 <button type="button" onClick={onGoShiftPreference} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
-                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="userShiftPref.png" alt="Shifts Preference" /></div>
+                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="/userShiftPref.png" alt="Shifts Preference" /></div>
                   <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, whiteSpace: 'pre-line' }}>{'Shifts\nPreference'}</div>
                 </button>
                 <button type="button" onClick={onGoApplyLeave} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
-                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="userApplyLeave.png" alt="Apply Leave" /></div>
+                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="/userApplyLeave.png" alt="Apply Leave" /></div>
                   <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, whiteSpace: 'pre-line' }}>{'Apply\nLeave'}</div>
                 </button>
                 <button type="button" onClick={onGoAccount} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
-                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="userEditProfile.png" alt="Edit Profile" /></div>
+                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="/userEditProfile.png" alt="Edit Profile" /></div>
                   <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, whiteSpace: 'pre-line' }}>{'Edit\nProfile'}</div>
                 </button>
               </div>

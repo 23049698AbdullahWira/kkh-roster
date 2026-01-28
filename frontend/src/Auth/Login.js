@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-// onSetRole removed; parent now gets full user via onAdminLoginSuccess/onUserLoginSuccess
 function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -8,6 +8,7 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
   const [loading, setLoading] = useState(false);
   const emailRef = useRef(null);
   const passwordRef = useRef(null);
+  const navigate = useNavigate(); // router navigation
 
   // Single-step login: email + password on same screen
   const handleLogin = async () => {
@@ -46,15 +47,17 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
         return;
       }
 
-      //save to local storage
+      // save to local storage
       localStorage.setItem('user', JSON.stringify(userData));
 
       const role = (userData.role || '').toUpperCase();
 
       if (role === 'ADMIN' || role === 'SUPERADMIN') {
         onAdminLoginSuccess && onAdminLoginSuccess(userData);
+        navigate('/admin/home'); // redirect to admin home
       } else {
         onUserLoginSuccess && onUserLoginSuccess(userData);
+        navigate('/user/home'); // redirect to user home
       }
     } catch (err) {
       console.error(err);
@@ -77,14 +80,13 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
       {/* LEFT HALF: image panel */}
       <div
         style={{
-          flex: 0.55, // slightly less than half
+          flex: 0.55,
           backgroundImage: 'url("loginImageBackground.jpg")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           position: 'relative',
         }}
       >
-        {/* subtle dark gradient for contrast */}
         <div
           style={{
             position: 'absolute',
@@ -93,21 +95,20 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
               'linear-gradient(to right, rgba(0,0,0,0.45), rgba(0,0,0,0.10))',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'flex-start', // top
-            alignItems: 'flex-start', // left
+            justifyContent: 'flex-start',
+            alignItems: 'flex-start',
             paddingLeft: '8%',
             paddingRight: '14%',
-            paddingTop: '8%', // distance from top
+            paddingTop: '8%',
             boxSizing: 'border-box',
             color: 'white',
           }}
         >
           <div style={{ fontSize: 26, fontWeight: 800, marginBottom: 8 }}>
-            Welcome 
+            Welcome
           </div>
           <div style={{ fontSize: 14, maxWidth: 320, lineHeight: 1.5 }}>
             KK Women's and Children's Hospital Rostering System
-            
           </div>
         </div>
       </div>
@@ -135,7 +136,6 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
             gap: 20,
           }}
         >
-          {/* Logo (currently centered; change justifyContent to 'flex-start' if you want left) */}
           <div style={{ display: 'flex', justifyContent: 'center' }}>
             <img
               style={{ width: 200, height: 'auto' }}
@@ -177,74 +177,74 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
             }}
           >
             {/* Email */}
-<div
-  style={{
-    width: '100%',
-    padding: 8,
-    borderRadius: 6,
-    border: '1px solid #8C8C8C',
-    display: 'flex',
-    alignItems: 'center',
-    background: '#FFF',
-  }}
->
-  <input
-    ref={emailRef}
-    type="email"
-    placeholder="Email"
-    value={identifier}
-    onChange={(e) => setIdentifier(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        passwordRef.current && passwordRef.current.focus();
-      }
-    }}
-    style={{
-      width: '100%',
-      border: 'none',
-      outline: 'none',
-      fontSize: 16,
-      fontWeight: 500,
-      color: '#000',
-    }}
-  />
-</div>
+            <div
+              style={{
+                width: '100%',
+                padding: 8,
+                borderRadius: 6,
+                border: '1px solid #8C8C8C',
+                display: 'flex',
+                alignItems: 'center',
+                background: '#FFF',
+              }}
+            >
+              <input
+                ref={emailRef}
+                type="email"
+                placeholder="Email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    passwordRef.current && passwordRef.current.focus();
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: 16,
+                  fontWeight: 500,
+                  color: '#000',
+                }}
+              />
+            </div>
 
-{/* Password */}
-<div
-  style={{
-    width: '100%',
-    padding: 8,
-    borderRadius: 6,
-    border: '1px solid #8C8C8C',
-    display: 'flex',
-    alignItems: 'center',
-    background: '#FFF',
-  }}
->
-  <input
-    ref={passwordRef}
-    type="password"
-    placeholder="Password"
-    value={password}
-    onChange={(e) => setPassword(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleLogin();
-      }
-    }}
-    style={{
-      width: '100%',
-      border: 'none',
-      outline: 'none',
-      fontSize: 16,
-      fontWeight: 500,
-      color: '#000',
-    }}
-  />
-</div>
+            {/* Password */}
+            <div
+              style={{
+                width: '100%',
+                padding: 8,
+                borderRadius: 6,
+                border: '1px solid #8C8C8C',
+                display: 'flex',
+                alignItems: 'center',
+                background: '#FFF',
+              }}
+            >
+              <input
+                ref={passwordRef}
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleLogin();
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  outline: 'none',
+                  fontSize: 16,
+                  fontWeight: 500,
+                  color: '#000',
+                }}
+              />
+            </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center' }}>

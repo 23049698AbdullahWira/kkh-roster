@@ -1,53 +1,74 @@
-// src/Admin/AdminHomePage.js (or AdminHome.js)
+// src/Admin/AdminHomePage.js
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../Nav/navbar.js';
 
-const todoItems = [
-  {
-    header: 'New Account Requested – By 23 Oct',
-    title: '3 New User Accounts Awaiting Approval',
-    body: 'Reminded to approve new account for onboarding members of the team.',
-  },
-  {
-    header: 'Published November Roster – By 29 Oct',
-    title: 'Roster Publish.',
-    body: 'Reminded to publish November roster to all.',
-  },
-];
+function AdminHome({ user, onGoHome, onGoRoster, onGoStaff, onGoShift, onGoManageLeave, onLogout }) {
+  const goRoster = onGoRoster;
+  const goNewStaff = onGoStaff;
+  const goManageLeave = onGoManageLeave;
+  const goStaffPreferences = onGoShift;
 
-function AdminHome({
-  user,
-  onGoRoster,
-  onGoStaff,
-  onGoHome,
-  onGoShift,
-  onStartNewRoster,
-  onAddNewStaff,
-  onManageLeave,
-  onStaffPreferences,
-  onLogout,
-}) {
-  // ---- NEW: activity log state ----
-  const [logs, setLogs] = useState([]);
+  // Dashboard data – now driven by real APIs
+  const [pendingLeaveCount, setPendingLeaveCount] = useState(0);
+  const [pendingPrefCount, setPendingPrefCount] = useState(0);
+  const [nextRosterLabel, setNextRosterLabel] = useState('');
+  const [nextRosterStatus, setNextRosterStatus] = useState(''); // e.g. Preference Open / Drafting / Published
+
+  // Loading flag for the three summary cards
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+
+  // how many logs to show in the UI
+  const [visibleLogCount, setVisibleLogCount] = useState(6);
+
 
   useEffect(() => {
-    async function fetchLogs() {
+    async function fetchAll() {
       try {
-        const res = await fetch('http://localhost:5000/actionlogs?limit=6');
-        const data = await res.json();
-        setLogs(data || []);
+        const [logsRes, leaveRes, prefRes, rosterRes] = await Promise.all([
+          // ask backend for up to 50 (adjust if needed)
+          fetch('http://localhost:5000/actionlogs?limit=50'),
+          fetch('http://localhost:5000/api/leave/pending-count'),
+          fetch('http://localhost:5000/api/shiftpref/pending-count'),
+          fetch('http://localhost:5000/api/rosters/next'),
+        ]);
+
+        const [logsData, leaveData, prefData] = await Promise.all([
+          logsRes.json(),
+          leaveRes.json(),
+          prefRes.json(),
+        ]);
+
+        setLogs(logsData || []);
+        setPendingLeaveCount(leaveData?.pendingCount ?? 0);
+        setPendingPrefCount(prefData?.pendingCount ?? 0);
+
+        if (rosterRes.ok) {
+          const rosterData = await rosterRes.json();
+          setNextRosterLabel(`${rosterData.month} ${rosterData.year}`);
+          setNextRosterStatus(rosterData.status || 'Unknown');
+        } else {
+          setNextRosterLabel('No roster found');
+          setNextRosterStatus('N/A');
+        }
       } catch (err) {
-        console.error('Failed to fetch action logs:', err);
+        console.error('Dashboard fetch error:', err);
+        setNextRosterLabel('Error');
+        setNextRosterStatus('N/A');
+      } finally {
+        setIsLoadingDashboard(false);
       }
     }
-    fetchLogs();
+
+    fetchAll();
   }, []);
 
-  // ---- NEW: helper for "5m ago" etc. using log_datetime ----
   const formatTimeAgo = (isoString) => {
     if (!isoString) return '';
-    const date = new Date(isoString);
-    const diffMs = Date.now() - date.getTime();
+    const dbDate = new Date(isoString);
+    const sgtDate = new Date(dbDate.getTime() + 8 * 60 * 60 * 1000);
+    const now = Date.now();
+    const diffMs = now - sgtDate.getTime();
     const diffMin = Math.floor(diffMs / 60000);
     if (diffMin < 1) return 'Just now';
     if (diffMin < 60) return `${diffMin}m ago`;
@@ -57,21 +78,42 @@ function AdminHome({
     return `${diffD}d ago`;
   };
 
-  // ---- NEW: decide left icon & right-click behaviour based on log_type ----
   const getLogIcon = (type) => {
-    if (type === 'ROSTER') return 'calendar.png';
-    if (type === 'PREFERENCE') return 'userMale.png';
-    if (type === 'WINDOW') return 'clock.png';
-    if (type === 'ACCOUNT') return 'userMale.png';
-    return 'calendar.png';
+    if (type === 'ROSTER') return '/calendar.png';
+    if (type === 'PREFERENCE') return '/userMale.png';
+    if (type === 'WINDOW') return '/clock.png';
+    if (type === 'ACCOUNT') return '/userMale.png';
+    return '/calendar.png';
   };
 
+  const [logs, setLogs] = useState([]);
+
+  // Only some log types are clickable; others are plain rows
   const getLogClickHandler = (type) => {
-    if (type === 'ROSTER') return onGoRoster;
-    if (type === 'PREFERENCE') return onStaffPreferences;
-    if (type === 'ACCOUNT') return onGoStaff;
-    if (type === 'WINDOW') return onGoShift;
-    return () => {};
+    if (type === 'ROSTER') return goRoster;
+    if (type === 'PREFERENCE') return goStaffPreferences;
+    if (type === 'ACCOUNT') return goNewStaff;
+    if (type === 'WINDOW') return goStaffPreferences;
+    return null;
+  };
+
+  // Helpers for card border colors based on status/count
+  const getLeaveBorderColor = () => {
+    if (isLoadingDashboard) return '#D1D5DB'; // gray-300
+    return pendingLeaveCount === 0 ? '#16A34A' : 'yellow'; // green / amber
+  };
+
+  const getPrefBorderColor = () => {
+    if (isLoadingDashboard) return '#D1D5DB';
+    return pendingPrefCount === 0 ? '#16A34A' : 'yellow';
+  };
+
+  const getRosterBorderColor = () => {
+    if (isLoadingDashboard) return '#D1D5DB';
+    if (nextRosterStatus === 'Published') return '#16A34A';
+    if (nextRosterStatus === 'Drafting') return 'yellow';
+    if (nextRosterStatus === 'Preference Open') return '#DC2626';
+    return '#D1D5DB';
   };
 
   return (
@@ -86,15 +128,15 @@ function AdminHome({
       }}
     >
       <Navbar
-        active="home"
-        onGoHome={onGoHome}
-        onGoRoster={onGoRoster}
-        onGoStaff={onGoStaff}
-        onGoShift={onGoShift}
-        onLogout={onLogout}
-      />
+  active="home"
+  onGoHome={onGoHome}
+  onGoRoster={onGoRoster}
+  onGoStaff={onGoStaff}
+  onGoShift={onGoShift}
+  onLogout={onLogout}
+/>
 
-      {/* MAIN CONTENT */}
+
       <main
         style={{
           maxWidth: 1200,
@@ -103,7 +145,6 @@ function AdminHome({
           boxSizing: 'border-box',
         }}
       >
-        {/* Welcome */}
         <h1
           style={{
             fontSize: 22,
@@ -114,266 +155,238 @@ function AdminHome({
           Welcome back, {user?.fullName || 'Admin'}!
         </h1>
 
-        {/* Roster Status card */}
+        {/* Summary cards row + main left/right layout */}
         <section
-          style={{
-            background: 'white',
-            borderRadius: 10,
-            padding: '16px 24px',
-            marginBottom: 16,
-            boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 18,
-              fontWeight: 800,
-              marginBottom: 12,
-            }}
-          >
-            Roster Status Timeline : November Roster
-          </div>
-          <div
-            style={{
-              background: '#EDF0F5',
-              borderRadius: 999,
-              padding: '8px 32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 16,
-            }}
-          >
-            <span style={{ fontSize: 14, fontWeight: 800 }}>Preference Open</span>
-            <img style={{ width: 24, height: 24 }} src="greenCheckMark.png" alt="" />
-            <div
-              style={{
-                flex: 1,
-                height: 6,
-                background: '#00AE06',
-                borderRadius: 999,
-                marginRight: 16,
-              }}
-            />
-            <span style={{ fontSize: 14, fontWeight: 800 }}>Reviewing Draft</span>
-            <img style={{ width: 24, height: 24 }} src="greenCheckMark.png" alt="" />
-            <div
-              style={{
-                flex: 1,
-                height: 6,
-                background: '#8C8C8C',
-                borderRadius: 999,
-                marginRight: 16,
-              }}
-            />
-            <span style={{ fontSize: 14, fontWeight: 800 }}>Published Roster</span>
-            <img style={{ width: 24, height: 24 }} src="loadingCircle.png" alt="" />
-          </div>
-        </section>
-
-        {/* TWO COLUMNS */}
-        <div
           style={{
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1.4fr)',
             gap: 24,
           }}
         >
-          {/* LEFT COLUMN */}
+          {/* LEFT COLUMN: three cards stacked nicely */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Critical Staffing Shortage */}
-            <section
+            {/* 1. Pending leave requests */}
+            <div
               style={{
                 background: 'white',
                 borderRadius: 10,
-                padding: 18,
+                padding: '16px 20px',
                 boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                minHeight: 90,
+                // Border moved to the right
+                borderRight: `6px solid ${getLeaveBorderColor()}`,
+                // Added gap to separate icon from text
+                gap: 16,
               }}
             >
-              <div
+              {/* Icon moved to the left and resized */}
+              <img
+                src={
+                  isLoadingDashboard
+                    ? '/loadingCircle.png'
+                    : pendingLeaveCount === 0
+                    ? '/greenCheckMark.png'
+                    : '/yellowWarning.png'
+                }
+                alt=""
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 12,
+                  width: isLoadingDashboard ? 20 : 46,
+                  height: isLoadingDashboard ? 20 : 46,
+                  flexShrink: 0,
+                  objectFit: 'contain',
                 }}
-              >
-                <div style={{ fontSize: 18, fontWeight: 800 }}>
-                  Critical Staffing Shortage
-                </div>
-                <div style={{ display: 'flex', gap: 16, fontSize: 14, fontWeight: 600 }}>
-                  <span>Urgent</span>
-                  <div
-                    style={{
-                      width: 6,
-                      height: 20,
-                      background: '#FF2525',
-                      borderRadius: 12,
-                    }}
-                  />
-                  <span>Action Needed</span>
-                  <div
-                    style={{
-                      width: 6,
-                      height: 20,
-                      background: '#F0DC00',
-                      borderRadius: 12,
-                    }}
-                  />
-                </div>
-              </div>
+              />
 
-              {/* Card 1: WARNING */}
-              <div
-                style={{
-                  background: '#EDF0F5',
-                  borderRadius: 8,
-                  padding: '12px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  position: 'relative',
-                  marginTop: 0,
-                }}
-              >
-                <img
-                  style={{ width: 30, height: 30, marginRight: 20 }}
-                  src="redWarning.png"
-                  alt="Warning"
-                />
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  WARNING:
-                  <br />
-                  Understaffed RRT PM Shift on 18 Oct (1 RRT Short)
-                </div>
+              {/* Text Block */}
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div
                   style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 10,
-                    background: '#FF2525',
-                    borderTopRightRadius: 8,
-                    borderBottomRightRadius: 8,
-                  }}
-                />
-              </div>
-
-              {/* Card 2: CONTRADICTING SHIFT */}
-              <div
-                style={{
-                  background: '#EDF0F5',
-                  borderRadius: 8,
-                  padding: '12px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  position: 'relative',
-                  marginTop: 8,
-                }}
-              >
-                <img
-                  style={{ width: 30, height: 30, marginRight: 20 }}
-                  src="yellowWarning.png"
-                  alt="Contradicting Shift"
-                />
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  CONTRADICTING SHIFT:
-                  <br />
-                  Shift clash on PM Shift on 26 Oct (2 PM Shift on 76)
-                </div>
-                <div
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: 10,
-                    background: '#F0DC00',
-                    borderTopRightRadius: 8,
-                    borderBottomRightRadius: 8,
-                  }}
-                />
-              </div>
-            </section>
-
-            {/* To-Do List / Action Items */}
-            <section
-              style={{
-                background: 'white',
-                borderRadius: 10,
-                padding: 18,
-                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 800,
-                  marginBottom: 12,
-                }}
-              >
-                To-Do List / Action Items
-              </div>
-
-              {todoItems.map((item, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: '#EDF0F5',
-                    borderRadius: 16,
-                    overflow: 'hidden',
-                    marginBottom: idx === todoItems.length - 1 ? 0 : 12,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#6B7280',
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
                   }}
                 >
-                  <div
+                  Pending leave requests
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span
                     style={{
-                      background: '#5091CD',
-                      color: 'white',
-                      fontSize: 13,
-                      fontWeight: 700,
-                      padding: '6px 16px',
+                      fontSize: 28,
+                      fontWeight: 900,
+                      color: '#111827',
                     }}
                   >
-                    {item.header}
-                  </div>
-                  <div style={{ padding: '10px 16px' }}>
-                    <div
-                      style={{
-                        fontSize: 16,
-                        fontWeight: 700,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {item.title}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        marginBottom: 6,
-                      }}
-                    >
-                      {item.body}
-                    </div>
-                    <button
-                      type="button"
-                      style={{
-                        padding: 0,
-                        border: 'none',
-                        background: 'none',
-                        fontSize: 14,
-                        textDecoration: 'underline',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      More Info
-                    </button>
-                  </div>
+                    {pendingLeaveCount}
+                  </span>
+                  <span style={{ fontSize: 13, color: '#6B7280' }}>
+                    awaiting approval
+                  </span>
                 </div>
-              ))}
-            </section>
+              </div>
+            </div>
+
+            {/* 2. Pending shift preferences */}
+            <div
+              style={{
+                background: 'white',
+                borderRadius: 10,
+                padding: '16px 20px',
+                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                minHeight: 90,
+                borderRight: `6px solid ${getPrefBorderColor()}`,
+                gap: 16,
+              }}
+            >
+              {/* Icon moved to left and resized */}
+              <img
+                src={
+                  isLoadingDashboard
+                    ? '/loadingCircle.png'
+                    : pendingPrefCount === 0
+                    ? '/greenCheckMark.png'
+                    : '/yellowWarning.png'
+                }
+                alt=""
+                style={{
+                  width: isLoadingDashboard ? 20 : 46,
+                  height: isLoadingDashboard ? 20 : 46,
+                  flexShrink: 0,
+                  objectFit: 'contain',
+                }}
+              />
+
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#6B7280',
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
+                  }}
+                >
+                  Pending shift preferences
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <span
+                    style={{
+                      fontSize: 28,
+                      fontWeight: 900,
+                      color: '#111827',
+                    }}
+                  >
+                    {pendingPrefCount}
+                  </span>
+                  <span style={{ fontSize: 13, color: '#6B7280' }}>
+                    unreviewed submissions
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Next month roster status */}
+            <div
+              style={{
+                background: 'white',
+                borderRadius: 10,
+                padding: '16px 20px',
+                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                minHeight: 90,
+                borderRight: `6px solid ${getRosterBorderColor()}`,
+                gap: 16,
+              }}
+            >
+              {/* Icon moved to left and resized */}
+              <img
+                src={
+                  isLoadingDashboard
+                    ? '/loadingCircle.png'
+                    : nextRosterStatus === 'Published'
+                    ? '/greenCheckMark.png'
+                    : nextRosterStatus === 'Drafting'
+                    ? '/yellowWarning.png'
+                    : nextRosterStatus === 'Preference Open'
+                    ? '/redWarning.png'
+                    : '/yellowWarning.png'
+                }
+                alt=""
+                style={{
+                  width: isLoadingDashboard ? 20 : 46,
+                  height: isLoadingDashboard ? 20 : 46,
+                  flexShrink: 0,
+                  objectFit: 'contain',
+                }}
+              />
+
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#6B7280',
+                    textTransform: 'uppercase',
+                    marginBottom: 6,
+                  }}
+                >
+                  Next roster status
+                </div>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 700,
+                    color: '#111827',
+                    marginBottom: 4,
+                  }}
+                >
+                  {nextRosterLabel || 'Loading...'}
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color:
+                      nextRosterStatus === 'Published'
+                        ? '#16A34A'
+                        : nextRosterStatus === 'Drafting'
+                        ? 'yellow'
+                        : nextRosterStatus === 'Preference Open'
+                        ? '#DC2626'
+                        : '#6B7280',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      background:
+                        nextRosterStatus === 'Published'
+                          ? '#16A34A'
+                          : nextRosterStatus === 'Drafting'
+                          ? 'yellow'
+                          : nextRosterStatus === 'Preference Open'
+                          ? '#DC2626'
+                          : '#6B7280',
+                    }}
+                  />
+                  {nextRosterStatus || 'Loading...'}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* RIGHT COLUMN */}
+          {/* RIGHT COLUMN: Quick Links + Activity Log */}
           <div
             style={{
               display: 'flex',
@@ -381,7 +394,6 @@ function AdminHome({
               gap: 16,
             }}
           >
-            {/* Quick Links */}
             <section
               style={{
                 background: 'white',
@@ -407,10 +419,9 @@ function AdminHome({
                   gap: 24,
                 }}
               >
-                {/* 1. Start New Roster */}
                 <button
                   type="button"
-                  onClick={onStartNewRoster}
+                  onClick={goRoster}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -436,7 +447,7 @@ function AdminHome({
                   >
                     <img
                       style={{ width: 50, height: 50 }}
-                      src="startNewRoster.png"
+                      src="/startNewRoster.png"
                       alt="Start New Roster"
                     />
                   </div>
@@ -452,10 +463,9 @@ function AdminHome({
                   </div>
                 </button>
 
-                {/* 2. Add New Staff */}
                 <button
                   type="button"
-                  onClick={onAddNewStaff}
+                  onClick={goNewStaff}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -481,7 +491,7 @@ function AdminHome({
                   >
                     <img
                       style={{ width: 50, height: 50 }}
-                      src="addNewStaff.png"
+                      src="/addNewStaff.png"
                       alt="Add New Staff"
                     />
                   </div>
@@ -497,10 +507,9 @@ function AdminHome({
                   </div>
                 </button>
 
-                {/* 3. Manage Leave */}
                 <button
                   type="button"
-                  onClick={onManageLeave}
+                  onClick={goManageLeave}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -526,7 +535,7 @@ function AdminHome({
                   >
                     <img
                       style={{ width: 50, height: 50 }}
-                      src="manageLeave.png"
+                      src="/manageLeave.png"
                       alt="Manage Leave"
                     />
                   </div>
@@ -542,10 +551,9 @@ function AdminHome({
                   </div>
                 </button>
 
-                {/* 4. Staff Preferences */}
                 <button
                   type="button"
-                  onClick={onStaffPreferences}
+                  onClick={goStaffPreferences}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -571,7 +579,7 @@ function AdminHome({
                   >
                     <img
                       style={{ width: 50, height: 50 }}
-                      src="staffPref.png"
+                      src="/staffPref.png"
                       alt="Staff Preferences"
                     />
                   </div>
@@ -589,7 +597,6 @@ function AdminHome({
               </div>
             </section>
 
-            {/* Admin Activity Log */}
             <section
               style={{
                 background: 'white',
@@ -598,7 +605,6 @@ function AdminHome({
                 boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
                 display: 'flex',
                 flexDirection: 'column',
-                height: 360,
               }}
             >
               <div
@@ -611,17 +617,17 @@ function AdminHome({
                 Admin Activity Log
               </div>
 
+              {/* Logs container grows as more are shown */}
               <div
                 style={{
-                  flex: 1,
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 4,
-                  overflow: 'hidden',
                 }}
               >
-                {logs.map((log) => {
+                {logs.slice(0, visibleLogCount).map((log) => {
                   const onClick = getLogClickHandler(log.log_type);
+                  const isClickable = Boolean(onClick);
                   return (
                     <div
                       key={log.log_id}
@@ -631,7 +637,9 @@ function AdminHome({
                         gap: 16,
                         padding: '6px 0',
                         borderTop: '1px solid #E0E0E0',
+                        cursor: isClickable ? 'pointer' : 'default',
                       }}
+                      onClick={onClick || undefined}
                     >
                       <img
                         style={{ width: 26, height: 26 }}
@@ -646,7 +654,6 @@ function AdminHome({
                       >
                         {formatTimeAgo(log.log_datetime)}, {log.log_details}
                       </div>
-                      
                     </div>
                   );
                 })}
@@ -655,18 +662,26 @@ function AdminHome({
               <div
                 style={{
                   textAlign: 'center',
-                  marginTop: 4,
+                  marginTop: 8,
                   fontSize: 13,
                   fontWeight: 700,
                   color: '#5091CD',
-                  cursor: 'pointer',
+                  cursor: visibleLogCount < logs.length ? 'pointer' : 'default',
+                  opacity: visibleLogCount < logs.length ? 1 : 0.5,
+                }}
+                onClick={() => {
+                  if (visibleLogCount < logs.length) {
+                    setVisibleLogCount((prev) =>
+                      Math.min(prev + 7, logs.length)
+                    );
+                  }
                 }}
               >
-                View All
+                {visibleLogCount < logs.length ? 'View More' : 'No More Logs'}
               </div>
             </section>
           </div>
-        </div>
+        </section>
       </main>
     </div>
   );

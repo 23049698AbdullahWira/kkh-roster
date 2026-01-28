@@ -19,13 +19,13 @@ function AdminStaffManagementPage({
   onLogout,
   loggedInUser, 
 }) {
-
   // --- 1. STATE ---
   const [staffRows, setStaffRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Dynamic Dropdown Options
   const [roleOptions, setRoleOptions] = useState([]);
+  const [leaveTypes, setLeaveTypes] = useState([]);
   const [serviceOptions, setServiceOptions] = useState([]); 
 
   // Pagination State
@@ -113,7 +113,7 @@ function AdminStaffManagementPage({
       }
 
     } catch (err) {
-      console.error("Error fetching data:", err);
+      console.error('Error fetching data:', err);
     } finally {
       setIsLoading(false);
     }
@@ -123,7 +123,8 @@ function AdminStaffManagementPage({
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // --- 5. HANDLER: CREATE STAFF ---
+  // --- 5. CREATE STAFF ---
+
   const handleChangeCreate = (field) => (e) => {
     setCreateForm((prev) => ({ ...prev, [field]: e.target.value }));
   };
@@ -212,7 +213,7 @@ function AdminStaffManagementPage({
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   // --- DELETE LOGIC ---
@@ -243,7 +244,7 @@ function AdminStaffManagementPage({
     fetch(`http://localhost:5000/users/${selectedStaff.staffId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
+      body: JSON.stringify(formData),
     })
       .then(async res => {
         if (res.ok) {
@@ -252,20 +253,25 @@ function AdminStaffManagementPage({
           handleCloseModal();
           fetchInitialData();
         } else {
-          alert("Failed to update staff.");
+          alert('Failed to update staff.');
         }
       })
-      .catch(err => console.error("Error updating:", err));
+      .catch((err) => console.error('Error updating:', err));
   };
 
   // --- 7. PAGINATION ---
+
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentStaff = staffRows.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(staffRows.length / itemsPerPage);
 
-  const handleNextPage = () => { if (currentPage < totalPages) setCurrentPage(prev => prev + 1); };
-  const handlePrevPage = () => { if (currentPage > 1) setCurrentPage(prev => prev - 1); };
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage((prev) => prev + 1);
+  };
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage((prev) => prev - 1);
+  };
 
   // === UPDATED GRID LAYOUT ===
   // StaffID(0.8) | Name(1.3) | Service(1) | Contact(1.2) | Email(1.8) | Role(0.8) | Actions(0.8)
@@ -275,17 +281,47 @@ function AdminStaffManagementPage({
     <div style={{ width: '100%', minHeight: '100vh', background: '#F8F9FA', fontFamily: 'Inter, sans-serif' }}>
       <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout} />
 
-      <main style={{ maxWidth: 1200, margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' }}>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, color: '#111827' }}>All Staff Members</h1>
+      <main
+        style={{
+          maxWidth: 1200,
+          margin: '24px auto 40px',
+          padding: '0 32px',
+          boxSizing: 'border-box',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 16,
+          }}
+        >
+          <h1
+            style={{
+              fontSize: 24,
+              fontWeight: 900,
+              margin: 0,
+              color: '#111827',
+            }}
+          >
+            All Staff Members
+          </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button onClick={onGoManageLeave} style={{ padding: '10px 24px', background: '#5091CD', borderRadius: 68, border: 'none', color: 'white', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>Manage Leave</button>
             <button onClick={canCreateStaff ? () => setShowCreate(true) : undefined} disabled={!canCreateStaff} style={{ padding: '10px 24px', background: canCreateStaff ? '#5091CD' : '#A9C3E0', borderRadius: 68, border: 'none', color: 'white', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, cursor: canCreateStaff ? 'pointer' : 'not-allowed', opacity: canCreateStaff ? 1 : 0.7 }}>New Staff Account</button>
           </div>
         </div>
 
-        <div style={{ background: 'white', borderRadius: 10, border: '1px solid #E6E6E6', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <div
+          style={{
+            background: 'white',
+            borderRadius: 10,
+            border: '1px solid #E6E6E6',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            overflow: 'hidden',
+          }}
+        >
           {/* Table Header */}
           <div style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '16px', background: 'white', borderBottom: '1px solid #E6E6E6', fontWeight: 600, fontSize: 16, color: '#374151' }}>
             <div>Staff ID</div>
@@ -298,7 +334,15 @@ function AdminStaffManagementPage({
           </div>
 
           {isLoading ? (
-            <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Loading...</div>
+            <div
+              style={{
+                padding: '40px',
+                textAlign: 'center',
+                color: '#666',
+              }}
+            >
+              Loading...
+            </div>
           ) : (
             currentStaff.map((row, idx) => {
               const isTargetAdmin = row.role === 'ADMIN';
@@ -345,7 +389,14 @@ function AdminStaffManagementPage({
       {showModal && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
-            <h2 style={{ marginBottom: 24, fontSize: 20, fontWeight: 700, color: '#111827' }}>
+            <h2
+              style={{
+                marginBottom: 24,
+                fontSize: 20,
+                fontWeight: 700,
+                color: '#111827',
+              }}
+            >
               {isEditing ? 'Edit Staff Details' : 'Staff Details'}
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -464,5 +515,7 @@ const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, borde
 const saveButtonStyle = { padding: '10px 20px', background: '#2563EB', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 };
 const cancelButtonStyle = { padding: '10px 20px', background: 'white', color: '#374151', border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 };
 const deleteButtonStyle = { padding: '10px 20px', background: '#DC2626', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: 14 };
+
+
 
 export default AdminStaffManagementPage;

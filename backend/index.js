@@ -5,13 +5,13 @@ const multer = require('multer');
 const path = require('path');
 const axios = require('axios');
 const { generateRoster } = require('./services/rosterEngine');
-const ExcelJS = require('exceljs'); // Import at the top
+const ExcelJS = require('exceljs');
 require('dotenv').config();
 
+// Create the Express application instance
 const app = express();
 
 // ================= Helper Functions =================
-// Log user actions to actionlog table
 async function logAction({ userId, details }) {
   try {
     await pool.query(
@@ -21,7 +21,6 @@ async function logAction({ userId, details }) {
     );
   } catch (err) {
     console.error('Failed to insert action log:', err);
-    // Do NOT throw – app should still succeed even if logging fails
   }
 }
 
@@ -186,14 +185,94 @@ app.get('/api/rosters', async (req, res) => {
     });
 
     res.json(formattedRosters);
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/rosters
+// ================= NEW DASHBOARD HELPERS =================
+
+// 1) Pending leave requests count (leave_has_users)
+app.get('/api/leave/pending-count', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS pendingCount
+       FROM leave_has_users
+       WHERE status = 'Pending'`
+    );
+    res.json({ pendingCount: rows[0].pendingCount });
+  } catch (err) {
+    console.error('Error fetching pending leave count:', err);
+    res.status(500).json({ error: 'Failed to fetch pending leave count' });
+  }
+});
+
+// 2) Pending shift preferences count (shiftpref)
+app.get('/api/shiftpref/pending-count', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT COUNT(*) AS pendingCount
+       FROM shiftpref
+       WHERE status = 'Submitted'` // change to your actual "pending" value
+    );
+    res.json({ pendingCount: rows[0].pendingCount });
+  } catch (err) {
+    console.error('Error fetching pending shift preference count:', err);
+    res.status(500).json({ error: 'Failed to fetch pending shift preference count' });
+  }
+});
+
+// 3) Next roster status (next month from today in rosters)
+app.get('/api/rosters/next', async (req, res) => {
+  try {
+    // 1. Work out next month & year from today
+    const today = new Date();
+    let month = today.getMonth() + 1; // JS: 0-11, DB: 1-12
+    let year = today.getFullYear();
+
+    month += 1;            // move to next month
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+
+    // 2. Query the roster for that month/year
+    const [rows] = await pool.query(
+      `SELECT roster_id, month, year, status
+       FROM rosters
+       WHERE month = ? AND year = ?
+       LIMIT 1`,
+      [month, year]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'No roster found for next month' });
+    }
+
+    const row = rows[0];
+
+    // 3. Convert numeric month to name for the frontend
+    const monthNames = [
+      'January','February','March','April','May','June',
+      'July','August','September','October','November','December'
+    ];
+    const monthValue = monthNames[row.month - 1];
+
+    res.json({
+      roster_id: row.roster_id,
+      month: monthValue,
+      year: row.year,
+      status: row.status,
+    });
+  } catch (err) {
+    console.error('Error fetching next roster:', err);
+    res.status(500).json({ error: 'Failed to fetch next roster' });
+  }
+});
+
+
+// ================= ROSTER CREATION =================
 app.post('/api/rosters', async (req, res) => {
   const { month, year, userId } = req.body;
 
@@ -235,7 +314,6 @@ app.post('/api/rosters', async (req, res) => {
       message: 'Roster created successfully',
       rosterId: result.insertId
     });
-
   } catch (err) {
     console.error("Error creating roster:", err);
     res.status(500).json({ message: 'Database error creating roster' });
@@ -253,7 +331,7 @@ app.get('/api/shift-types', async (req, res) => {
   }
 });
 
-// GET: Fetch all wards
+// ================= WARDS =================
 app.get('/api/wards', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT ward_id, ward_name, ward_comments FROM ward');
@@ -264,7 +342,7 @@ app.get('/api/wards', async (req, res) => {
   }
 });
 
-// POST: Create or Update a Shift
+// ================= SHIFTS UPDATE =================
 app.post('/api/shifts/update', async (req, res) => {
   const { userId, date, shiftTypeId, rosterId, wardId } = req.body;
 
@@ -328,7 +406,6 @@ app.post('/api/rosters/update-status', async (req, res) => {
 
   try {
     let sql = 'UPDATE rosters SET status = ? WHERE roster_id = ?';
-
     if (status === 'Published') {
       sql = 'UPDATE rosters SET status = ?, publish_date = NOW() WHERE roster_id = ?';
     }
@@ -455,7 +532,6 @@ app.post('/users/:id/change-password', async (req, res) => {
     );
 
     res.json({ message: 'Password changed successfully.' });
-
   } catch (err) {
     console.error("Error changing password:", err);
     res.status(500).json({ error: "Failed to change password." });
@@ -916,7 +992,6 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
     connection.release();
 
     res.json({ success: true, message: `Auto-fill complete! Added ${addedCount} shifts.` });
-
   } catch (err) {
     await connection.rollback();
     connection.release();
@@ -965,7 +1040,6 @@ app.delete('/api/rosters/:id', async (req, res) => {
 
     await connection.commit();
     res.json({ success: true, message: 'Roster and all associated shifts deleted.' });
-
   } catch (err) {
     await connection.rollback();
     console.error("Delete Roster Error:", err);
@@ -1064,7 +1138,6 @@ app.get('/api/rosters/:id/download', async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename=${month}_${year}_Roster.xlsx`);
     await workbook.xlsx.write(res);
     res.end();
-
   } catch (err) {
     console.error("Excel Generation Error:", err);
     res.status(500).send("Error generating file");

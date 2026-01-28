@@ -234,7 +234,15 @@ function UserRoster({
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
-      <UserNavbar active="roster" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoShiftPreference={onGoShiftPreference} onGoApplyLeave={onGoApplyLeave} onGoAccount={onGoAccount} onLogout={onLogout} />
+      <UserNavbar
+        active="roster"
+        onLogout={onLogout}
+        onGoHome={onGoHome}
+        onGoRoster={onGoRoster}
+        onGoShiftPreference={onGoShiftPreference}
+        onGoApplyLeave={onGoApplyLeave}
+        onGoAccount={onGoAccount}
+      />
 
       <main style={{ maxWidth: 1600, margin: '24px auto', padding: '0 32px', boxSizing: 'border-box' }}>
         
