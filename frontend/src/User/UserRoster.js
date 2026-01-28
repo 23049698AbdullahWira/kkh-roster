@@ -32,18 +32,13 @@ function UserRoster({
   useEffect(() => {
     const initData = async () => {
       try {
-        // --- GET USER ID ---
         let currentUserId = 1; 
-        
         const storedUserStr = localStorage.getItem('user');
-        
         if (storedUserStr) {
             try {
                 const userObj = JSON.parse(storedUserStr);
-                currentUserId = userObj.userId; 
-            } catch (e) {
-                console.error("Failed to parse user object", e);
-            }
+                if (userObj.userId) currentUserId = userObj.userId; 
+            } catch (e) { console.error("Failed to parse user", e); }
         }
         
         console.log("Logged In User ID found:", currentUserId); 
@@ -64,7 +59,6 @@ function UserRoster({
         setShiftOptions(typeData);
         setTodayShiftData(myShiftData);
 
-        // Sort & Default Selection Logic
         const published = rosterData.filter(r => r.status === 'Published');
         const monthMap = { "January": 0, "February": 1, "March": 2, "April": 3, "May": 4, "June": 5, "July": 6, "August": 7, "September": 8, "October": 9, "November": 10, "December": 11 };
         
@@ -236,17 +230,18 @@ function UserRoster({
   }, [staffList]);
 
   // --- 6. RENDER ---
+  const todayString = new Date().toLocaleDateString('en-CA');
+
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
       <UserNavbar active="roster" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoShiftPreference={onGoShiftPreference} onGoApplyLeave={onGoApplyLeave} onGoAccount={onGoAccount} onLogout={onLogout} />
 
-      <main style={{ maxWidth: 1500, margin: '24px auto', padding: '0 32px', boxSizing: 'border-box' }}>
+      <main style={{ maxWidth: 1600, margin: '24px auto', padding: '0 32px', boxSizing: 'border-box' }}>
         
         {/* --- HEADER --- */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, position: 'relative', minHeight: 60 }}>
           
-          {/* LEFT: SPACER (Increased width to balance the wider card on the right) */}
-          <div style={{ width: 240 }}></div>
+          <div style={{ width: 450 }}></div>
           
           {/* CENTER: ROSTER SELECTOR */}
           <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', width: 'max-content', zIndex: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -273,36 +268,47 @@ function UserRoster({
             )}
           </div>
           
-          {/* RIGHT: MY SHIFT CARD (WIDER) */}
+          {/* RIGHT: MY SHIFT CARD */}
           <div style={{ zIndex: 10, width: 450, display: 'flex', justifyContent: 'flex-end' }}>
             {myTodayShift && (
                 <div style={{ 
-                    display: 'flex', alignItems: 'center', gap: 14, 
+                    display: 'flex', alignItems: 'center', gap: 16, 
                     background: 'white', 
-                    // Made wider by setting minWidth and increasing padding
-                    minWidth: 200,
-                    padding: '8px 24px 8px 16px',  
+                    padding: '8px 24px 8px 16px',
                     borderRadius: 12, 
                     border: '1px solid #E5E7EB',
                     boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
-                    height: 54
+                    height: 54,
+                    minWidth: 200, 
+                    maxWidth: 420  
                 }}>
                     <div style={{ 
-                        width: 38, height: 38, borderRadius: 8, 
+                        minWidth: 38, height: 38, borderRadius: 8, 
                         background: myTodayShift.color, 
                         color: getContrastTextColor(myTodayShift.color),
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontWeight: 800, fontSize: 14,
-                        flexShrink: 0 // Prevents the box from shrinking if text is long
+                        flexShrink: 0, 
+                        padding: '0 8px',
+                        whiteSpace: 'nowrap' 
                     }}>
                         {myTodayShift.code}
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}>
                         <div style={{ fontSize: 11, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', lineHeight: 1, marginBottom: 4 }}>
                             TODAY
                         </div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: '#1F2937', lineHeight: 1, whiteSpace: 'nowrap' }}>
+                        <div 
+                            title={myTodayShift.ward !== 'Not Assigned' ? myTodayShift.ward : myTodayShift.desc}
+                            style={{ 
+                                fontSize: 15, fontWeight: 700, color: '#1F2937', lineHeight: 1.2,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: '320px' 
+                            }}
+                        >
                             {myTodayShift.ward !== 'Not Assigned' && myTodayShift.ward !== 'No Shift' 
                                 ? myTodayShift.ward 
                                 : myTodayShift.desc}
@@ -325,9 +331,22 @@ function UserRoster({
               <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#F9FAFB' }}>
                 <tr>
                   <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: '12px 14px', textAlign: 'left', minWidth: 150 }}>Nurse Name</th>
-                  {days.map(d => (
-                    <th key={d.day} style={{ borderLeft: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: 6, minWidth: 45, fontSize: 13 }}>{d.day}<br/><span style={{ fontSize: 11, fontWeight: 400 }}>{d.label}</span></th>
-                  ))}
+                  {days.map(d => {
+                    const isToday = d.fullDate === todayString;
+                    return (
+                        <th key={d.day} style={{ 
+                            borderLeft: '1px solid #8C8C8C', 
+                            borderBottom: '1px solid #8C8C8C', 
+                            padding: 6, minWidth: 45, fontSize: 13,
+                            // HIGHLIGHT ONLY THE HEADER
+                            background: isToday ? '#DBEAFE' : 'inherit', 
+                            color: isToday ? '#1E40AF' : 'inherit'       
+                        }}>
+                            {d.day}<br/>
+                            <span style={{ fontSize: 11, fontWeight: isToday ? 700 : 400 }}>{d.label}</span>
+                        </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -346,7 +365,16 @@ function UserRoster({
                             {days.map(d => {
                               const shiftData = getShift(staff.user_id, d.fullDate);
                               return (
-                                <td key={d.day} onClick={() => handleCellClick(staff, d.fullDate, shiftData)} style={{ background: shiftData.color, textAlign: 'center', fontWeight: 700, fontSize: 13, borderBottom: '1px solid #8C8C8C', borderLeft: '1px solid #8C8C8C', height: 40, borderTop: isFirstInGroup ? '3px solid #374151' : 'none', color: getContrastTextColor(shiftData.color), cursor: shiftData.code ? 'pointer' : 'default' }}>
+                                <td key={d.day} onClick={() => handleCellClick(staff, d.fullDate, shiftData)} style={{ 
+                                    background: shiftData.color, 
+                                    textAlign: 'center', fontWeight: 700, fontSize: 13, 
+                                    borderBottom: '1px solid #8C8C8C', 
+                                    borderLeft: '1px solid #8C8C8C', 
+                                    height: 40, 
+                                    borderTop: isFirstInGroup ? '3px solid #374151' : 'none', 
+                                    color: getContrastTextColor(shiftData.color), 
+                                    cursor: shiftData.code ? 'pointer' : 'default'
+                                }}>
                                   {shiftData.code}
                                 </td>
                               );
@@ -363,7 +391,7 @@ function UserRoster({
         )}
       </main>
 
-      {/* --- POPUP: ROSTER SELECTION --- */}
+      {/* ... Popups ... */}
       {showRosterSelector && (
         <div
           onClick={() => setShowRosterSelector(false)}
@@ -434,7 +462,6 @@ function UserRoster({
         </div>
       )}
 
-      {/* --- POPUP: SHIFT DETAILS --- */}
       {viewModalData && (
         <div onClick={() => setViewModalData(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 20, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', width: 440, overflow: 'hidden', animation: 'fadeIn 0.2s ease-out' }}>
