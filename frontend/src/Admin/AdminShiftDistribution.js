@@ -23,7 +23,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);    
-  const itemsPerPage = 5;
+  const itemsPerPage = 6;
 
   // --- 2. HANDLER: Switch Shift Type ---
   const handleShiftTypeChange = (e) => {
