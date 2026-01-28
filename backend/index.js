@@ -587,15 +587,24 @@ app.get('/available-years', async (req, res) => {
   }
 });
 
+// Updated Shift Distribution Route
 app.get('/shift-distribution', async (req, res) => {
-  const { year, shiftType } = req.query;
+  // 1. ADD 'day' to destructuring
+  const { year, month, day, shiftType, timeFrame } = req.query; 
+  
   const targetYear = year || new Date().getFullYear();
+  const targetMonth = month || (new Date().getMonth() + 1);
+  const targetDay = day || new Date().getDate(); // 2. Default to current date if missing
   const targetShiftType = (shiftType || 'NNJ').trim().toUpperCase();
+  
+  // 3. Change default fallback from 'Year' to ensure we capture the specific mode
+  const period = timeFrame || 'Year';
 
   try {
     let phSet = new Set();
 
-    if (targetShiftType !== 'AL') {
+    // Fetch holidays only if needed for NNJ analysis
+    if (targetShiftType === 'NNJ') {
       try {
         const url = `https://date.nager.at/api/v3/publicholidays/${targetYear}/SG`;
         const response = await axios.get(url);
@@ -603,6 +612,26 @@ app.get('/shift-distribution', async (req, res) => {
       } catch (apiErr) {
         console.error("Warning: Holiday API failed.", apiErr.message);
       }
+    }
+
+    // 4. Build Dynamic Date Conditions
+    let dateCondition = '';
+    let queryParams = [];
+
+    if (period === 'Day') { 
+      // --- LOGIC CHANGE: Filter by specific YYYY-MM-DD ---
+      dateCondition = 'AND s.shift_date = ?';
+      // Format date as YYYY-MM-DD
+      const formattedDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+      queryParams = [formattedDate];
+
+    } else if (period === 'Month') {
+      dateCondition = 'AND YEAR(s.shift_date) = ? AND MONTH(s.shift_date) = ?';
+      queryParams = [targetYear, targetMonth];
+    } else {
+      // Default: Year
+      dateCondition = 'AND YEAR(s.shift_date) = ?';
+      queryParams = [targetYear];
     }
 
     const query = `
@@ -615,15 +644,16 @@ app.get('/shift-distribution', async (req, res) => {
       FROM users u
       LEFT JOIN shifts s 
         ON u.user_id = s.user_id 
-        AND YEAR(s.shift_date) = ?
+        ${dateCondition}
       LEFT JOIN shift_desc sd
         ON s.shift_type_id = sd.shift_type_id
       WHERE u.role = 'APN'
       ORDER BY u.full_name ASC
     `;
 
-    const [rows] = await pool.query(query, [targetYear]);
+    const [rows] = await pool.query(query, queryParams);
 
+    // 2. Process Results (Same logic as before, but scope is now filtered by SQL)
     const userMap = new Map();
 
     rows.forEach(row => {
@@ -635,6 +665,7 @@ app.get('/shift-distribution', async (req, res) => {
           ph_count: 0,
           sun_count: 0,
           al_count: 0, 
+          generic_count: 0,
           total: 0
         });
       }
@@ -644,32 +675,33 @@ app.get('/shift-distribution', async (req, res) => {
       if (row.shift_date) {
         const dbShiftCode = (row.shift_code || 'UNKNOWN').trim().toUpperCase();
         const rawDate = new Date(row.shift_date);
-        const yyyy = rawDate.getFullYear();
-        const mm = String(rawDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(rawDate.getDate()).padStart(2, '0');
-        const dateStr = `${yyyy}-${mm}-${dd}`;
+        
+        // Fix timezone issue for accurate PH checking
+        const dateStr = rawDate.toLocaleDateString('en-CA'); // YYYY-MM-DD format
 
         if (targetShiftType === 'AL') {
-          if (dbShiftCode === 'AL') {
-            stats.al_count += 1;
+          if (dbShiftCode === 'AL') stats.al_count += 1;
+        } 
+        else if (targetShiftType === 'NNJ') {
+          if (dbShiftCode === 'NNJ') {
+            if (rawDate.getDay() === 0) stats.sun_count += 1;
+            if (phSet.has(dateStr)) stats.ph_count += 1;
           }
-        } else {
-          if (dbShiftCode === targetShiftType) {
-            if (rawDate.getDay() === 0) {
-              stats.sun_count += 1;
-            }
-            if (phSet.has(dateStr)) {
-              stats.ph_count += 1;
-            }
-          }
+        } 
+        else {
+          if (dbShiftCode === targetShiftType) stats.generic_count += 1;
         }
       }
     });
 
-    const results = Array.from(userMap.values()).map(u => ({
-      ...u,
-      total: targetShiftType === 'AL' ? u.al_count : (u.ph_count + u.sun_count)
-    }));
+    const results = Array.from(userMap.values()).map(u => {
+      let finalTotal = 0;
+      if (targetShiftType === 'AL') finalTotal = u.al_count;
+      else if (targetShiftType === 'NNJ') finalTotal = u.ph_count + u.sun_count;
+      else finalTotal = u.generic_count;
+
+      return { ...u, total: finalTotal };
+    });
 
     res.json(results);
 
