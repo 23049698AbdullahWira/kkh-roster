@@ -126,14 +126,14 @@ app.get('/api/services', async (req, res) => {
       const enumString = rows[0].COLUMN_TYPE;
       // Regex to extract content between single quotes
       const matches = enumString.match(/'([^']+)'/g);
-      
+
       if (matches) {
         // Remove quotes from result
         const services = matches.map(s => s.replace(/'/g, ''));
         res.json(services);
       } else {
         // Fallback if regex fails (shouldn't happen with standard ENUM)
-        res.json(['CE', 'ONCO', 'PAS', 'PAME', 'ACUTE', 'Triage']); 
+        res.json(['CE', 'ONCO', 'PAS', 'PAME', 'ACUTE', 'Triage']);
       }
     } else {
       res.status(404).json({ error: "Service column not found" });
@@ -255,8 +255,8 @@ app.get('/api/rosters/next', async (req, res) => {
 
     // 3. Convert numeric month to name for the frontend
     const monthNames = [
-      'January','February','March','April','May','June',
-      'July','August','September','October','November','December'
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
     ];
     const monthValue = monthNames[row.month - 1];
 
@@ -588,17 +588,17 @@ app.get('/available-years', async (req, res) => {
   }
 });
 
-// Updated Shift Distribution Route
+// Updated Shift Distribution Route with Service Filter
 app.get('/shift-distribution', async (req, res) => {
-  // 1. ADD 'day' to destructuring
-  const { year, month, day, shiftType, timeFrame } = req.query; 
-  
+  // 1. ADD 'service' to destructuring
+  const { year, month, day, shiftType, timeFrame, service } = req.query;
+
   const targetYear = year || new Date().getFullYear();
   const targetMonth = month || (new Date().getMonth() + 1);
-  const targetDay = day || new Date().getDate(); // 2. Default to current date if missing
+  const targetDay = day || new Date().getDate();
   const targetShiftType = (shiftType || 'NNJ').trim().toUpperCase();
-  
-  // 3. Change default fallback from 'Year' to ensure we capture the specific mode
+  const targetService = service || 'ALL'; // Default to ALL
+
   const period = timeFrame || 'Year';
 
   try {
@@ -619,27 +619,39 @@ app.get('/shift-distribution', async (req, res) => {
     let dateCondition = '';
     let queryParams = [];
 
-    if (period === 'Day') { 
-      // --- LOGIC CHANGE: Filter by specific YYYY-MM-DD ---
+    if (period === 'Day') {
       dateCondition = 'AND s.shift_date = ?';
-      // Format date as YYYY-MM-DD
       const formattedDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
-      queryParams = [formattedDate];
-
+      queryParams.push(formattedDate);
     } else if (period === 'Month') {
       dateCondition = 'AND YEAR(s.shift_date) = ? AND MONTH(s.shift_date) = ?';
-      queryParams = [targetYear, targetMonth];
+      queryParams.push(targetYear, targetMonth);
     } else {
-      // Default: Year
       dateCondition = 'AND YEAR(s.shift_date) = ?';
-      queryParams = [targetYear];
+      queryParams.push(targetYear);
     }
 
-const query = `
+// 5. Build Service Filter Condition
+    let serviceCondition = "";
+
+    // If we are looking at NNJ shifts, apply the strict service filter
+    if (targetShiftType === 'NNJ') {
+      if (targetService === 'ALL') {
+        // "ALL" now means: The combination of CE + Neonates + PAME only
+        serviceCondition = " AND u.service IN ('CE', 'Neonates', 'PAME') ";
+      } else {
+        // Specific filter (e.g., just 'CE')
+        serviceCondition = " AND u.service = ? ";
+        queryParams.push(targetService);
+      }
+    }
+
+    const query = `
       SELECT 
         u.user_id, 
         u.full_name, 
         u.role, 
+        u.service,
         s.shift_date,
         sd.shift_code
       FROM users u
@@ -648,13 +660,15 @@ const query = `
         ${dateCondition}
       LEFT JOIN shift_desc sd
         ON s.shift_type_id = sd.shift_type_id
-      WHERE u.role = 'APN' AND u.status = 'Active' 
+      WHERE u.role = 'APN' 
+        AND u.status = 'Active' 
+        ${serviceCondition}  -- This now enforces the 3 services limit
       ORDER BY u.full_name ASC
     `;
 
     const [rows] = await pool.query(query, queryParams);
 
-    // 2. Process Results (Same logic as before, but scope is now filtered by SQL)
+    // 6. Process Results
     const userMap = new Map();
 
     rows.forEach(row => {
@@ -663,6 +677,7 @@ const query = `
           user_id: row.user_id,
           name: row.full_name || 'Unknown',
           role: row.role,
+          service: row.service, // Optional: return service to frontend
           ph_count: 0,
           sun_count: 0,
           al_count: 0, 
@@ -676,19 +691,17 @@ const query = `
       if (row.shift_date) {
         const dbShiftCode = (row.shift_code || 'UNKNOWN').trim().toUpperCase();
         const rawDate = new Date(row.shift_date);
-        
-        // Fix timezone issue for accurate PH checking
-        const dateStr = rawDate.toLocaleDateString('en-CA'); // YYYY-MM-DD format
+        const dateStr = rawDate.toLocaleDateString('en-CA'); 
 
         if (targetShiftType === 'AL') {
           if (dbShiftCode === 'AL') stats.al_count += 1;
-        } 
+        }
         else if (targetShiftType === 'NNJ') {
           if (dbShiftCode === 'NNJ') {
             if (rawDate.getDay() === 0) stats.sun_count += 1;
             if (phSet.has(dateStr)) stats.ph_count += 1;
           }
-        } 
+        }
         else {
           if (dbShiftCode === targetShiftType) stats.generic_count += 1;
         }
@@ -1253,8 +1266,8 @@ app.post('/api/add-shift-preference', async (req, res) => {
     }
 
     if (rosterRows[0].status !== 'Preference Open') {
-      return res.status(403).json({ 
-        error: `Submission blocked. Roster is currently in '${rosterRows[0].status}' status.` 
+      return res.status(403).json({
+        error: `Submission blocked. Roster is currently in '${rosterRows[0].status}' status.`
       });
     }
 
@@ -1333,7 +1346,7 @@ app.delete('/api/delete-shift-preference/:id', async (req, res) => {
 
   try {
     const query = 'DELETE FROM shiftpref WHERE shiftPref_id = ?';
-    
+
     const [result] = await pool.query(query, [id]);
 
     if (result.affectedRows === 0) {
@@ -1421,7 +1434,7 @@ app.get('/api/users/:userId/shifts-by-month', async (req, res) => {
     res.status(500).json({ error: "Failed to fetch monthly shifts" });
   }
 });
-  
+
 // --- START: NEW ENDPOINT TO GET PUBLISHED ROSTERS ---
 
 // GET: a list of all published rosters for the calendar dropdown
@@ -1494,7 +1507,7 @@ app.put('/api/profile/:id', async (req, res) => {
       return res.status(404).json({ message: 'User not found or no changes made' });
     }
 
-    res.json({ 
+    res.json({
       message: 'Profile updated successfully',
       user: { user_id: id, full_name, email, contact, avatar_url }
     });

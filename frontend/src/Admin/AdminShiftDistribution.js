@@ -26,13 +26,16 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
   const [isLoading, setIsLoading] = useState(true);
   
   // Filters
-  const [timeFrame, setTimeFrame] = useState('Year'); // 'Year', 'Month', 'Day'
+  const [timeFrame, setTimeFrame] = useState('Year');
   const [year, setYear] = useState(''); 
   const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [day, setDay] = useState(new Date().getDate()); // NEW: Day State
+  const [day, setDay] = useState(new Date().getDate());
   const [shiftType, setShiftType] = useState('NNJ'); 
-  const [target, setTarget] = useState(2); 
+  
+  // NEW: Service Filter State
+  const [serviceFilter, setServiceFilter] = useState('ALL');
 
+  const [target, setTarget] = useState(2); 
   const [currentPage, setCurrentPage] = useState(1);     
   const itemsPerPage = 6;
 
@@ -41,6 +44,11 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
     const newType = e.target.value;
     setShiftType(newType);
     
+    // Reset service filter if moving away from NNJ (Optional, but good UX)
+    if (newType !== 'NNJ') {
+        setServiceFilter('ALL');
+    }
+
     // Auto-adjust target
     if (timeFrame === 'Day') setTarget(1); 
     else if (newType === 'AL') setTarget(timeFrame === 'Month' ? 2 : 14);
@@ -76,7 +84,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
     initData();
   }, []);
 
-  // --- FETCH DATA ---
+// --- FETCH DATA (Updated) ---
   useEffect(() => {
     if (!year) return; 
     setIsLoading(true);
@@ -84,9 +92,10 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
     const queryParams = new URLSearchParams({
       year,
       month,
-      day, // Add Day to query params
+      day,
       shiftType,
-      timeFrame // Backend now expects 'Year', 'Month', or 'Day'
+      timeFrame,
+      service: serviceFilter // Pass the service filter to backend
     });
 
     fetch(`http://localhost:5000/shift-distribution?${queryParams}`)
@@ -96,6 +105,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
             id: item.user_id,
             name: item.name, 
             role: item.role,
+            service: item.service, // Capture service from backend
             ph: Number(item.ph_count || 0), 
             sunday: Number(item.sun_count || 0),
             al: Number(item.al_count || 0),
@@ -110,7 +120,7 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
         setIsLoading(false);
       });
 
-  }, [year, month, day, shiftType, timeFrame]); // Added 'day' dependency
+  }, [year, month, day, shiftType, timeFrame, serviceFilter]); // ADD serviceFilter to dependency array
 
   // --- PAGINATION & RENDER HELPERS ---
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -226,7 +236,25 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
                         <div style={{...chevronStyle, color: '#92400E'}}>▼</div>
                     </div>
                 </div>
-
+{/* NEW: Service Filter Dropdown (Conditional) */}
+                {shiftType === 'NNJ' && (
+                  <div style={controlGroupStyle}>
+                      <label style={labelStyle}>Service</label>
+                      <div style={{ position: 'relative' }}>
+                          <select 
+                            value={serviceFilter} 
+                            onChange={(e) => setServiceFilter(e.target.value)} 
+                            style={{...selectStyle, borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', color: '#1E40AF'}}
+                          >
+                              <option value="ALL">ALL</option>
+                              <option value="CE">CE</option>
+                              <option value="Neonates">Neonates</option>
+                              <option value="PAME">PAME</option>
+                          </select>
+                          <div style={{...chevronStyle, color: '#1E40AF'}}>▼</div>
+                      </div>
+                  </div>
+                )}
                 {/* Target */}
                 <div style={controlGroupStyle}>
                     <label style={labelStyle}>Target</label>

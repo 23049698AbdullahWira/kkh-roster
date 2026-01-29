@@ -98,23 +98,32 @@
 .rbc-month-row {
   border: none;
   display: flex;
-  min-height: 80px; 
-  margin-bottom: 4px; /* Tiny gap between rows */
+  /* Change min-height to 0 and use flex: 1 to distribute space evenly */
+  min-height: 0; 
+  flex: 1 0 0; 
+  margin-bottom: 4px;
 }
 
-.rbc-day-bg {
+/* Add this to ensure the calendar container clips the rounded corners correctly 
+   and handles the internal flex layout */
+.rbc-month-view {
   border: none;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
 }
 
-/* Custom Date Cell Wrapper */
+/* Ensure the custom cell takes up the full height provided by the row */
 .custom-date-cell {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
   height: 100%;
+  width: 100%; /* Ensure it fills width */
   padding-top: 8px;
-  border-radius: 8px; /* Soft rounded corners for every day */
+  border-radius: 8px;
   transition: background-color 0.2s;
 }
 
