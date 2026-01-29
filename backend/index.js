@@ -986,53 +986,91 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
   await connection.beginTransaction();
 
   try {
+    console.log(`\n--- Starting Auto-Fill for Roster ${rosterId} (${month}/${year}) ---`);
+
+    // 1. Fetch Users (APN Role)
     const [users] = await connection.query("SELECT * FROM users WHERE role = 'APN'");
+    console.log(`✅ Users Found: ${users.length}`);
+
+    if (users.length === 0) {
+      throw new Error("No APN users found. Check 'role' in users table.");
+    }
+
+    // 2. Fetch History (ENTIRE YEAR for Fairness Logic)
+    console.log(`🔍 Fetching full shift history for Year ${year}...`);
     const [existingShifts] = await connection.query(
       `SELECT s.*, sd.shift_code 
        FROM shifts s 
        JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id 
-       WHERE s.roster_id = ?`,
-      [rosterId]
+       WHERE YEAR(s.shift_date) = ?`,
+      [year]
     );
-    const [shiftTypes] = await connection.query("SELECT shift_type_id, shift_code FROM shift_desc");
+    console.log(`✅ Found ${existingShifts.length} total shifts in ${year} for fairness calculation.`);
 
-    const typeMap = {};
-    shiftTypes.forEach(t => typeMap[t.shift_code] = t.shift_type_id);
+    // 3. Fetch Metadata
+    const [shiftTypes] = await connection.query("SELECT * FROM shift_desc");
+    const [wards] = await connection.query("SELECT * FROM ward");
 
-    const newAssignments = await generateRoster(month, year, users, existingShifts);
+    // 4. Fetch Public Holidays (New Feature)
+    let publicHolidays = [];
+    try {
+        console.log(`📅 Fetching Public Holidays for ${year}...`);
+        const response = await axios.get(`https://date.nager.at/api/v3/publicholidays/${year}/SG`);
+        publicHolidays = response.data.map(h => h.date);
+        console.log(`✅ Fetched ${publicHolidays.length} Public Holidays.`);
+    } catch (error) {
+        console.warn("⚠️ Failed to fetch Public Holidays via API, using defaults.");
+        // Fallback for 2025/2026 just in case
+        if (year == 2025) publicHolidays = ["2025-01-01", "2025-01-29", "2025-01-30", "2025-03-31", "2025-04-18", "2025-05-01", "2025-05-12", "2025-06-06", "2025-08-09", "2025-10-20", "2025-12-25"];
+    }
 
+    // 5. Run the Engine
+    const newAssignments = await generateRoster(
+        month, 
+        year, 
+        users, 
+        existingShifts, 
+        wards, 
+        shiftTypes,
+        publicHolidays // Pass PH List
+    );
+    console.log(`✅ Engine Generated: ${newAssignments.length} new shifts`);
+
+    // 6. Prepare Bulk Insert
     const valuesToInsert = [];
     const newlyAddedSet = new Set();
 
     for (const item of newAssignments) {
+      if (!item.user_id || !item.shift_type_id || !item.shift_date) {
+          console.warn("⚠️ Skipping invalid assignment:", item);
+          continue;
+      }
+
       const shiftKey = `${item.user_id}-${item.shift_date}`;
+      
+      // Check against existing DB records (Safety Net)
       const existsInDB = existingShifts.find(e => {
         const dbDate = new Date(e.shift_date);
-        const dbDateStr = dbDate.toLocaleDateString('en-CA');
+        const dbDateStr = dbDate.toISOString().split('T')[0]; 
         return e.user_id === item.user_id && dbDateStr === item.shift_date;
       });
 
-      const existsInBatch = newlyAddedSet.has(shiftKey);
-
-      if (!existsInDB && !existsInBatch) {
-        const typeId = typeMap[item.shift_code];
-        const finalWardId = item.ward_id || null;
-
-        if (typeId) {
+      if (!existsInDB && !newlyAddedSet.has(shiftKey)) {
           valuesToInsert.push([
             item.user_id,
             rosterId,
-            typeId,
+            item.shift_type_id,
             item.shift_date,
-            finalWardId
+            item.ward_id || null 
           ]);
           newlyAddedSet.add(shiftKey);
-        }
       }
     }
 
+    // 7. Execute Insert
     let addedCount = 0;
     if (valuesToInsert.length > 0) {
+      console.log(`📝 Inserting ${valuesToInsert.length} shifts into database...`);
       const [result] = await connection.query(
         `INSERT IGNORE INTO shifts 
          (user_id, roster_id, shift_type_id, shift_date, ward_id) 
@@ -1040,17 +1078,21 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
         [valuesToInsert]
       );
       addedCount = result.affectedRows;
+    } else {
+      console.log("ℹ️ No new shifts to insert.");
     }
 
     await connection.commit();
-    connection.release();
-
+    console.log("--- Auto-Fill Complete ---\n");
+    
     res.json({ success: true, message: `Auto-fill complete! Added ${addedCount} shifts.` });
+
   } catch (err) {
     await connection.rollback();
-    connection.release();
-    console.error("Auto-Fill Error:", err);
+    console.error("❌ Auto-Fill Error:", err);
     res.status(500).json({ error: err.message });
+  } finally {
+    connection.release();
   }
 });
 
