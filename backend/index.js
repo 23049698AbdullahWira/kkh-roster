@@ -631,7 +631,7 @@ app.get('/shift-distribution', async (req, res) => {
       queryParams.push(targetYear);
     }
 
-// 5. Build Service Filter Condition
+    // 5. Build Service Filter Condition
     let serviceCondition = "";
 
     // If we are looking at NNJ shifts, apply the strict service filter
@@ -646,25 +646,33 @@ app.get('/shift-distribution', async (req, res) => {
       }
     }
 
-    const query = `
-      SELECT 
-        u.user_id, 
-        u.full_name, 
-        u.role, 
-        u.service,
-        s.shift_date,
-        sd.shift_code
-      FROM users u
-      LEFT JOIN shifts s 
-        ON u.user_id = s.user_id 
-        ${dateCondition}
-      LEFT JOIN shift_desc sd
-        ON s.shift_type_id = sd.shift_type_id
-      WHERE u.role = 'APN' 
-        AND u.status = 'Active' 
-        ${serviceCondition}  -- This now enforces the 3 services limit
-      ORDER BY u.full_name ASC
-    `;
+// --- MODIFIED QUERY START ---
+const query = `
+  SELECT 
+    u.user_id, 
+    u.full_name, 
+    u.role, 
+    u.service,
+    s.shift_date,
+    sd.shift_code
+  FROM users u
+  -- 1. We keep LEFT JOIN for shifts so we see nurses with 0 shifts IN PUBLISHED rosters
+  LEFT JOIN shifts s 
+    ON u.user_id = s.user_id 
+    ${dateCondition}
+  -- 2. CRITICAL CHANGE: Use INNER JOIN for rosters with a status filter.
+  -- This forces the query to ONLY return rows where a PUBLISHED roster exists.
+  INNER JOIN rosters r
+    ON s.roster_id = r.roster_id
+    AND r.status = 'Published'
+  LEFT JOIN shift_desc sd
+    ON s.shift_type_id = sd.shift_type_id
+  WHERE u.role = 'APN' 
+    AND u.status = 'Active' 
+    ${serviceCondition}
+  ORDER BY u.full_name ASC
+`;
+// --- MODIFIED QUERY END ---
 
     const [rows] = await pool.query(query, queryParams);
 
@@ -680,7 +688,7 @@ app.get('/shift-distribution', async (req, res) => {
           service: row.service, // Optional: return service to frontend
           ph_count: 0,
           sun_count: 0,
-          al_count: 0, 
+          al_count: 0,
           generic_count: 0,
           total: 0
         });
@@ -691,7 +699,7 @@ app.get('/shift-distribution', async (req, res) => {
       if (row.shift_date) {
         const dbShiftCode = (row.shift_code || 'UNKNOWN').trim().toUpperCase();
         const rawDate = new Date(row.shift_date);
-        const dateStr = rawDate.toLocaleDateString('en-CA'); 
+        const dateStr = rawDate.toLocaleDateString('en-CA');
 
         if (targetShiftType === 'AL') {
           if (dbShiftCode === 'AL') stats.al_count += 1;
