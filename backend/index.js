@@ -72,10 +72,11 @@ app.get('/test-db', async (req, res) => {
 
 // ================= User Routes =================
 
-// GET All Users (excluding Superadmin)
+// GET All Users (excluding Superadmin AND filtering only Active users)
 app.get('/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM users WHERE role != "SUPERADMIN"');
+    // MODIFIED: Added 'AND status = "Active"' to the query
+    const [rows] = await pool.query('SELECT * FROM users WHERE role != "SUPERADMIN" AND status = "Active"');
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -125,14 +126,14 @@ app.get('/api/services', async (req, res) => {
       const enumString = rows[0].COLUMN_TYPE;
       // Regex to extract content between single quotes
       const matches = enumString.match(/'([^']+)'/g);
-      
+
       if (matches) {
         // Remove quotes from result
         const services = matches.map(s => s.replace(/'/g, ''));
         res.json(services);
       } else {
         // Fallback if regex fails (shouldn't happen with standard ENUM)
-        res.json(['CE', 'ONCO', 'PAS', 'PAME', 'ACUTE', 'Triage']); 
+        res.json(['CE', 'ONCO', 'PAS', 'PAME', 'ACUTE', 'Triage']);
       }
     } else {
       res.status(404).json({ error: "Service column not found" });
@@ -254,8 +255,8 @@ app.get('/api/rosters/next', async (req, res) => {
 
     // 3. Convert numeric month to name for the frontend
     const monthNames = [
-      'January','February','March','April','May','June',
-      'July','August','September','October','November','December'
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
     ];
     const monthValue = monthNames[row.month - 1];
 
@@ -592,15 +593,24 @@ app.get('/available-years', async (req, res) => {
   }
 });
 
+// Updated Shift Distribution Route with Service Filter
 app.get('/shift-distribution', async (req, res) => {
-  const { year, shiftType } = req.query;
+  // 1. ADD 'service' to destructuring
+  const { year, month, day, shiftType, timeFrame, service } = req.query;
+
   const targetYear = year || new Date().getFullYear();
+  const targetMonth = month || (new Date().getMonth() + 1);
+  const targetDay = day || new Date().getDate();
   const targetShiftType = (shiftType || 'NNJ').trim().toUpperCase();
+  const targetService = service || 'ALL'; // Default to ALL
+
+  const period = timeFrame || 'Year';
 
   try {
     let phSet = new Set();
 
-    if (targetShiftType !== 'AL') {
+    // Fetch holidays only if needed for NNJ analysis
+    if (targetShiftType === 'NNJ') {
       try {
         const url = `https://date.nager.at/api/v3/publicholidays/${targetYear}/SG`;
         const response = await axios.get(url);
@@ -610,25 +620,68 @@ app.get('/shift-distribution', async (req, res) => {
       }
     }
 
-    const query = `
-      SELECT 
-        u.user_id, 
-        u.full_name, 
-        u.role, 
-        s.shift_date,
-        sd.shift_code
-      FROM users u
-      LEFT JOIN shifts s 
-        ON u.user_id = s.user_id 
-        AND YEAR(s.shift_date) = ?
-      LEFT JOIN shift_desc sd
-        ON s.shift_type_id = sd.shift_type_id
-      WHERE u.role = 'APN'
-      ORDER BY u.full_name ASC
-    `;
+    // 4. Build Dynamic Date Conditions
+    let dateCondition = '';
+    let queryParams = [];
 
-    const [rows] = await pool.query(query, [targetYear]);
+    if (period === 'Day') {
+      dateCondition = 'AND s.shift_date = ?';
+      const formattedDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+      queryParams.push(formattedDate);
+    } else if (period === 'Month') {
+      dateCondition = 'AND YEAR(s.shift_date) = ? AND MONTH(s.shift_date) = ?';
+      queryParams.push(targetYear, targetMonth);
+    } else {
+      dateCondition = 'AND YEAR(s.shift_date) = ?';
+      queryParams.push(targetYear);
+    }
 
+    // 5. Build Service Filter Condition
+    let serviceCondition = "";
+
+    // If we are looking at NNJ shifts, apply the strict service filter
+    if (targetShiftType === 'NNJ') {
+      if (targetService === 'ALL') {
+        // "ALL" now means: The combination of CE + Neonates + PAME only
+        serviceCondition = " AND u.service IN ('CE', 'Neonates', 'PAME') ";
+      } else {
+        // Specific filter (e.g., just 'CE')
+        serviceCondition = " AND u.service = ? ";
+        queryParams.push(targetService);
+      }
+    }
+
+// --- MODIFIED QUERY START ---
+const query = `
+  SELECT 
+    u.user_id, 
+    u.full_name, 
+    u.role, 
+    u.service,
+    s.shift_date,
+    sd.shift_code
+  FROM users u
+  -- 1. We keep LEFT JOIN for shifts so we see nurses with 0 shifts IN PUBLISHED rosters
+  LEFT JOIN shifts s 
+    ON u.user_id = s.user_id 
+    ${dateCondition}
+  -- 2. CRITICAL CHANGE: Use INNER JOIN for rosters with a status filter.
+  -- This forces the query to ONLY return rows where a PUBLISHED roster exists.
+  INNER JOIN rosters r
+    ON s.roster_id = r.roster_id
+    AND r.status = 'Published'
+  LEFT JOIN shift_desc sd
+    ON s.shift_type_id = sd.shift_type_id
+  WHERE u.role = 'APN' 
+    AND u.status = 'Active' 
+    ${serviceCondition}
+  ORDER BY u.full_name ASC
+`;
+// --- MODIFIED QUERY END ---
+
+    const [rows] = await pool.query(query, queryParams);
+
+    // 6. Process Results
     const userMap = new Map();
 
     rows.forEach(row => {
@@ -637,9 +690,11 @@ app.get('/shift-distribution', async (req, res) => {
           user_id: row.user_id,
           name: row.full_name || 'Unknown',
           role: row.role,
+          service: row.service, // Optional: return service to frontend
           ph_count: 0,
           sun_count: 0,
-          al_count: 0, 
+          al_count: 0,
+          generic_count: 0,
           total: 0
         });
       }
@@ -649,32 +704,31 @@ app.get('/shift-distribution', async (req, res) => {
       if (row.shift_date) {
         const dbShiftCode = (row.shift_code || 'UNKNOWN').trim().toUpperCase();
         const rawDate = new Date(row.shift_date);
-        const yyyy = rawDate.getFullYear();
-        const mm = String(rawDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(rawDate.getDate()).padStart(2, '0');
-        const dateStr = `${yyyy}-${mm}-${dd}`;
+        const dateStr = rawDate.toLocaleDateString('en-CA');
 
         if (targetShiftType === 'AL') {
-          if (dbShiftCode === 'AL') {
-            stats.al_count += 1;
+          if (dbShiftCode === 'AL') stats.al_count += 1;
+        }
+        else if (targetShiftType === 'NNJ') {
+          if (dbShiftCode === 'NNJ') {
+            if (rawDate.getDay() === 0) stats.sun_count += 1;
+            if (phSet.has(dateStr)) stats.ph_count += 1;
           }
-        } else {
-          if (dbShiftCode === targetShiftType) {
-            if (rawDate.getDay() === 0) {
-              stats.sun_count += 1;
-            }
-            if (phSet.has(dateStr)) {
-              stats.ph_count += 1;
-            }
-          }
+        }
+        else {
+          if (dbShiftCode === targetShiftType) stats.generic_count += 1;
         }
       }
     });
 
-    const results = Array.from(userMap.values()).map(u => ({
-      ...u,
-      total: targetShiftType === 'AL' ? u.al_count : (u.ph_count + u.sun_count)
-    }));
+    const results = Array.from(userMap.values()).map(u => {
+      let finalTotal = 0;
+      if (targetShiftType === 'AL') finalTotal = u.al_count;
+      else if (targetShiftType === 'NNJ') finalTotal = u.ph_count + u.sun_count;
+      else finalTotal = u.generic_count;
+
+      return { ...u, total: finalTotal };
+    });
 
     res.json(results);
 
@@ -937,53 +991,91 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
   await connection.beginTransaction();
 
   try {
+    console.log(`\n--- Starting Auto-Fill for Roster ${rosterId} (${month}/${year}) ---`);
+
+    // 1. Fetch Users (APN Role)
     const [users] = await connection.query("SELECT * FROM users WHERE role = 'APN'");
+    console.log(`✅ Users Found: ${users.length}`);
+
+    if (users.length === 0) {
+      throw new Error("No APN users found. Check 'role' in users table.");
+    }
+
+    // 2. Fetch History (ENTIRE YEAR for Fairness Logic)
+    console.log(`🔍 Fetching full shift history for Year ${year}...`);
     const [existingShifts] = await connection.query(
       `SELECT s.*, sd.shift_code 
        FROM shifts s 
        JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id 
-       WHERE s.roster_id = ?`,
-      [rosterId]
+       WHERE YEAR(s.shift_date) = ?`,
+      [year]
     );
-    const [shiftTypes] = await connection.query("SELECT shift_type_id, shift_code FROM shift_desc");
+    console.log(`✅ Found ${existingShifts.length} total shifts in ${year} for fairness calculation.`);
 
-    const typeMap = {};
-    shiftTypes.forEach(t => typeMap[t.shift_code] = t.shift_type_id);
+    // 3. Fetch Metadata
+    const [shiftTypes] = await connection.query("SELECT * FROM shift_desc");
+    const [wards] = await connection.query("SELECT * FROM ward");
 
-    const newAssignments = await generateRoster(month, year, users, existingShifts);
+    // 4. Fetch Public Holidays (New Feature)
+    let publicHolidays = [];
+    try {
+        console.log(`📅 Fetching Public Holidays for ${year}...`);
+        const response = await axios.get(`https://date.nager.at/api/v3/publicholidays/${year}/SG`);
+        publicHolidays = response.data.map(h => h.date);
+        console.log(`✅ Fetched ${publicHolidays.length} Public Holidays.`);
+    } catch (error) {
+        console.warn("⚠️ Failed to fetch Public Holidays via API, using defaults.");
+        // Fallback for 2025/2026 just in case
+        if (year == 2025) publicHolidays = ["2025-01-01", "2025-01-29", "2025-01-30", "2025-03-31", "2025-04-18", "2025-05-01", "2025-05-12", "2025-06-06", "2025-08-09", "2025-10-20", "2025-12-25"];
+    }
 
+    // 5. Run the Engine
+    const newAssignments = await generateRoster(
+        month, 
+        year, 
+        users, 
+        existingShifts, 
+        wards, 
+        shiftTypes,
+        publicHolidays // Pass PH List
+    );
+    console.log(`✅ Engine Generated: ${newAssignments.length} new shifts`);
+
+    // 6. Prepare Bulk Insert
     const valuesToInsert = [];
     const newlyAddedSet = new Set();
 
     for (const item of newAssignments) {
+      if (!item.user_id || !item.shift_type_id || !item.shift_date) {
+          console.warn("⚠️ Skipping invalid assignment:", item);
+          continue;
+      }
+
       const shiftKey = `${item.user_id}-${item.shift_date}`;
+      
+      // Check against existing DB records (Safety Net)
       const existsInDB = existingShifts.find(e => {
         const dbDate = new Date(e.shift_date);
-        const dbDateStr = dbDate.toLocaleDateString('en-CA');
+        const dbDateStr = dbDate.toISOString().split('T')[0]; 
         return e.user_id === item.user_id && dbDateStr === item.shift_date;
       });
 
-      const existsInBatch = newlyAddedSet.has(shiftKey);
-
-      if (!existsInDB && !existsInBatch) {
-        const typeId = typeMap[item.shift_code];
-        const finalWardId = item.ward_id || null;
-
-        if (typeId) {
+      if (!existsInDB && !newlyAddedSet.has(shiftKey)) {
           valuesToInsert.push([
             item.user_id,
             rosterId,
-            typeId,
+            item.shift_type_id,
             item.shift_date,
-            finalWardId
+            item.ward_id || null 
           ]);
           newlyAddedSet.add(shiftKey);
-        }
       }
     }
 
+    // 7. Execute Insert
     let addedCount = 0;
     if (valuesToInsert.length > 0) {
+      console.log(`📝 Inserting ${valuesToInsert.length} shifts into database...`);
       const [result] = await connection.query(
         `INSERT IGNORE INTO shifts 
          (user_id, roster_id, shift_type_id, shift_date, ward_id) 
@@ -991,17 +1083,21 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
         [valuesToInsert]
       );
       addedCount = result.affectedRows;
+    } else {
+      console.log("ℹ️ No new shifts to insert.");
     }
 
     await connection.commit();
-    connection.release();
-
+    console.log("--- Auto-Fill Complete ---\n");
+    
     res.json({ success: true, message: `Auto-fill complete! Added ${addedCount} shifts.` });
+
   } catch (err) {
     await connection.rollback();
-    connection.release();
-    console.error("Auto-Fill Error:", err);
+    console.error("❌ Auto-Fill Error:", err);
     res.status(500).json({ error: err.message });
+  } finally {
+    connection.release();
   }
 });
 
@@ -1226,8 +1322,8 @@ app.post('/api/add-shift-preference', async (req, res) => {
     }
 
     if (rosterRows[0].status !== 'Preference Open') {
-      return res.status(403).json({ 
-        error: `Submission blocked. Roster is currently in '${rosterRows[0].status}' status.` 
+      return res.status(403).json({
+        error: `Submission blocked. Roster is currently in '${rosterRows[0].status}' status.`
       });
     }
 
@@ -1306,7 +1402,7 @@ app.delete('/api/delete-shift-preference/:id', async (req, res) => {
 
   try {
     const query = 'DELETE FROM shiftpref WHERE shiftPref_id = ?';
-    
+
     const [result] = await pool.query(query, [id]);
 
     if (result.affectedRows === 0) {
@@ -1394,7 +1490,7 @@ app.get('/api/users/:userId/shifts-by-month', async (req, res) => {
     res.status(500).json({ error: "Failed to fetch monthly shifts" });
   }
 });
-  
+
 // --- START: NEW ENDPOINT TO GET PUBLISHED ROSTERS ---
 
 // GET: a list of all published rosters for the calendar dropdown
@@ -1467,7 +1563,7 @@ app.put('/api/profile/:id', async (req, res) => {
       return res.status(404).json({ message: 'User not found or no changes made' });
     }
 
-    res.json({ 
+    res.json({
       message: 'Profile updated successfully',
       user: { user_id: id, full_name, email, contact, avatar_url }
     });
