@@ -23,36 +23,35 @@ function AdminStaffManagementPage({
   const [staffRows, setStaffRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
+  // --- FILTER STATES ---
+  const [filterRole, setFilterRole] = useState('All'); 
+  const [filterStatus, setFilterStatus] = useState('All'); 
+  const [filterService, setFilterService] = useState('All'); // Added Service Filter support
+
   // Dynamic Dropdown Options
   const [roleOptions, setRoleOptions] = useState([]);
-  const [leaveTypes, setLeaveTypes] = useState([]);
   const [serviceOptions, setServiceOptions] = useState([]); 
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // MODAL 1: EDIT/VIEW STAFF
+  // MODAL STATES ...
   const [showModal, setShowModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '', email: '', password: '', contact: '', role: '', 
-    status: 'Active', avatar_url: '', service: '',
-    ward_id: null, 
+    status: 'Active', avatar_url: '', service: '', ward_id: null, 
   });
 
-  // MODAL 2: CREATE STAFF
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({
     full_name: '', contact: '', email: '', role: '', profile_picture: '', service: '' 
   });
 
-  // MODAL 3: DELETE CONFIRMATION
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Inside state section
-  const [wardOptions, setWardOptions] = useState([]); // Add this
+  const [wardOptions, setWardOptions] = useState([]); 
 
   const visibleRoles = roleOptions.filter(r => r === 'APN' || r === 'ADMIN');
 
@@ -72,12 +71,10 @@ function AdminStaffManagementPage({
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch Users
       const resUsers = await fetch('http://localhost:5000/users');
       const dataUsers = await resUsers.json();
 
-      // Fetch Wards (New)
-      const resWards = await fetch('http://localhost:5000/api/wards'); // Adjust endpoint as needed
+      const resWards = await fetch('http://localhost:5000/api/wards'); 
       if (resWards.ok) {
         const wardsData = await resWards.json();
         setWardOptions(wardsData);
@@ -88,7 +85,6 @@ function AdminStaffManagementPage({
         return userRole !== 'SUPER ADMIN';
       });
 
-      // Map DB columns to Frontend State
       const formattedStaff = filteredData.map(user => {
         const style = getStatusStyle(user.status);
         return {
@@ -97,28 +93,25 @@ function AdminStaffManagementPage({
           email: user.email,
           password: user.password,
           role: user.role || 'APN',
-          status: user.status || 'Active', // Live Status
-          service: user.service || 'General', // Live Service
+          status: user.status || 'Active', 
+          service: user.service || 'General', 
           avatarUrl: user.avatar_url,
           contact: user.contact || '',
           statusColor: style.color,
           statusBg: style.bg,
-          ward_id: user.ward_id || null, // Add this
+          ward_id: user.ward_id || null, 
         };
       });
       setStaffRows(formattedStaff);
 
-      // 2. Fetch Roles
       const resRoles = await fetch('http://localhost:5000/roles'); 
       const rolesData = await resRoles.json();
       setRoleOptions(rolesData);
 
-      // 3. Fetch Services (Dynamic from DB)
       const resServices = await fetch('http://localhost:5000/api/services');
       if (resServices.ok) {
         const servicesData = await resServices.json();
         setServiceOptions(servicesData);
-        // Set default for create form if options exist
         if (servicesData.length > 0) {
             setCreateForm(prev => ({ ...prev, service: servicesData[0] }));
         }
@@ -135,8 +128,7 @@ function AdminStaffManagementPage({
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // --- 5. CREATE STAFF ---
-
+  // --- 5. CREATE & EDIT HANDLERS (Same as before) ---
   const handleChangeCreate = (field) => (e) => {
     setCreateForm((prev) => ({ ...prev, [field]: e.target.value }));
   };
@@ -152,7 +144,7 @@ function AdminStaffManagementPage({
       phone: createForm.contact,
       password: 'Temp1234!',
       role: createForm.role || 'staff',
-      service: createForm.service, // Live Service Value
+      service: createForm.service, 
       avatar_url: createForm.profile_picture, 
       createdByUserId: loggedInUser?.userId,
       createdByName: loggedInUser?.fullName,
@@ -177,7 +169,6 @@ function AdminStaffManagementPage({
 
       alert('Staff account created successfully!');
       setShowCreate(false);
-      // Reset form
       setCreateForm({ 
         full_name: '', contact: '', email: '', role: '', profile_picture: '', 
         service: serviceOptions.length > 0 ? serviceOptions[0] : '' 
@@ -192,15 +183,14 @@ function AdminStaffManagementPage({
   const isCreateValid = createForm.full_name.trim() && createForm.contact.trim() && createForm.email.trim() && createForm.role.trim();
   const canCreateStaff = currentUserRole === 'SUPERADMIN';
 
-  // --- 6. HANDLERS: EDIT/VIEW STAFF ---
   const populateFormData = (staff) => ({
     full_name: staff.fullName,
     email: staff.email,
     password: staff.password,
     contact: staff.contact,
     role: staff.role,
-    status: staff.status,   // Live Status Value
-    service: staff.service, // Live Service Value
+    status: staff.status, 
+    service: staff.service, 
     avatar_url: staff.avatarUrl,
     ward_id: staff.ward_id
   });
@@ -229,7 +219,6 @@ function AdminStaffManagementPage({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // --- DELETE LOGIC ---
   const handleDeleteClick = () => setShowDeleteConfirm(true);
 
   const executeDelete = async () => {
@@ -272,58 +261,149 @@ function AdminStaffManagementPage({
       .catch((err) => console.error('Error updating:', err));
   };
 
-  // --- 7. PAGINATION ---
+  // --- 7. FILTER & PAGINATION (UPDATED) ---
+
+  const filteredStaff = staffRows.filter(staff => {
+    const matchRole = filterRole === 'All' || staff.role === filterRole;
+    // Check Active/Inactive. Assuming DB uses 'Active'/'Inactive'. 
+    // If you want to include 'All' in the status, filterStatus='All'.
+    const matchStatus = filterStatus === 'All' || staff.status === filterStatus;
+    const matchService = filterService === 'All' || staff.service === filterService;
+    
+    return matchRole && matchStatus && matchService;
+  });
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentStaff = staffRows.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(staffRows.length / itemsPerPage);
+  const currentStaff = filteredStaff.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredStaff.length / itemsPerPage);
 
-  const handleNextPage = () => {
-    if (currentPage < totalPages) setCurrentPage((prev) => prev + 1);
-  };
-  const handlePrevPage = () => {
-    if (currentPage > 1) setCurrentPage((prev) => prev - 1);
-  };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterRole, filterStatus, filterService]);
 
-  // === UPDATED GRID LAYOUT ===
-  // StaffID(0.8) | Name(1.3) | Service(1) | Contact(1.2) | Email(1.8) | Role(0.8) | Actions(0.8)
+  const handleNextPage = () => { if (currentPage < totalPages) setCurrentPage((prev) => prev + 1); };
+  const handlePrevPage = () => { if (currentPage > 1) setCurrentPage((prev) => prev - 1); };
+
   const gridLayout = '0.8fr 1.3fr 1fr 1.2fr 1.8fr 0.8fr 0.8fr'; 
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#F8F9FA', fontFamily: 'Inter, sans-serif' }}>
       <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout} />
 
-      <main
-        style={{
-          maxWidth: 1200,
-          margin: '24px auto 40px',
-          padding: '0 32px',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: 16,
-          }}
-        >
-          <h1
-            style={{
-              fontSize: 24,
-              fontWeight: 900,
-              margin: 0,
-              color: '#111827',
-            }}
-          >
+      <main style={{ maxWidth: 1200, margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' }}>
+        
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, color: '#111827' }}>
             All Staff Members
           </h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button onClick={onGoManageLeave} style={{ padding: '10px 24px', background: '#5091CD', borderRadius: 68, border: 'none', color: 'white', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>Manage Leave</button>
             <button onClick={canCreateStaff ? () => setShowCreate(true) : undefined} disabled={!canCreateStaff} style={{ padding: '10px 24px', background: canCreateStaff ? '#5091CD' : '#A9C3E0', borderRadius: 68, border: 'none', color: 'white', fontSize: 16, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, cursor: canCreateStaff ? 'pointer' : 'not-allowed', opacity: canCreateStaff ? 1 : 0.7 }}>New Staff Account</button>
           </div>
+        </div>
+
+        {/* --- NEW: FILTER CARD CONTAINER --- */}
+        <div style={{ 
+            background: 'white', 
+            border: '1px solid #E6E6E6', 
+            borderRadius: '12px', 
+            padding: '20px', 
+            marginBottom: '24px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+        }}>
+            
+            {/* ROW 1: PILL TOGGLES (STATUS) */}
+            <div style={{ marginBottom: '20px' }}>
+                <div style={{ 
+                    display: 'inline-flex', 
+                    background: '#F3F4F6', // Light gray background for pills
+                    borderRadius: '999px',
+                    padding: '4px',
+                    gap: '4px'
+                }}>
+                    {['All', 'Active', 'Inactive'].map(status => (
+                        <button
+                            key={status}
+                            onClick={() => setFilterStatus(status)}
+                            style={{
+                                padding: '8px 20px',
+                                borderRadius: '999px',
+                                border: 'none',
+                                background: filterStatus === status ? '#111827' : 'transparent', // Black when active
+                                color: filterStatus === status ? 'white' : '#4B5563',
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {status === 'All' ? 'All Status' : status}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* ROW 2: DROPDOWNS (ROLE, SERVICE, etc) */}
+            <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: '20px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                
+                {/* 1. ROLE FILTER */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Staff Role
+                    </label>
+                    <select 
+                        value={filterRole} 
+                        onChange={(e) => setFilterRole(e.target.value)}
+                        style={{
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid #D1D5DB',
+                            background: 'white',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            color: '#111827',
+                            minWidth: '160px',
+                            outline: 'none',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <option value="All">All Roles</option>
+                        <option value="APN">APN</option>
+                        <option value="ADMIN">Admin</option>
+                    </select>
+                </div>
+
+                {/* 2. SERVICE FILTER (Added as bonus based on image layout) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Service Unit
+                    </label>
+                    <select 
+                        value={filterService} 
+                        onChange={(e) => setFilterService(e.target.value)}
+                        style={{
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid #D1D5DB',
+                            background: 'white',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            color: '#111827',
+                            minWidth: '160px',
+                            outline: 'none',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        <option value="All">All Services</option>
+                        {serviceOptions.map(svc => (
+                            <option key={svc} value={svc}>{svc}</option>
+                        ))}
+                    </select>
+                </div>
+
+            </div>
         </div>
 
         <div
@@ -347,49 +427,46 @@ function AdminStaffManagementPage({
           </div>
 
           {isLoading ? (
-            <div
-              style={{
-                padding: '40px',
-                textAlign: 'center',
-                color: '#666',
-              }}
-            >
+            <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
               Loading...
             </div>
           ) : (
-            currentStaff.map((row, idx) => {
-              const isTargetAdmin = row.role === 'ADMIN';
-              const canEdit = currentUserRole === 'SUPERADMIN' || !isTargetAdmin;
+            currentStaff.length > 0 ? (
+                currentStaff.map((row, idx) => {
+                const isTargetAdmin = row.role === 'ADMIN';
+                const canEdit = currentUserRole === 'SUPERADMIN' || !isTargetAdmin;
+                const displayName = row.fullName.length > 20 ? row.fullName.substring(0, 20) + '...' : row.fullName;
 
-              // Truncate logic
-              const displayName = row.fullName.length > 20 ? row.fullName.substring(0, 20) + '...' : row.fullName;
-
-              return (
-                <div key={row.staffId} style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '12px 16px', alignItems: 'center', borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6', fontSize: 14, color: '#1F2937' }}>
-                  <div>{row.staffId}</div>
-                  {/* Truncated Name with Tooltip */}
-                  <div style={{ fontWeight: 500 }} title={row.fullName}>{displayName}</div>
-                  <div><span style={{ padding: '2px 8px', background: '#EFF6FF', color: '#1E40AF', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }}>{row.service}</span></div>
-                  <div>{row.contact || '---'}</div>
-                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 10 }}>{row.email}</div>
-                  <div>{row.role}</div>
-                  
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => handleViewClick(row)} style={iconButtonStyle} title="View Details"><EyeIcon /></button>
-                    {canEdit && <button onClick={() => handleEditClick(row)} style={iconButtonStyle} title="Edit Staff"><PencilIcon /></button>}
-                  </div>
+                return (
+                    <div key={row.staffId} style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '12px 16px', alignItems: 'center', borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6', fontSize: 14, color: '#1F2937' }}>
+                    <div>{row.staffId}</div>
+                    <div style={{ fontWeight: 500 }} title={row.fullName}>{displayName}</div>
+                    <div><span style={{ padding: '2px 8px', background: '#EFF6FF', color: '#1E40AF', borderRadius: '4px', fontSize: '12px', fontWeight: 600 }}>{row.service}</span></div>
+                    <div>{row.contact || '---'}</div>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 10 }}>{row.email}</div>
+                    <div>{row.role}</div>
+                    
+                    <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => handleViewClick(row)} style={iconButtonStyle} title="View Details"><EyeIcon /></button>
+                        {canEdit && <button onClick={() => handleEditClick(row)} style={iconButtonStyle} title="Edit Staff"><PencilIcon /></button>}
+                    </div>
+                    </div>
+                );
+                })
+            ) : (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#6B7280' }}>
+                    No staff members found matching the selected filters.
                 </div>
-              );
-            })
+            )
           )}
 
           {/* Pagination */}
-          {staffRows.length > 0 && (
+          {filteredStaff.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid #E6E6E6', background: 'white' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1 }}>«</button>
                 <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1 }}>‹</button>
-                <span style={{ fontSize: 13, color: '#6B7280', margin: '0 12px', fontWeight: 500 }}>{indexOfFirstItem + 1}-{Math.min(indexOfLastItem, staffRows.length)} of {staffRows.length}</span>
+                <span style={{ fontSize: 13, color: '#6B7280', margin: '0 12px', fontWeight: 500 }}>{indexOfFirstItem + 1}-{Math.min(indexOfLastItem, filteredStaff.length)} of {filteredStaff.length}</span>
                 <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1 }}>›</button>
                 <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1 }}>»</button>
               </div>
@@ -398,18 +475,11 @@ function AdminStaffManagementPage({
         </div>
       </main>
 
-      {/* MODAL 1: VIEW/EDIT STAFF */}
+      {/* MODALS REMAIN THE SAME */}
       {showModal && (
         <div style={modalOverlayStyle}>
           <div style={modalContentStyle}>
-            <h2
-              style={{
-                marginBottom: 24,
-                fontSize: 20,
-                fontWeight: 700,
-                color: '#111827',
-              }}
-            >
+            <h2 style={{ marginBottom: 24, fontSize: 20, fontWeight: 700, color: '#111827' }}>
               {isEditing ? 'Edit Staff Details' : 'Staff Details'}
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -417,7 +487,6 @@ function AdminStaffManagementPage({
               <div><label style={labelStyle}>Email</label><input name="email" type="email" value={formData.email} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} /></div>
               <div><label style={labelStyle}>Contact Number</label><input name="contact" type="text" value={formData.contact} onChange={handleInputChange} disabled={!isEditing} style={inputStyle} placeholder="+65 1234 5678" /></div>
               
-              {/* Dynamic Service Dropdown */}
               <div>
                 <label style={labelStyle}>Service Unit</label>
                 <select name="service" value={formData.service} onChange={handleInputChange} disabled={!isEditing} style={inputStyle}>
@@ -426,7 +495,6 @@ function AdminStaffManagementPage({
                 </select>
               </div>
 
-              {/* Status Dropdown */}
               <div>
                 <label style={labelStyle}>Account Status</label>
                 <select name="status" value={formData.status} onChange={handleInputChange} disabled={!isEditing} style={inputStyle}>
@@ -467,7 +535,6 @@ function AdminStaffManagementPage({
         </div>
       )}
 
-      {/* MODAL 2: CREATE STAFF */}
       {showCreate && canCreateStaff && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, zIndex: 1000 }}>
           <div style={{ width: '100%', maxWidth: 720, background: '#EDF0F5', borderRadius: 12, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -484,7 +551,6 @@ function AdminStaffManagementPage({
                 </div>
               ))}
               
-              {/* Dynamic Service Selection */}
               <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ color: 'black', fontSize: 13, fontWeight: 500 }}>Service Unit</div>
                 <select value={createForm.service} onChange={handleChangeCreate('service')} style={inputStyle}>
@@ -509,7 +575,6 @@ function AdminStaffManagementPage({
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div style={modalOverlayStyle}>
           <div style={{ ...modalContentStyle, width: 400, textAlign: 'center', padding: 40 }}>
@@ -526,7 +591,7 @@ function AdminStaffManagementPage({
   );
 }
 
-// Icons & Styles
+// Icons & Styles (Same as before)
 const EyeIcon = () => (<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#6B7280" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>);
 const PencilIcon = () => (<svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#6B7280" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>);
 const iconButtonStyle = { width: 32, height: 32, background: '#F3F4F6', borderRadius: 6, cursor: 'pointer', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' };
@@ -538,7 +603,5 @@ const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 6, borde
 const saveButtonStyle = { padding: '10px 20px', background: '#2563EB', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 };
 const cancelButtonStyle = { padding: '10px 20px', background: 'white', color: '#374151', border: '1px solid #D1D5DB', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 };
 const deleteButtonStyle = { padding: '10px 20px', background: '#DC2626', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600, fontSize: 14 };
-
-
 
 export default AdminStaffManagementPage;
