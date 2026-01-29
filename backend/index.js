@@ -935,7 +935,6 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
     console.log(`\n--- Starting Auto-Fill for Roster ${rosterId} (${month}/${year}) ---`);
 
     // 1. Fetch Users (APN Role)
-    // NOTE: If this returns 0, check if your database role is 'apn' (lowercase) or 'APN'
     const [users] = await connection.query("SELECT * FROM users WHERE role = 'APN'");
     console.log(`✅ Users Found: ${users.length}`);
 
@@ -943,31 +942,43 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
       throw new Error("No APN users found. Check 'role' in users table.");
     }
 
-    // 2. Fetch History (Existing Shifts)
+    // 2. Fetch History (ENTIRE YEAR for Fairness Logic)
+    console.log(`🔍 Fetching full shift history for Year ${year}...`);
     const [existingShifts] = await connection.query(
       `SELECT s.*, sd.shift_code 
        FROM shifts s 
        JOIN shift_desc sd ON s.shift_type_id = sd.shift_type_id 
-       WHERE s.roster_id = ?`,
-      [rosterId]
+       WHERE YEAR(s.shift_date) = ?`,
+      [year]
     );
-    console.log(`✅ Existing Shifts in DB: ${existingShifts.length}`);
+    console.log(`✅ Found ${existingShifts.length} total shifts in ${year} for fairness calculation.`);
 
-    // 3. Fetch Shift Types (Required for Engine)
+    // 3. Fetch Metadata
     const [shiftTypes] = await connection.query("SELECT * FROM shift_desc");
-
-    // 4. Fetch Wards (Required for Engine)
     const [wards] = await connection.query("SELECT * FROM ward");
 
+    // 4. Fetch Public Holidays (New Feature)
+    let publicHolidays = [];
+    try {
+        console.log(`📅 Fetching Public Holidays for ${year}...`);
+        const response = await axios.get(`https://date.nager.at/api/v3/publicholidays/${year}/SG`);
+        publicHolidays = response.data.map(h => h.date);
+        console.log(`✅ Fetched ${publicHolidays.length} Public Holidays.`);
+    } catch (error) {
+        console.warn("⚠️ Failed to fetch Public Holidays via API, using defaults.");
+        // Fallback for 2025/2026 just in case
+        if (year == 2025) publicHolidays = ["2025-01-01", "2025-01-29", "2025-01-30", "2025-03-31", "2025-04-18", "2025-05-01", "2025-05-12", "2025-06-06", "2025-08-09", "2025-10-20", "2025-12-25"];
+    }
+
     // 5. Run the Engine
-    // Order: month, year, users, history, wards, shiftTypes
     const newAssignments = await generateRoster(
         month, 
         year, 
         users, 
         existingShifts, 
         wards, 
-        shiftTypes
+        shiftTypes,
+        publicHolidays // Pass PH List
     );
     console.log(`✅ Engine Generated: ${newAssignments.length} new shifts`);
 
@@ -976,19 +987,16 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
     const newlyAddedSet = new Set();
 
     for (const item of newAssignments) {
-      // Validate Data Integrity
       if (!item.user_id || !item.shift_type_id || !item.shift_date) {
           console.warn("⚠️ Skipping invalid assignment:", item);
           continue;
       }
 
-      // Create unique key to prevent duplicates in this batch
       const shiftKey = `${item.user_id}-${item.shift_date}`;
       
-      // Double-check against DB (Safety Net)
+      // Check against existing DB records (Safety Net)
       const existsInDB = existingShifts.find(e => {
         const dbDate = new Date(e.shift_date);
-        // Adjust for timezone if necessary, but string comparison is usually safest
         const dbDateStr = dbDate.toISOString().split('T')[0]; 
         return e.user_id === item.user_id && dbDateStr === item.shift_date;
       });
@@ -999,13 +1007,13 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
             rosterId,
             item.shift_type_id,
             item.shift_date,
-            item.ward_id || null // Allow NULL if no ward required
+            item.ward_id || null 
           ]);
           newlyAddedSet.add(shiftKey);
       }
     }
 
-    // 7. Execute Insert (CRITICAL FIX: Only if data exists)
+    // 7. Execute Insert
     let addedCount = 0;
     if (valuesToInsert.length > 0) {
       console.log(`📝 Inserting ${valuesToInsert.length} shifts into database...`);
@@ -1017,7 +1025,7 @@ app.post('/api/rosters/auto-fill', async (req, res) => {
       );
       addedCount = result.affectedRows;
     } else {
-      console.log("ℹ️ No new shifts to insert (Roster is full or Engine returned duplicates).");
+      console.log("ℹ️ No new shifts to insert.");
     }
 
     await connection.commit();
