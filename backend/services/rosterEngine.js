@@ -15,7 +15,7 @@ const SERVICE_PROTOCOLS = {
     'NEONATES': ['AM', 'PM'] 
 };
 
-// RRT PRIORITY CONFIGURATION (STRICT HIERARCHY)
+// RRT PRIORITY CONFIGURATION (STRICT 4-TIER HIERARCHY)
 // Tier 1: Acute Care & CE (Highest Priority)
 const RRT_TIER_1 = ['ACUTE', 'CE'];
 // Tier 2: Onco
@@ -32,13 +32,16 @@ const RRT_TIER_4 = ['NEONATES', 'PAME'];
 const getShiftId = (types, code) => {
     let t = types.find(t => t.shift_code === code);
     if (!t) {
+        // Fallback for special codes that might not match DB exactly or are calculated
         if (code === 'OFF' || code === 'RD') t = types.find(t => t.shift_type_id === 14) || types.find(t => t.shift_code === 'RD');
+        if (code === 'PH')    t = types.find(t => t.shift_type_id === 20) || types.find(t => t.shift_code === 'PH'); // PH ID 20
         if (code === 'NHOME') t = types.find(t => t.shift_code.includes('NHOME'));
         if (code === 'KHOME') t = types.find(t => t.shift_code.includes('KHOME'));
         if (code === 'GPAPN') t = types.find(t => t.shift_code.includes('GPAPN'));
         if (code === 'PAS-C') t = types.find(t => t.shift_code === 'PAS-C');
         if (code === 'PAIN')  t = types.find(t => t.shift_code === 'PAIN');
         
+        // Final fallback to ID 14 (OFF)
         if (!t && (code === 'OFF' || code === 'RD')) return 14; 
     }
     return t?.shift_type_id || null;
@@ -60,6 +63,10 @@ const getMonthIndex = (m) => {
     return Math.max(0, months.indexOf(m.toString().toLowerCase().substring(0, 3)));
 };
 
+/**
+ * Determine Fixed Ward
+ * PRIORITY: 1. Live DB (user.ward_id) -> 2. Name Pattern -> 3. Default
+ */
 const determineFixedWard = (user, wardMap) => {
     if (user.ward_id) return user.ward_id;
 
@@ -96,7 +103,7 @@ const determineFixedWard = (user, wardMap) => {
 // ==========================================
 // 3. MAIN ENGINE
 // ==========================================
-async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShiftTypes) {
+async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShiftTypes, publicHolidays = []) {
     console.log(`Starting Roster Engine for ${month}/${year}...`);
 
     if (!dbWards || !dbShiftTypes) throw new Error("Missing Reference Tables!");
@@ -109,6 +116,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
     const RRT_TYPE_ID = getShiftId(dbShiftTypes, 'RRT'); 
     const AM_TYPE_ID = getShiftId(dbShiftTypes, 'AM'); 
     const PM_TYPE_ID = getShiftId(dbShiftTypes, 'PM'); 
+    const PH_TYPE_ID = getShiftId(dbShiftTypes, 'PH'); // ID 20
 
     const WARD_IDS = {
         CE: getWardId(dbWards, "CE") || 1,
@@ -162,7 +170,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         if (stats[s.user_id]) {
             const shiftCode = dbShiftTypes.find(t => t.shift_type_id === s.shift_type_id)?.shift_code || 'OFF';
             
-            // Yearly Checks
+            // Yearly Checks for Fairness
             if (shiftCode === 'NNJ' && shiftYear === currentYear) stats[s.user_id].nnjCount++;
             if (shiftCode === 'RRT' && shiftYear === currentYear) stats[s.user_id].rrtCount++;
 
@@ -173,7 +181,8 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             if (shiftCode === 'AM') stats[s.user_id].amCount++;
             if (shiftCode === 'PM') stats[s.user_id].pmCount++;
 
-            if (['OFF','RD','AL','MC','HL'].includes(shiftCode) || s.shift_type_id === 14) {
+            // Rest Logic
+            if (['OFF','RD','PH','AL','MC','HL'].includes(shiftCode) || s.shift_type_id === 14 || s.shift_type_id === 20) {
                 stats[s.user_id].consecutive = 0;
             } else {
                 stats[s.user_id].consecutive++;
@@ -190,14 +199,16 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         const shiftId = getShiftId(dbShiftTypes, code);
         
         if(shiftId) {
+            // Force Fixed Ward for non-working shifts to satisfy DB FK
             const finalWard = wardIdOverride || stats[uid].fixedWardId;
             rosterMap[date][uid] = { shiftId, wardId: finalWard, existing: false };
             
-            const isRest = (code === 'OFF' || code === 'RD' || shiftId === 14);
+            const isRest = (code === 'OFF' || code === 'RD' || code === 'PH' || shiftId === 14 || shiftId === 20);
 
             if (!isRest) {
                 stats[uid].consecutive++;
                 
+                // Track assignments live for fairness
                 if (code === 'NNJ') stats[uid].nnjCount++;
                 if (code === 'RRT') stats[uid].rrtCount++;
                 if (code === 'NHOME') stats[uid].nhomeCount++;
@@ -228,6 +239,10 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             for (let d = currentWeekStart; d <= end; d++) {
                 const dDate = new Date(year, mIdx, d);
                 const dStr = toDateStr(dDate);
+
+                // SKIP NHOME ON PUBLIC HOLIDAYS
+                if (publicHolidays.includes(dStr)) continue;
+
                 if (isAvailable(assignedAPN.user_id, dStr)) {
                     setShift(dStr, assignedAPN.user_id, 'NHOME', WARD_IDS.NICU);
                 }
@@ -245,9 +260,45 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         const yesterdayStr = toDateStr(yesterday);
         const dow = dateObj.getDay(); 
         const isWeekend = (dow === 0 || dow === 6);
+        const isPH = publicHolidays.includes(dateStr);
+
+        // ==========================================
+        //  LAYER 0: PUBLIC HOLIDAY OVERRIDE
+        // ==========================================
+        if (isPH) {
+            // 1. Assign NNJ (2 Pax) - ACUTE EXCLUDED
+            let nnjCandidates = dbUsers.filter(u => 
+                ['CE','PAME','NEONATES'].includes(stats[u.user_id].service) && 
+                isAvailable(u.user_id, dateStr)
+            );
+            
+            // Sort by Lowest Yearly Count + Random Tie-Breaker
+            nnjCandidates.sort((a, b) => {
+                const diff = stats[a.user_id].nnjCount - stats[b.user_id].nnjCount;
+                if (diff !== 0) return diff;
+                return Math.random() - 0.5; 
+            });
+            
+            if (nnjCandidates[0]) setShift(dateStr, nnjCandidates[0].user_id, 'NNJ', WARD_IDS.CE);
+            if (nnjCandidates[1]) setShift(dateStr, nnjCandidates[1].user_id, 'NNJ', WARD_IDS.CE);
+
+            // 2. Assign 'PH' Shift to EVERYONE else
+            dbUsers.forEach(u => {
+                if (!rosterMap[dateStr]?.[u.user_id]) {
+                    setShift(dateStr, u.user_id, 'PH', null);
+                }
+            });
+
+            // 3. Skip to next day (No other shifts on PH)
+            continue; 
+        }
+
+        // ==========================================
+        //  STANDARD DAYS (NON-PH)
+        // ==========================================
 
         // --- LAYER 1: SPECIAL DAILY SHIFTS ---
-        if (dow === 3) { 
+        if (dow === 3) { // Wednesday GPAPN
             let gpCandidates = dbUsers.filter(u => {
                 const s = stats[u.user_id];
                 if (s.service !== 'PAME') return false;
@@ -270,7 +321,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             setShift(dateStr, khomeCandidates[0].user_id, 'KHOME', null);
         }
 
-        if (dow === 0) {
+        if (dow === 0) { // Sunday NNJ
             let nnjCandidates = dbUsers.filter(u => 
                 ['CE','PAME','NEONATES'].includes(stats[u.user_id].service) && 
                 isAvailable(u.user_id, dateStr)
@@ -299,7 +350,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
                 });
             };
             
-            // Try Tier 1 -> Tier 2 -> Tier 3 -> Tier 4
+            // TIER 1 -> 2 -> 3 -> 4
             let finalCandidates = getRRTCandidates(RRT_TIER_1);
             if (finalCandidates.length === 0) finalCandidates = getRRTCandidates(RRT_TIER_2);
             if (finalCandidates.length === 0) finalCandidates = getRRTCandidates(RRT_TIER_3);
@@ -323,10 +374,12 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             const svc = stats[u.user_id].service;
             const wId = stats[u.user_id].fixedWardId;
 
+            // 1. Clinic (CC) -> PAS-C
             if (wId === WARD_IDS.CC) {
                 setShift(dateStr, u.user_id, isWeekend ? 'OFF' : 'PAS-C');
                 return;
             }
+            // 2. Pain Service (PS) -> PAIN
             if (wId === WARD_IDS.PS) {
                 setShift(dateStr, u.user_id, isWeekend ? 'OFF' : 'PAIN');
                 return;
@@ -365,6 +418,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
                          }
                     });
 
+                    // Balance against current ward count
                     if (amInWard > pmInWard) shiftCode = 'PM';
                     else if (pmInWard > amInWard) shiftCode = 'AM';
                     else shiftCode = Math.random() > 0.5 ? 'AM' : 'PM';
@@ -388,6 +442,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
     Object.keys(rosterMap).forEach(date => {
         Object.keys(rosterMap[date]).forEach(uid => {
             const s = rosterMap[date][uid];
+            // Export ALL shifts (including OFF/PH/Generated)
             if (!s.existing && s.shiftId) {
                 newShifts.push({
                     shift_date: date,
