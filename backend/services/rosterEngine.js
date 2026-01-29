@@ -5,6 +5,7 @@
 // ==========================================
 const MAX_CONSECUTIVE_DAYS = 6;
 
+// Random Fill Protocols
 const SERVICE_PROTOCOLS = {
     'CE':       ['AM', 'PM', 'ND'],      
     'ONCO':     ['AM', 'PM'],            
@@ -14,9 +15,15 @@ const SERVICE_PROTOCOLS = {
     'NEONATES': ['AM', 'PM'] 
 };
 
-// RRT PRIORITY CONFIGURATION
-const RRT_TIER_1 = ['ACUTE', 'NEONATES', 'CE'];
-const RRT_TIER_2 = ['ONCO', 'PAS', 'PAME'];
+// RRT PRIORITY CONFIGURATION (STRICT HIERARCHY)
+// Tier 1: Acute Care & CE (Highest Priority)
+const RRT_TIER_1 = ['ACUTE', 'CE'];
+// Tier 2: Onco
+const RRT_TIER_2 = ['ONCO'];
+// Tier 3: PAS
+const RRT_TIER_3 = ['PAS'];
+// Tier 4: Neonate & PAME (Lowest Priority)
+const RRT_TIER_4 = ['NEONATES', 'PAME'];
 
 // ==========================================
 // 2. HELPER FUNCTIONS
@@ -26,7 +33,6 @@ const getShiftId = (types, code) => {
     let t = types.find(t => t.shift_code === code);
     if (!t) {
         if (code === 'OFF' || code === 'RD') t = types.find(t => t.shift_type_id === 14) || types.find(t => t.shift_code === 'RD');
-        if (code === 'PH')    t = types.find(t => t.shift_type_id === 20) || types.find(t => t.shift_code === 'PH'); // Specific PH ID
         if (code === 'NHOME') t = types.find(t => t.shift_code.includes('NHOME'));
         if (code === 'KHOME') t = types.find(t => t.shift_code.includes('KHOME'));
         if (code === 'GPAPN') t = types.find(t => t.shift_code.includes('GPAPN'));
@@ -90,8 +96,7 @@ const determineFixedWard = (user, wardMap) => {
 // ==========================================
 // 3. MAIN ENGINE
 // ==========================================
-// Added 'publicHolidays' argument
-async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShiftTypes, publicHolidays = []) {
+async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShiftTypes) {
     console.log(`Starting Roster Engine for ${month}/${year}...`);
 
     if (!dbWards || !dbShiftTypes) throw new Error("Missing Reference Tables!");
@@ -104,7 +109,6 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
     const RRT_TYPE_ID = getShiftId(dbShiftTypes, 'RRT'); 
     const AM_TYPE_ID = getShiftId(dbShiftTypes, 'AM'); 
     const PM_TYPE_ID = getShiftId(dbShiftTypes, 'PM'); 
-    const PH_TYPE_ID = getShiftId(dbShiftTypes, 'PH'); // Fetch PH ID (20)
 
     const WARD_IDS = {
         CE: getWardId(dbWards, "CE") || 1,
@@ -158,16 +162,18 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         if (stats[s.user_id]) {
             const shiftCode = dbShiftTypes.find(t => t.shift_type_id === s.shift_type_id)?.shift_code || 'OFF';
             
+            // Yearly Checks
             if (shiftCode === 'NNJ' && shiftYear === currentYear) stats[s.user_id].nnjCount++;
             if (shiftCode === 'RRT' && shiftYear === currentYear) stats[s.user_id].rrtCount++;
 
+            // General Counts
             if (shiftCode === 'NHOME') stats[s.user_id].nhomeCount++;
             if (shiftCode === 'KHOME') stats[s.user_id].khomeCount++;
             if (shiftCode === 'GPAPN') stats[s.user_id].gpapnCount++;
             if (shiftCode === 'AM') stats[s.user_id].amCount++;
             if (shiftCode === 'PM') stats[s.user_id].pmCount++;
 
-            if (['OFF','RD','PH','AL','MC','HL'].includes(shiftCode) || s.shift_type_id === 14 || s.shift_type_id === 20) {
+            if (['OFF','RD','AL','MC','HL'].includes(shiftCode) || s.shift_type_id === 14) {
                 stats[s.user_id].consecutive = 0;
             } else {
                 stats[s.user_id].consecutive++;
@@ -184,14 +190,14 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         const shiftId = getShiftId(dbShiftTypes, code);
         
         if(shiftId) {
-            // For PH/OFF, assume Fixed Ward (to satisfy DB constraints)
             const finalWard = wardIdOverride || stats[uid].fixedWardId;
             rosterMap[date][uid] = { shiftId, wardId: finalWard, existing: false };
             
-            const isRest = (code === 'OFF' || code === 'RD' || code === 'PH' || shiftId === 14 || shiftId === 20);
+            const isRest = (code === 'OFF' || code === 'RD' || shiftId === 14);
 
             if (!isRest) {
                 stats[uid].consecutive++;
+                
                 if (code === 'NNJ') stats[uid].nnjCount++;
                 if (code === 'RRT') stats[uid].rrtCount++;
                 if (code === 'NHOME') stats[uid].nhomeCount++;
@@ -218,16 +224,10 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
     while (currentWeekStart <= daysInMonth) {
         let end = Math.min(currentWeekStart + 6, daysInMonth);
         const assignedAPN = nhomePool[poolIndex % nhomePool.length];
-        
         if (assignedAPN) {
             for (let d = currentWeekStart; d <= end; d++) {
                 const dDate = new Date(year, mIdx, d);
                 const dStr = toDateStr(dDate);
-                
-                // NEW: CHECK PUBLIC HOLIDAY
-                // If it's a PH, we DO NOT assign NHOME. Logic flows to PH layer instead.
-                if (publicHolidays.includes(dStr)) continue;
-
                 if (isAvailable(assignedAPN.user_id, dStr)) {
                     setShift(dStr, assignedAPN.user_id, 'NHOME', WARD_IDS.NICU);
                 }
@@ -245,46 +245,6 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         const yesterdayStr = toDateStr(yesterday);
         const dow = dateObj.getDay(); 
         const isWeekend = (dow === 0 || dow === 6);
-        const isPH = publicHolidays.includes(dateStr);
-
-        // ==========================================
-        //  LAYER 0: PUBLIC HOLIDAY OVERRIDE
-        // ==========================================
-        // If today is a PH, strict rules apply:
-        // 1. Only NNJ runs (2 Pax).
-        // 2. Everyone else gets 'PH' shift.
-        // 3. Skip all other logic.
-        if (isPH) {
-            // 1. Assign NNJ (2 Pax)
-            // Exclude ACUTE service from NNJ
-            let nnjCandidates = dbUsers.filter(u => 
-                ['CE','PAME','NEONATES'].includes(stats[u.user_id].service) && 
-                isAvailable(u.user_id, dateStr)
-            );
-            
-            nnjCandidates.sort((a, b) => {
-                const diff = stats[a.user_id].nnjCount - stats[b.user_id].nnjCount;
-                if (diff !== 0) return diff;
-                return Math.random() - 0.5; 
-            });
-            
-            if (nnjCandidates[0]) setShift(dateStr, nnjCandidates[0].user_id, 'NNJ', WARD_IDS.CE);
-            if (nnjCandidates[1]) setShift(dateStr, nnjCandidates[1].user_id, 'NNJ', WARD_IDS.CE);
-
-            // 2. Assign 'PH' to EVERYONE else who hasn't been assigned NNJ
-            dbUsers.forEach(u => {
-                if (!rosterMap[dateStr]?.[u.user_id]) {
-                    setShift(dateStr, u.user_id, 'PH', null); // Assign PH Code (ID 20)
-                }
-            });
-
-            // 3. Skip to next day
-            continue; 
-        }
-
-        // ==========================================
-        //  STANDARD DAYS (NON-PH)
-        // ==========================================
 
         // --- LAYER 1: SPECIAL DAILY SHIFTS ---
         if (dow === 3) { 
@@ -315,6 +275,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
                 ['CE','PAME','NEONATES'].includes(stats[u.user_id].service) && 
                 isAvailable(u.user_id, dateStr)
             );
+            
             nnjCandidates.sort((a, b) => {
                 const diff = stats[a.user_id].nnjCount - stats[b.user_id].nnjCount;
                 if (diff !== 0) return diff;
@@ -325,7 +286,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             if (nnjCandidates[1]) setShift(dateStr, nnjCandidates[1].user_id, 'NNJ', WARD_IDS.CE);
         }
 
-        // --- LAYER 2: STRICT TIERED RRT (Weekdays) ---
+        // --- LAYER 2: STRICT 4-TIER RRT (Weekdays) ---
         if (!isWeekend) {
             const getRRTCandidates = (serviceList) => {
                 return dbUsers.filter(u => {
@@ -338,8 +299,11 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
                 });
             };
             
+            // Try Tier 1 -> Tier 2 -> Tier 3 -> Tier 4
             let finalCandidates = getRRTCandidates(RRT_TIER_1);
             if (finalCandidates.length === 0) finalCandidates = getRRTCandidates(RRT_TIER_2);
+            if (finalCandidates.length === 0) finalCandidates = getRRTCandidates(RRT_TIER_3);
+            if (finalCandidates.length === 0) finalCandidates = getRRTCandidates(RRT_TIER_4);
             
             finalCandidates.sort((a, b) => {
                 const diff = stats[a.user_id].rrtCount - stats[b.user_id].rrtCount;
