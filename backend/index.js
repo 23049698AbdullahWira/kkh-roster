@@ -72,10 +72,11 @@ app.get('/test-db', async (req, res) => {
 
 // ================= User Routes =================
 
-// GET All Users (excluding Superadmin)
+// GET All Users (excluding Superadmin AND filtering only Active users)
 app.get('/users', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT * FROM users WHERE role != "SUPERADMIN"');
+    // MODIFIED: Added 'AND status = "Active"' to the query
+    const [rows] = await pool.query('SELECT * FROM users WHERE role != "SUPERADMIN" AND status = "Active"');
     res.json(rows);
   } catch (err) {
     console.error(err);
@@ -125,14 +126,14 @@ app.get('/api/services', async (req, res) => {
       const enumString = rows[0].COLUMN_TYPE;
       // Regex to extract content between single quotes
       const matches = enumString.match(/'([^']+)'/g);
-      
+
       if (matches) {
         // Remove quotes from result
         const services = matches.map(s => s.replace(/'/g, ''));
         res.json(services);
       } else {
         // Fallback if regex fails (shouldn't happen with standard ENUM)
-        res.json(['CE', 'ONCO', 'PAS', 'PAME', 'ACUTE', 'Triage']); 
+        res.json(['CE', 'ONCO', 'PAS', 'PAME', 'ACUTE', 'Triage']);
       }
     } else {
       res.status(404).json({ error: "Service column not found" });
@@ -254,8 +255,8 @@ app.get('/api/rosters/next', async (req, res) => {
 
     // 3. Convert numeric month to name for the frontend
     const monthNames = [
-      'January','February','March','April','May','June',
-      'July','August','September','October','November','December'
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
     ];
     const monthValue = monthNames[row.month - 1];
 
@@ -587,15 +588,24 @@ app.get('/available-years', async (req, res) => {
   }
 });
 
+// Updated Shift Distribution Route with Service Filter
 app.get('/shift-distribution', async (req, res) => {
-  const { year, shiftType } = req.query;
+  // 1. ADD 'service' to destructuring
+  const { year, month, day, shiftType, timeFrame, service } = req.query;
+
   const targetYear = year || new Date().getFullYear();
+  const targetMonth = month || (new Date().getMonth() + 1);
+  const targetDay = day || new Date().getDate();
   const targetShiftType = (shiftType || 'NNJ').trim().toUpperCase();
+  const targetService = service || 'ALL'; // Default to ALL
+
+  const period = timeFrame || 'Year';
 
   try {
     let phSet = new Set();
 
-    if (targetShiftType !== 'AL') {
+    // Fetch holidays only if needed for NNJ analysis
+    if (targetShiftType === 'NNJ') {
       try {
         const url = `https://date.nager.at/api/v3/publicholidays/${targetYear}/SG`;
         const response = await axios.get(url);
@@ -605,25 +615,60 @@ app.get('/shift-distribution', async (req, res) => {
       }
     }
 
+    // 4. Build Dynamic Date Conditions
+    let dateCondition = '';
+    let queryParams = [];
+
+    if (period === 'Day') {
+      dateCondition = 'AND s.shift_date = ?';
+      const formattedDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+      queryParams.push(formattedDate);
+    } else if (period === 'Month') {
+      dateCondition = 'AND YEAR(s.shift_date) = ? AND MONTH(s.shift_date) = ?';
+      queryParams.push(targetYear, targetMonth);
+    } else {
+      dateCondition = 'AND YEAR(s.shift_date) = ?';
+      queryParams.push(targetYear);
+    }
+
+// 5. Build Service Filter Condition
+    let serviceCondition = "";
+
+    // If we are looking at NNJ shifts, apply the strict service filter
+    if (targetShiftType === 'NNJ') {
+      if (targetService === 'ALL') {
+        // "ALL" now means: The combination of CE + Neonates + PAME only
+        serviceCondition = " AND u.service IN ('CE', 'Neonates', 'PAME') ";
+      } else {
+        // Specific filter (e.g., just 'CE')
+        serviceCondition = " AND u.service = ? ";
+        queryParams.push(targetService);
+      }
+    }
+
     const query = `
       SELECT 
         u.user_id, 
         u.full_name, 
         u.role, 
+        u.service,
         s.shift_date,
         sd.shift_code
       FROM users u
       LEFT JOIN shifts s 
         ON u.user_id = s.user_id 
-        AND YEAR(s.shift_date) = ?
+        ${dateCondition}
       LEFT JOIN shift_desc sd
         ON s.shift_type_id = sd.shift_type_id
-      WHERE u.role = 'APN'
+      WHERE u.role = 'APN' 
+        AND u.status = 'Active' 
+        ${serviceCondition}  -- This now enforces the 3 services limit
       ORDER BY u.full_name ASC
     `;
 
-    const [rows] = await pool.query(query, [targetYear]);
+    const [rows] = await pool.query(query, queryParams);
 
+    // 6. Process Results
     const userMap = new Map();
 
     rows.forEach(row => {
@@ -632,9 +677,11 @@ app.get('/shift-distribution', async (req, res) => {
           user_id: row.user_id,
           name: row.full_name || 'Unknown',
           role: row.role,
+          service: row.service, // Optional: return service to frontend
           ph_count: 0,
           sun_count: 0,
           al_count: 0, 
+          generic_count: 0,
           total: 0
         });
       }
@@ -644,32 +691,31 @@ app.get('/shift-distribution', async (req, res) => {
       if (row.shift_date) {
         const dbShiftCode = (row.shift_code || 'UNKNOWN').trim().toUpperCase();
         const rawDate = new Date(row.shift_date);
-        const yyyy = rawDate.getFullYear();
-        const mm = String(rawDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(rawDate.getDate()).padStart(2, '0');
-        const dateStr = `${yyyy}-${mm}-${dd}`;
+        const dateStr = rawDate.toLocaleDateString('en-CA'); 
 
         if (targetShiftType === 'AL') {
-          if (dbShiftCode === 'AL') {
-            stats.al_count += 1;
+          if (dbShiftCode === 'AL') stats.al_count += 1;
+        }
+        else if (targetShiftType === 'NNJ') {
+          if (dbShiftCode === 'NNJ') {
+            if (rawDate.getDay() === 0) stats.sun_count += 1;
+            if (phSet.has(dateStr)) stats.ph_count += 1;
           }
-        } else {
-          if (dbShiftCode === targetShiftType) {
-            if (rawDate.getDay() === 0) {
-              stats.sun_count += 1;
-            }
-            if (phSet.has(dateStr)) {
-              stats.ph_count += 1;
-            }
-          }
+        }
+        else {
+          if (dbShiftCode === targetShiftType) stats.generic_count += 1;
         }
       }
     });
 
-    const results = Array.from(userMap.values()).map(u => ({
-      ...u,
-      total: targetShiftType === 'AL' ? u.al_count : (u.ph_count + u.sun_count)
-    }));
+    const results = Array.from(userMap.values()).map(u => {
+      let finalTotal = 0;
+      if (targetShiftType === 'AL') finalTotal = u.al_count;
+      else if (targetShiftType === 'NNJ') finalTotal = u.ph_count + u.sun_count;
+      else finalTotal = u.generic_count;
+
+      return { ...u, total: finalTotal };
+    });
 
     res.json(results);
 
@@ -1220,8 +1266,8 @@ app.post('/api/add-shift-preference', async (req, res) => {
     }
 
     if (rosterRows[0].status !== 'Preference Open') {
-      return res.status(403).json({ 
-        error: `Submission blocked. Roster is currently in '${rosterRows[0].status}' status.` 
+      return res.status(403).json({
+        error: `Submission blocked. Roster is currently in '${rosterRows[0].status}' status.`
       });
     }
 
@@ -1300,7 +1346,7 @@ app.delete('/api/delete-shift-preference/:id', async (req, res) => {
 
   try {
     const query = 'DELETE FROM shiftpref WHERE shiftPref_id = ?';
-    
+
     const [result] = await pool.query(query, [id]);
 
     if (result.affectedRows === 0) {
@@ -1388,7 +1434,7 @@ app.get('/api/users/:userId/shifts-by-month', async (req, res) => {
     res.status(500).json({ error: "Failed to fetch monthly shifts" });
   }
 });
-  
+
 // --- START: NEW ENDPOINT TO GET PUBLISHED ROSTERS ---
 
 // GET: a list of all published rosters for the calendar dropdown
@@ -1461,7 +1507,7 @@ app.put('/api/profile/:id', async (req, res) => {
       return res.status(404).json({ message: 'User not found or no changes made' });
     }
 
-    res.json({ 
+    res.json({
       message: 'Profile updated successfully',
       user: { user_id: id, full_name, email, contact, avatar_url }
     });

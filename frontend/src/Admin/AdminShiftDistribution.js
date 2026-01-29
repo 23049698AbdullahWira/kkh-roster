@@ -1,231 +1,280 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar.js';
 
-// --- HELPER: Status Colors ---
-// Interprets 'Heavy' as 'High Count' and 'Light' as 'Low Count'
 const getWorkloadStatus = (total, targetVal) => {
   const diff = total - targetVal;
-  if (diff === 0) return { label: 'Balanced', color: '#166534', bg: '#DCFCE7' }; // Green
-  if (diff > 0) return { label: `High (+${diff})`, color: '#991B1B', bg: '#FEE2E2' }; // Red
-  return { label: `Low (${diff})`, color: '#854D0E', bg: '#FEF9C3' }; // Yellow/Brown
+  if (diff === 0) return { label: 'Balanced', color: '#166534', bg: '#DCFCE7' };
+  if (diff > 0) return { label: `High (+${diff})`, color: '#991B1B', bg: '#FEE2E2' };
+  return { label: `Low (${diff})`, color: '#854D0E', bg: '#FEF9C3' };
+};
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+// Helper to calculate days in a month dynamically
+const getDaysInMonth = (year, month) => {
+  return new Date(year, month, 0).getDate();
 };
 
 function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }) {
-  // --- 1. STATE ---
+  // --- STATE ---
   const [shiftData, setShiftData] = useState([]);
   const [availableYears, setAvailableYears] = useState([]); 
+  const [availableShiftTypes, setAvailableShiftTypes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Filters
+  const [timeFrame, setTimeFrame] = useState('Year');
   const [year, setYear] = useState(''); 
-  const [shiftType, setShiftType] = useState('NNJ'); // Now Dynamic: 'NNJ' or 'AL'
-  const [target, setTarget] = useState(2); 
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [day, setDay] = useState(new Date().getDate());
+  const [shiftType, setShiftType] = useState('NNJ'); 
+  
+  // NEW: Service Filter State
+  const [serviceFilter, setServiceFilter] = useState('ALL');
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);    
+  const [target, setTarget] = useState(2); 
+  const [currentPage, setCurrentPage] = useState(1);     
   const itemsPerPage = 6;
 
-  // --- 2. HANDLER: Switch Shift Type ---
+  // --- HANDLERS ---
   const handleShiftTypeChange = (e) => {
     const newType = e.target.value;
     setShiftType(newType);
-    // Auto-set target based on type
-    if (newType === 'AL') {
-      setTarget(14);
-    } else {
-      setTarget(2);
+    
+    // Reset service filter if moving away from NNJ (Optional, but good UX)
+    if (newType !== 'NNJ') {
+        setServiceFilter('ALL');
     }
+
+    // Auto-adjust target
+    if (timeFrame === 'Day') setTarget(1); 
+    else if (newType === 'AL') setTarget(timeFrame === 'Month' ? 2 : 14);
+    else if (newType === 'NNJ') setTarget(timeFrame === 'Month' ? 1 : 2);
+    else setTarget(timeFrame === 'Month' ? 5 : 20);
   };
 
-  // --- 3. EFFECT: Fetch Available Years ---
+  const handleTimeFrameChange = (mode) => {
+    setTimeFrame(mode);
+    setCurrentPage(1);
+    // Reset target for "Day" view
+    if (mode === 'Day') setTarget(1);
+  };
+
+  // --- INIT DATA ---
   useEffect(() => {
-    const fetchYears = async () => {
+    const initData = async () => {
       try {
-        const response = await fetch('http://localhost:5000/available-years');
-        const dbYears = await response.json(); 
-        
+        const yearRes = await fetch('http://localhost:5000/available-years');
+        const dbYears = await yearRes.json();
         const currentSystemYear = new Date().getFullYear();
-        const maxAllowedYear = currentSystemYear + 1; 
-
-        const validDbYears = dbYears.filter(y => y <= maxAllowedYear);
-        const uniqueYears = [...new Set([...validDbYears, currentSystemYear, maxAllowedYear])]
-          .sort((a, b) => b - a); 
-
+        const uniqueYears = [...new Set([...dbYears, currentSystemYear])].sort((a, b) => b - a); 
         setAvailableYears(uniqueYears);
+        setYear(currentSystemYear);
 
-        if (uniqueYears.includes(currentSystemYear)) {
-          setYear(currentSystemYear); 
-        } else {
-          setYear(uniqueYears[0]); 
-        }
-
+        const typeRes = await fetch('http://localhost:5000/api/shift-types');
+        const typesData = await typeRes.json();
+        setAvailableShiftTypes(typesData);
       } catch (err) {
-        console.error("Error fetching years:", err);
-        const current = new Date().getFullYear();
-        setAvailableYears([current + 1, current]); 
-        setYear(current);
+        console.error("Error initializing:", err);
       }
     };
-
-    fetchYears();
+    initData();
   }, []);
 
-  // --- 4. EFFECT: Fetch Analysis Data ---
+// --- FETCH DATA (Updated) ---
   useEffect(() => {
     if (!year) return; 
-
     setIsLoading(true);
-    setCurrentPage(1); 
 
-    // The backend endpoint remains the same, but we pass the dynamic shiftType ('NNJ' or 'AL')
-    const url = `http://localhost:5000/shift-distribution?year=${year}&shiftType=${encodeURIComponent(shiftType)}`;
+    const queryParams = new URLSearchParams({
+      year,
+      month,
+      day,
+      shiftType,
+      timeFrame,
+      service: serviceFilter // Pass the service filter to backend
+    });
 
-    fetch(url)
-      .then(res => {
-        if (!res.ok) throw new Error("Network response was not ok");
-        return res.json();
-      })
+    fetch(`http://localhost:5000/shift-distribution?${queryParams}`)
+      .then(res => res.json())
       .then(data => {
-        const formattedData = data.map(item => {
-          
-          let ph = 0;
-          let sunday = 0;
-          let al = 0;
-          let total = 0;
-
-          // Logic for Annual Leave (AL)
-          if (shiftType === 'AL') {
-             al = Number(item.al_count || item.total_count || 0); // Expecting al_count from DB
-             total = al;
-          } 
-          // Logic for NNJ
-          else {
-             ph = Number(item.ph_count || 0);
-             sunday = Number(item.sun_count || 0);
-             total = ph + sunday;
-          }
-
-          return {
+        const formattedData = data.map(item => ({
             id: item.user_id,
-            name: item.name || item.full_name || 'Unknown Staff', 
-            role: item.role || 'APN',
-            ph: ph, 
-            sunday: sunday,
-            al: al,
-            total: total 
-          };
-        });
+            name: item.name, 
+            role: item.role,
+            service: item.service, // Capture service from backend
+            ph: Number(item.ph_count || 0), 
+            sunday: Number(item.sun_count || 0),
+            al: Number(item.al_count || 0),
+            generic: Number(item.generic_count || 0),
+            total: item.total 
+        }));
         setShiftData(formattedData);
         setIsLoading(false);
       })
-      .catch(err => {
-        console.error("Error fetching stats:", err);
+      .catch(() => {
         setShiftData([]);
         setIsLoading(false);
       });
 
-  }, [year, shiftType]); 
+  }, [year, month, day, shiftType, timeFrame, serviceFilter]); // ADD serviceFilter to dependency array
 
-  // --- 5. CALCULATIONS & PAGINATION ---
-  const totalShifts = shiftData.reduce((sum, row) => sum + row.total, 0);
-  const unbalancedCount = shiftData.filter(row => (row.total - target) !== 0).length;
-
+  // --- PAGINATION & RENDER HELPERS ---
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentData = shiftData.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(shiftData.length / itemsPerPage);
+  const unbalancedCount = shiftData.filter(row => (row.total - target) !== 0).length;
+  const totalShifts = shiftData.reduce((sum, row) => sum + row.total, 0);
 
-  const handleNextPage = () => { if (currentPage < totalPages) setCurrentPage(prev => prev + 1); };
-  const handlePrevPage = () => { if (currentPage > 1) setCurrentPage(prev => prev - 1); };
-
-  // --- 6. RENDER ---
   const gridLayout = '2.5fr 1fr 1fr 1fr 1.5fr';
+  
+  // Calculate days for dropdown based on currently selected month/year
+  const daysInCurrentMonth = getDaysInMonth(year, month);
+  const dayOptions = Array.from({ length: daysInCurrentMonth }, (_, i) => i + 1);
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#F8F9FA', fontFamily: 'Inter, sans-serif' }}>
       <Navbar active="shift" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout}/>
 
       <main style={{ maxWidth: 1200, margin: '40px auto', padding: '0 32px' }}>
-        
         <h1 style={{ fontSize: 24, fontWeight: 900, marginBottom: 24, color: '#111827' }}>
-          Annual Distribution Analysis
+          Shift Distribution Analysis
         </h1>
 
-        {/* --- CONTROLS & METRICS CARD --- */}
-        <section style={{ 
-          background: 'white', 
-          borderRadius: 16, 
-          padding: '24px 32px', 
-          marginBottom: 32, 
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-          border: '1px solid #F3F4F6'
-        }}>
+        {/* --- CONTROLS CARD --- */}
+        <section style={{ background: 'white', borderRadius: 16, padding: '24px 32px', marginBottom: 32, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #F3F4F6' }}>
+          
+          {/* Top Row: Time Frame Toggles */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 24, borderBottom: '1px solid #E5E7EB', paddingBottom: 24 }}>
+             {/* Updated 'Today' to 'Day' in the loop array */}
+             {['Year', 'Month', 'Day'].map(mode => (
+               <button
+                 key={mode}
+                 onClick={() => handleTimeFrameChange(mode)}
+                 style={{
+                   padding: '8px 20px',
+                   borderRadius: 20,
+                   border: 'none',
+                   fontSize: 14,
+                   fontWeight: 600,
+                   cursor: 'pointer',
+                   backgroundColor: timeFrame === mode ? '#111827' : '#E5E7EB',
+                   color: timeFrame === mode ? 'white' : '#4B5563',
+                   transition: 'all 0.2s'
+                 }}
+               >
+                 By {mode}
+               </button>
+             ))}
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 40 }}>
-            
-            <div style={{ display: 'flex', gap: 24, flex: 1 }}>
+            <div style={{ display: 'flex', gap: 24, flex: 1, flexWrap: 'wrap' }}>
+                
+                {/* Year Select - Always Visible */}
                 <div style={controlGroupStyle}>
-                    <label style={labelStyle}>Analysis Year</label>
+                    <label style={labelStyle}>Year</label>
                     <div style={{ position: 'relative' }}>
-                        <select
-                            value={year || ''}
-                            onChange={(e) => setYear(Number(e.target.value))}
-                            style={selectStyle}
-                            disabled={availableYears.length === 0}
-                        >
-                            {availableYears.length === 0 && <option>Loading...</option>}
-                            {availableYears.map(yr => (
-                            <option key={yr} value={yr}>
-                                {yr} {yr === new Date().getFullYear() ? '(Current)' : ''}
-                            </option>
-                            ))}
+                        <select value={year || ''} onChange={(e) => setYear(Number(e.target.value))} style={selectStyle}>
+                            {availableYears.map(yr => <option key={yr} value={yr}>{yr}</option>)}
                         </select>
                         <div style={chevronStyle}>▼</div>
                     </div>
                 </div>
 
+                {/* Month Select - Visible for Month OR Day */}
+                {(timeFrame === 'Month' || timeFrame === 'Day') && (
+                  <div style={controlGroupStyle}>
+                      <label style={labelStyle}>Month</label>
+                      <div style={{ position: 'relative' }}>
+                          <select value={month} onChange={(e) => setMonth(Number(e.target.value))} style={selectStyle}>
+                              {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                          </select>
+                          <div style={chevronStyle}>▼</div>
+                      </div>
+                  </div>
+                )}
+
+                {/* Day Select - NEW - Only visible for 'Day' */}
+                {timeFrame === 'Day' && (
+                  <div style={controlGroupStyle}>
+                      <label style={labelStyle}>Day</label>
+                      <div style={{ position: 'relative' }}>
+                          <select value={day} onChange={(e) => setDay(Number(e.target.value))} style={selectStyle}>
+                              {dayOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                          </select>
+                          <div style={chevronStyle}>▼</div>
+                      </div>
+                  </div>
+                )}
+
+                {/* Shift Mode */}
                 <div style={controlGroupStyle}>
-                    <label style={labelStyle}>Shift Mode</label>
-                    {/* CHANGED: From Div Badge to Select Dropdown */}
+                    <label style={labelStyle}>Shift Type</label>
                     <div style={{ position: 'relative' }}>
                         <select
                             value={shiftType}
                             onChange={handleShiftTypeChange}
                             style={{ ...selectStyle, borderColor: '#FCD34D', backgroundColor: '#FFFBEB', color: '#92400E' }}
                         >
-                            <option value="NNJ">NNJ Analysis</option>
-                            <option value="AL">Annual Leave</option>
+                            <optgroup label="Complex">
+                              <option value="NNJ">NNJ (PH/Sun)</option>
+                              <option value="AL">Annual Leave</option>
+                            </optgroup>
+                            <optgroup label="Simple Count">
+                              {availableShiftTypes
+                                .filter(t => t.shift_code !== 'NNJ' && t.shift_code !== 'AL')
+                                .map(type => (
+                                  <option key={type.shift_type_id} value={type.shift_code}>{type.shift_code}</option>
+                              ))}
+                            </optgroup>
                         </select>
                         <div style={{...chevronStyle, color: '#92400E'}}>▼</div>
                     </div>
                 </div>
-
+{/* NEW: Service Filter Dropdown (Conditional) */}
+                {shiftType === 'NNJ' && (
+                  <div style={controlGroupStyle}>
+                      <label style={labelStyle}>Service</label>
+                      <div style={{ position: 'relative' }}>
+                          <select 
+                            value={serviceFilter} 
+                            onChange={(e) => setServiceFilter(e.target.value)} 
+                            style={{...selectStyle, borderColor: '#BFDBFE', backgroundColor: '#EFF6FF', color: '#1E40AF'}}
+                          >
+                              <option value="ALL">ALL</option>
+                              <option value="CE">CE</option>
+                              <option value="Neonates">Neonates</option>
+                              <option value="PAME">PAME</option>
+                          </select>
+                          <div style={{...chevronStyle, color: '#1E40AF'}}>▼</div>
+                      </div>
+                  </div>
+                )}
+                {/* Target */}
                 <div style={controlGroupStyle}>
-                    <label style={labelStyle}>Target Count</label>
+                    <label style={labelStyle}>Target</label>
                     <div style={inputContainerStyle}>
-                        <input
-                            type="number"
-                            value={target}
-                            onChange={(e) => setTarget(Number(e.target.value))}
-                            style={inputStyle}
-                        />
+                        <input type="number" value={target} onChange={(e) => setTarget(Number(e.target.value))} style={inputStyle} />
                         <span style={suffixStyle}>/ Nurse</span>
                     </div>
                 </div>
             </div>
 
+            {/* Metrics */}
             <div style={{ display: 'flex', gap: 40, paddingLeft: 40, borderLeft: '2px solid #F3F4F6' }}>
                 <div style={{ textAlign: 'right' }}>
-                    <div style={metricLabelStyle}>
-                        {shiftType === 'AL' ? 'Total Leave Days' : 'Total Shifts'}
-                    </div>
-                    <div style={metricValueStyle}>
-                        {isLoading ? '...' : totalShifts}
-                    </div>
+                    <div style={metricLabelStyle}>Total Count</div>
+                    <div style={metricValueStyle}>{isLoading ? '-' : totalShifts}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                    <div style={metricLabelStyle}>Unbalanced Staff</div>
+                    <div style={metricLabelStyle}>Unbalanced</div>
                     <div style={{ ...metricValueStyle, color: unbalancedCount > 0 ? '#DC2626' : '#16A34A' }}>
-                        {isLoading ? '...' : unbalancedCount}
+                        {isLoading ? '-' : unbalancedCount}
                     </div>
                 </div>
             </div>
@@ -237,16 +286,20 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
           <div style={{ display: 'grid', gridTemplateColumns: gridLayout, padding: '16px 24px', background: 'white', borderBottom: '1px solid #E5E7EB' }}>
             <div style={headerStyle}>Staff Member</div>
             
-            {/* DYNAMIC HEADERS based on Shift Type */}
             {shiftType === 'NNJ' ? (
                 <>
-                    <div style={headerStyle}>PH Count</div>
-                    <div style={headerStyle}>Sun Count</div>
+                    <div style={headerStyle}>PH</div>
+                    <div style={headerStyle}>Sun</div>
+                </>
+            ) : shiftType === 'AL' ? (
+                <>
+                    <div style={headerStyle}>Leave</div>
+                    <div style={headerStyle}></div>
                 </>
             ) : (
                 <>
-                    <div style={headerStyle}>Leave Taken</div>
-                    <div style={headerStyle}></div> {/* Spacer */}
+                    <div style={headerStyle}>{shiftType}</div>
+                    <div style={headerStyle}></div>
                 </>
             )}
 
@@ -256,50 +309,46 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
 
           <div>
             {isLoading ? (
-               <div style={{ padding: '60px', textAlign: 'center', color: '#6B7280' }}>Loading analysis data...</div>
+               <div style={{ padding: '60px', textAlign: 'center', color: '#6B7280' }}>Loading...</div>
             ) : shiftData.length === 0 ? (
-               <div style={{ padding: '60px', textAlign: 'center', color: '#6B7280' }}>No data found for this year.</div>
+               <div style={{ padding: '60px', textAlign: 'center', color: '#6B7280' }}>No shifts found for this period.</div>
             ) : (
               currentData.map((row, idx) => {
                 const status = getWorkloadStatus(row.total, target);
                 return (
                   <div key={row.id} style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: gridLayout, 
-                    padding: '16px 24px', 
-                    alignItems: 'center',
-                    borderTop: idx === 0 ? 'none' : '1px solid #E5E7EB',
-                    backgroundColor:'white'
+                    display: 'grid', gridTemplateColumns: gridLayout, padding: '16px 24px', 
+                    alignItems: 'center', borderTop: idx === 0 ? 'none' : '1px solid #E5E7EB', backgroundColor:'white' 
                   }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{row.name}</div>
-                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>{row.role}</div>
+                      <div style={{ fontSize: 12, color: '#6B7280' }}>{row.role}</div>
                     </div>
                     
-                    {/* DYNAMIC ROWS based on Shift Type */}
                     {shiftType === 'NNJ' ? (
                         <>
-                            <div style={{ fontSize: 14, color: '#4B5563', fontWeight: 500 }}>{row.ph}</div>
-                            <div style={{ fontSize: 14, color: '#4B5563', fontWeight: 500 }}>{row.sunday}</div>
+                            <div style={{ fontSize: 14, color: '#4B5563' }}>{row.ph}</div>
+                            <div style={{ fontSize: 14, color: '#4B5563' }}>{row.sunday}</div>
+                        </>
+                    ) : shiftType === 'AL' ? (
+                        <>
+                            <div style={{ fontSize: 14, color: '#4B5563' }}>{row.al}</div>
+                            <div></div>
                         </>
                     ) : (
                         <>
-                            <div style={{ fontSize: 14, color: '#4B5563', fontWeight: 500 }}>{row.al} days</div>
-                            <div></div> {/* Spacer */}
+                            <div style={{ fontSize: 14, color: '#4B5563' }}>{row.generic}</div>
+                            <div></div>
                         </>
                     )}
 
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{row.total}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>{row.total}</div>
                     
                     <div>
                       <span style={{ 
-                        padding: '4px 10px', 
-                        borderRadius: 99, 
-                        background: status.bg, 
-                        color: status.color, 
-                        fontWeight: 600, 
-                        fontSize: 12, 
-                        display: 'inline-block' 
+                        padding: '4px 10px', borderRadius: 99, 
+                        background: status.bg, color: status.color, 
+                        fontWeight: 600, fontSize: 12 
                       }}>
                         {status.label}
                       </span>
@@ -309,38 +358,36 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
               })
             )}
           </div>
-
+          
+          {/* Pagination (Hidden if no data) */}
           {shiftData.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid #E6E6E6', background: 'white' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1} style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}>«</button>
-                    <button onClick={handlePrevPage} disabled={currentPage === 1} style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1, cursor: currentPage === 1 ? 'default' : 'pointer' }}>‹</button>
-                    <span style={{ fontSize: 13, color: '#6B7280', margin: '0 12px', fontWeight: 500, minWidth: 60, textAlign: 'center' }}>
-                          {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, shiftData.length)} of {shiftData.length}
-                    </span>
-                    <button onClick={handleNextPage} disabled={currentPage === totalPages} style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}>›</button>
-                    <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages} style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1, cursor: currentPage === totalPages ? 'default' : 'pointer' }}>»</button>
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px', borderTop: '1px solid #E6E6E6' }}>
+               <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} style={paginationButtonStyle}>‹</button>
+                  <span style={{ fontSize: 13, color: '#6B7280', margin: 'auto 12px' }}>
+                        {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, shiftData.length)} of {shiftData.length}
+                  </span>
+                  <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} style={paginationButtonStyle}>›</button>
+               </div>
             </div>
           )}
         </section>
-
       </main>
     </div>
   );
 }
 
-// --- CSS STYLES ---
+// STYLES
 const controlGroupStyle = { display: 'flex', flexDirection: 'column', gap: 6 };
-const labelStyle = { fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em' };
-const selectStyle = { appearance: 'none', padding: '10px 32px 10px 12px', background: '#F9FAFB', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14, fontWeight: 500, minWidth: 140, cursor: 'pointer', color: '#111827', outline: 'none' };
+const labelStyle = { fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase' };
+const selectStyle = { padding: '10px 32px 10px 12px', background: '#F9FAFB', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14, minWidth: 140, cursor: 'pointer', appearance: 'none' };
 const chevronStyle = { position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#6B7280', pointerEvents: 'none' };
 const inputContainerStyle = { display: 'flex', alignItems: 'center', background: '#F9FAFB', borderRadius: 8, border: '1px solid #D1D5DB', padding: '0 12px', height: 40 };
 const inputStyle = { padding: '8px 0', background: 'transparent', border: 'none', fontSize: 15, fontWeight: 700, color: '#2563EB', width: 40, textAlign: 'center', outline: 'none' };
-const suffixStyle = { fontSize: 14, color: '#9CA3AF', fontWeight: 500 };
-const metricLabelStyle = { fontSize: 12, textTransform: 'uppercase', color: '#9CA3AF', fontWeight: 700, marginBottom: 4, letterSpacing: '0.05em' };
-const metricValueStyle = { fontSize: 28, fontWeight: 800, color: '#111827', lineHeight: 1 };
-const headerStyle = { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#6B7280', letterSpacing: '0.05em' };
-const paginationButtonStyle = { width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, color: '#374151', fontSize: 18, lineHeight: 1, transition: 'all 0.2s', outline: 'none' };
+const suffixStyle = { fontSize: 14, color: '#9CA3AF' };
+const metricLabelStyle = { fontSize: 12, textTransform: 'uppercase', color: '#9CA3AF', fontWeight: 700 };
+const metricValueStyle = { fontSize: 28, fontWeight: 800, color: '#111827' };
+const headerStyle = { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#6B7280' };
+const paginationButtonStyle = { width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #E5E7EB', borderRadius: 8, cursor: 'pointer' };
 
 export default AdminShiftDistributionPage;

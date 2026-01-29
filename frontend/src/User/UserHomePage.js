@@ -201,14 +201,14 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       }}
     >
       <UserNavbar
-  active="home"
-  onLogout={onLogout}
-  onGoHome={onGoHome}
-  onGoRoster={onGoRoster}
-  onGoShiftPreference={onGoShiftPreference}
-  onGoApplyLeave={onGoApplyLeave}
-  onGoAccount={onGoAccount}
-/>
+        active="home"
+        onLogout={onLogout}
+        onGoHome={onGoHome}
+        onGoRoster={onGoRoster}
+        onGoShiftPreference={onGoShiftPreference}
+        onGoApplyLeave={onGoApplyLeave}
+        onGoAccount={onGoAccount}
+      />
 
 
 
@@ -356,6 +356,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
                 padding: 18,
                 boxSizing: 'border-box',
                 boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
+                overflow: 'hidden', // <--- Add this line
               }}
             >
               <div style={{ height: 'auto' }}>
