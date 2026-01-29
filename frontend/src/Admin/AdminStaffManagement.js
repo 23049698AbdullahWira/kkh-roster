@@ -38,7 +38,8 @@ function AdminStaffManagementPage({
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '', email: '', password: '', contact: '', role: '', 
-    status: 'Active', avatar_url: '', service: '' 
+    status: 'Active', avatar_url: '', service: '',
+    ward_id: null, 
   });
 
   // MODAL 2: CREATE STAFF
@@ -49,6 +50,9 @@ function AdminStaffManagementPage({
 
   // MODAL 3: DELETE CONFIRMATION
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Inside state section
+  const [wardOptions, setWardOptions] = useState([]); // Add this
 
   const visibleRoles = roleOptions.filter(r => r === 'APN' || r === 'ADMIN');
 
@@ -72,6 +76,13 @@ function AdminStaffManagementPage({
       const resUsers = await fetch('http://localhost:5000/users');
       const dataUsers = await resUsers.json();
 
+      // Fetch Wards (New)
+      const resWards = await fetch('http://localhost:5000/api/wards'); // Adjust endpoint as needed
+      if (resWards.ok) {
+        const wardsData = await resWards.json();
+        setWardOptions(wardsData);
+      }
+
       const filteredData = dataUsers.filter(user => {
         const userRole = user.role ? user.role.toUpperCase() : '';
         return userRole !== 'SUPER ADMIN';
@@ -92,6 +103,7 @@ function AdminStaffManagementPage({
           contact: user.contact || '',
           statusColor: style.color,
           statusBg: style.bg,
+          ward_id: user.ward_id || null, // Add this
         };
       });
       setStaffRows(formattedStaff);
@@ -189,7 +201,8 @@ function AdminStaffManagementPage({
     role: staff.role,
     status: staff.status,   // Live Status Value
     service: staff.service, // Live Service Value
-    avatar_url: staff.avatarUrl
+    avatar_url: staff.avatarUrl,
+    ward_id: staff.ward_id
   });
 
   const handleViewClick = (staff) => {
@@ -419,6 +432,16 @@ function AdminStaffManagementPage({
                 <select name="status" value={formData.status} onChange={handleInputChange} disabled={!isEditing} style={inputStyle}>
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={labelStyle}>Home Ward</label>
+                <select name="ward_id" value={formData.ward_id || ''} onChange={handleInputChange} disabled={!isEditing} style={inputStyle}>
+                  <option value="">No Home Ward (Floating)</option>
+                    {wardOptions.map(ward => (
+                  <option key={ward.ward_id} value={ward.ward_id}>{ward.ward_name}</option>
+                      ))}
                 </select>
               </div>
 

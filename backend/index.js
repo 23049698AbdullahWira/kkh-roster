@@ -437,7 +437,7 @@ app.get('/api/rosters/:id', async (req, res) => {
 // UPDATE User (PUT /users/:id)
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
-  const { full_name, email, role, status, password, avatar_url, contact, service } = req.body; // Added service
+  const { full_name, email, role, status, password, avatar_url, contact, service, ward_id } = req.body; // Added service
 
   try {
     const [check] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
@@ -455,6 +455,11 @@ app.put('/users/:id', async (req, res) => {
     if (avatar_url !== undefined) { fields.push('avatar_url = ?'); params.push(avatar_url); }
     if (contact !== undefined) { fields.push('contact = ?'); params.push(contact); }
     if (service !== undefined) { fields.push('service = ?'); params.push(service); } // Add service update
+
+    if (ward_id !== undefined) { 
+        fields.push('ward_id = ?'); 
+        params.push(ward_id === "" ? null : ward_id); // Handle empty string as NULL
+    }
 
     if (password && password.trim() !== "") {
       fields.push('password = ?');
@@ -1030,6 +1035,7 @@ app.delete('/api/rosters/:id', async (req, res) => {
   await connection.beginTransaction();
 
   try {
+    await connection.query('DELETE FROM shiftpref WHERE roster_id = ?', [rosterId]);
     await connection.query('DELETE FROM shifts WHERE roster_id = ?', [rosterId]);
     const [result] = await connection.query('DELETE FROM rosters WHERE roster_id = ?', [rosterId]);
 

@@ -10,13 +10,6 @@ const IconView = () => (
   </svg>
 );
 
-// const IconEdit = () => (
-//   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-//     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-//     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-//   </svg>
-// );
-
 const IconDownload = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -65,10 +58,66 @@ const ActionBtn = ({ icon, onClick, bg = '#EBF5FF', border = '#D6E4FF', color = 
   </button>
 );
 
-function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster, onLogout }) {
+// Define the button style to match your reference snippet's usage
+const paginationButtonStyle = {
+  width: 32,
+  height: 32,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'white',
+  border: '1px solid #E6E6E6',
+  borderRadius: 8,
+  cursor: 'pointer',
+  color: '#374151', // Dark grey text
+  fontSize: '16px',
+  transition: 'all 0.2s'
+};
+
+// --- NEW: MODAL STYLES ---
+const modalOverlayStyle = {
+  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+  backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)',
+  display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000
+};
+
+const modalContentStyle = {
+  background: 'white', padding: '32px', borderRadius: '12px',
+  width: '400px', textAlign: 'center',
+  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+};
+
+const modalButtonStyle = {
+  padding: '10px 24px', borderRadius: '6px', fontSize: '14px',
+  fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.2s'
+};
+
+// --- LOGGING HELPER ---
+const logAction = async ({ userId, details }) => {
+  try {
+    if (!userId) return;
+    await fetch('http://localhost:5000/action-logs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, details })
+    });
+  } catch (err) { console.error('Failed to insert action log:', err); }
+};
+
+function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster, onLogout, loggedInUser }) {
   const [showNewRoster, setShowNewRoster] = useState(false);
   const [rosterRows, setRosterRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // Change this number to show more/less items
+  
+  // --- NEW: DELETE MODAL STATE ---
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedRosterToDelete, setSelectedRosterToDelete] = useState(null);
+
+  // --- SAFE ACCESS TO USER DETAILS ---
+  const adminName = loggedInUser?.full_name || loggedInUser?.fullName || 'Admin';
+  const adminId = loggedInUser?.user_id || loggedInUser?.userId;
 
   const fetchRosters = () => {
     setLoading(true);
@@ -108,7 +157,7 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-GB') + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleDateString('en-GB');
   };
 
   const getStatusStyle = (status) => {
@@ -122,6 +171,25 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
         return { background: '#D9E8F3', color: '#194A93' }; // Blue
     }
   };
+
+  // --- PAGINATION CALCULATIONS (ADDED) ---
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  // This slices the main array so we only render 10 items at a time
+  const currentItems = rosterRows.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(rosterRows.length / itemsPerPage);
+
+  // --- PAGINATION HANDLERS (ADDED) ---
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(prev => prev - 1);
+  };
+
+  const handleFirstPage = () => setCurrentPage(1);
+  const handleLastPage = () => setCurrentPage(totalPages);
 
   // --- ACTION HANDLERS ---
   const handleNavigateToRoster = (row) => {
@@ -160,20 +228,35 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
     }
   };
 
-  const handleDeleteRoster = async (row) => {
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete "${row.title}"?\n\nThis will delete all shifts associated with this roster. This action cannot be undone.`
-    );
+  // 1. TRIGGER MODAL (Replaces window.confirm)
+  const handleDeleteClick = (row) => {
+    setSelectedRosterToDelete(row);
+    setShowDeleteModal(true);
+  };
 
-    if (!confirmDelete) return;
+  // 2. EXECUTE DELETE (Called by the Modal)
+  const confirmDelete = async () => {
+    if (!selectedRosterToDelete) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/rosters/${row.id}`, {
+      const res = await fetch(`http://localhost:5000/api/rosters/${selectedRosterToDelete.id}`, {
         method: 'DELETE',
       });
 
       if (res.ok) {
-        setRosterRows(prev => prev.filter(r => r.id !== row.id));
+        setRosterRows(prev => prev.filter(r => r.id !== selectedRosterToDelete.id));
+        // Safety: If deleting the last item on a page, go back 1 page
+        if (currentItems.length === 1 && currentPage > 1) {
+            setCurrentPage(prev => prev - 1);
+        }
+        
+        // --- LOG DELETE ACTION ---
+        await logAction({ 
+          userId: adminId, 
+          details: `${adminName} deleted roster: ${selectedRosterToDelete.title}` 
+        });
+
+        // Success - Modal closes in finally block
         alert("Roster deleted successfully.");
       } else {
         alert("Failed to delete roster.");
@@ -181,7 +264,26 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
     } catch (err) {
       console.error("Error deleting roster:", err);
       alert("Error connecting to server.");
+    } finally {
+        setShowDeleteModal(false);
+        setSelectedRosterToDelete(null);
     }
+  };
+
+  // --- NEW HANDLER FOR CREATION LOGGING ---
+  const handleRosterCreated = async (newRosterData) => {
+    // Attempt to get title if passed back, otherwise generic
+    const details = newRosterData && newRosterData.title 
+        ? `${adminName} created a new roster: ${newRosterData.title}`
+        : `${adminName} created a new roster`;
+
+    await logAction({ 
+        userId: adminId, 
+        details: details
+    });
+    
+    setShowNewRoster(false);
+    fetchRosters(); // Refresh list
   };
 
   return (
@@ -242,10 +344,7 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
           <AdminNewRoster
             open={showNewRoster}
             onCancel={() => setShowNewRoster(false)}
-            onConfirm={() => {
-              setShowNewRoster(false); // 1. Close the modal manually
-              fetchRosters();          // 2. Just re-fetch the data list
-            }}
+            onConfirm={handleRosterCreated} // Using the new handler with logging
           />
         </div>
 
@@ -260,7 +359,7 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
           <div>Roster Title</div>
           <div>Generated By</div>
           <div>Created On</div>
-          <div>Publish Dateline</div>
+          <div>Publish Date</div>
           <div>Status</div>
           <div>Actions</div>
         </div>
@@ -276,7 +375,7 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
           ) : rosterRows.length === 0 ? (
             <div style={{ padding: '20px', textAlign: 'center' }}>No rosters found.</div>
           ) : (
-            rosterRows.map((row, idx) => (
+            currentItems.map((row, idx) => (
               <div
                 key={row.id || idx}
                 onClick={() => handleNavigateToRoster(row)}
@@ -313,7 +412,7 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
                   ) : (
                     <ActionBtn
                       icon={<IconTrash />}
-                      onClick={() => handleDeleteRoster(row)}
+                      onClick={() => handleDeleteClick(row)}
                       bg="#FEE2E2"      // Red Background
                       border="#FECACA"  // Red Border
                       color="#DC2626"   // Red Icon
@@ -325,17 +424,103 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
             ))
           )}
 
-          {/* ... PAGINATION ... */}
-          <div style={{ height: 60, background: 'white', borderTop: '1px solid #EEE', borderRadius: '0 0 10px 10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'rgba(255,255,255,0.4)' }}>«</button>
-            <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>‹</button>
-            <span style={{ fontSize: 14, color: '#656575' }}>1–{rosterRows.length} of {rosterRows.length}</span>
-            <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>›</button>
-            <button style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #EEE', background: 'white' }}>»</button>
-          </div>
+          {/* --- PAGINATION FOOTER (MATCHING STAFF PAGE) --- */}
+          {rosterRows.length > 0 && (
+            <div 
+              style={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                padding: '12px 16px',       // Matches reference padding
+                borderTop: '1px solid #E6E6E6', 
+                background: 'white',
+                borderRadius: '0 0 10px 10px' // Kept this to maintain the rounded bottom corners of your table
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                
+                {/* First Page */}
+                <button 
+                  onClick={handleFirstPage} 
+                  disabled={currentPage === 1} 
+                  style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1 }}
+                >
+                  «
+                </button>
+                
+                {/* Previous Page */}
+                <button 
+                  onClick={handlePrevPage} 
+                  disabled={currentPage === 1} 
+                  style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1 }}
+                >
+                  ‹
+                </button>
+
+                {/* Page Info Text - Matches reference style exactly */}
+                <span style={{ fontSize: 13, color: '#6B7280', margin: '0 12px', fontWeight: 500 }}>
+                  {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, rosterRows.length)} of {rosterRows.length}
+                </span>
+
+                {/* Next Page */}
+                <button 
+                  onClick={handleNextPage} 
+                  disabled={currentPage === totalPages} 
+                  style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1 }}
+                >
+                  ›
+                </button>
+
+                {/* Last Page */}
+                <button 
+                  onClick={handleLastPage} 
+                  disabled={currentPage === totalPages} 
+                  style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1 }}
+                >
+                  »
+                </button>
+              </div>
+            </div>
+          )}
 
         </div>
       </main>
+      {/* --- NEW: DELETE CONFIRMATION MODAL --- */}
+      {showDeleteModal && (
+        <div style={modalOverlayStyle}>
+          <div style={modalContentStyle}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+              Confirm Deletion
+            </h3>
+            <p style={{ margin: '0 0 24px 0', fontSize: '15px', color: '#6B7280', lineHeight: 1.5 }}>
+              Are you sure you want to delete <br/>
+              <span style={{ fontWeight: 600, color: '#111827' }}>"{selectedRosterToDelete?.title}"</span>?
+              <br/>
+              <span style={{ color: '#DC2626', fontSize: '13px', fontWeight: 500 }}>
+                This action cannot be undone.
+              </span>
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+              <button 
+                onClick={() => setShowDeleteModal(false)} 
+                style={{ ...modalButtonStyle, background: 'white', color: '#374151', border: '1px solid #D1D5DB' }}
+                onMouseOver={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'white'}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDelete} 
+                style={{ ...modalButtonStyle, background: '#DC2626', color: 'white' }}
+                onMouseOver={(e) => e.currentTarget.style.background = '#B91C1C'}
+                onMouseOut={(e) => e.currentTarget.style.background = '#DC2626'}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
