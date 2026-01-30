@@ -413,6 +413,16 @@ app.post('/api/rosters/update-status', async (req, res) => {
 
     await pool.query(sql, [status, rosterId]);
 
+    if (status === 'Drafting') {
+      const rejectSql = `
+        UPDATE shiftpref 
+        SET status = 'Denied', 
+            remarks = CONCAT(IFNULL(remarks, ''), ' [System: Auto-rejected on close]') 
+        WHERE roster_id = ? AND status = 'Pending'
+      `;
+      await pool.query(rejectSql, [rosterId]);
+    }
+
     res.json({ success: true, status });
   } catch (err) {
     console.error("Error updating status:", err);
@@ -1414,6 +1424,50 @@ app.delete('/api/delete-shift-preference/:id', async (req, res) => {
   } catch (err) {
     console.error("Database Error deleting preference:", err);
     res.status(500).json({ error: err.sqlMessage || err.message || "Database error" });
+  }
+});
+
+// --- GET ALL PREFERENCES FOR A SPECIFIC ROSTER (For Admin View) ---
+app.get('/api/preferences/:rosterId', async (req, res) => {
+  const { rosterId } = req.params;
+  
+  try {
+    const query = `
+      SELECT 
+        sp.shiftPref_id,
+        sp.date AS shift_date,
+        sp.remarks AS reason,
+        sp.status,
+        sp.user_id,
+        sp.shift_type_id,
+        u.full_name,
+        sd.shift_code
+      FROM shiftpref sp
+      JOIN users u ON sp.user_id = u.user_id
+      JOIN shift_desc sd ON sp.shift_type_id = sd.shift_type_id
+      WHERE sp.roster_id = ? AND sp.status = 'Pending'
+      ORDER BY sp.date ASC
+    `;
+
+    const [rows] = await pool.query(query, [rosterId]);
+    
+    // Send the data back to the frontend
+    res.json(rows);
+
+  } catch (err) {
+    console.error("Error fetching roster preferences:", err);
+    res.status(500).json({ error: "Failed to fetch preferences" });
+  }
+});
+
+// Add to your index.js
+app.post('/api/preferences/update-status', async (req, res) => {
+  const { prefId, status } = req.body;
+  try {
+    await pool.query('UPDATE shiftpref SET status = ? WHERE shiftPref_id = ?', [status, prefId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Update failed" });
   }
 });
 

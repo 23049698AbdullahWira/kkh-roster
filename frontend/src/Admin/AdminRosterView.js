@@ -26,6 +26,31 @@ const IconSort = ({ direction }) => (
   </svg>
 );
 
+// New Icon for Preferences
+const IconList = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="8" y1="6" x2="21" y2="6"></line>
+    <line x1="8" y1="12" x2="21" y2="12"></line>
+    <line x1="8" y1="18" x2="21" y2="18"></line>
+    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+  </svg>
+);
+
+const IconCheck = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"></polyline>
+  </svg>
+);
+
+const IconX = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18"></line>
+    <line x1="6" y1="6" x2="18" y2="18"></line>
+  </svg>
+);
+
 const logAction = async ({ userId, details }) => {
   try {
     if (!userId) return;
@@ -46,7 +71,8 @@ function AdminRosterView({
   onGoRoster,
   onGoStaff,
   onGoShift,
-  loggedInUser, // <--- Ensure this is passed from App.js
+  loggedInUser, 
+  onLogout,
 }) {
   const [days, setDays] = useState([]);
   const [staffList, setStaffList] = useState([]);
@@ -67,15 +93,25 @@ function AdminRosterView({
   const [viewModalData, setViewModalData] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // --- NEW STATES FOR PREFERENCE MODAL ---
+  const [showPrefModal, setShowPrefModal] = useState(false);
+  const [preferences, setPreferences] = useState([]);
+  const [loadingPrefs, setLoadingPrefs] = useState(false);
+
+  // [NEW] Pagination State
+  const [prefPage, setPrefPage] = useState(1); 
+  const prefsPerPage = 5;
+
+  const [selectedPrefIds, setSelectedPrefIds] = useState([]);
+  const [hasPendingPrefs, setHasPendingPrefs] = useState(false);
+
   // --- NEW: UNIFIED NOTIFICATION STATE ---
   const [notification, setNotification] = useState(null);
 
   // --- HELPER FOR LOGGING USER DETAILS ---
-  // Safely get name and ID. Use 'Admin' as fallback if name is missing.
   const adminName = loggedInUser?.full_name || loggedInUser?.fullName || 'Admin';
   const adminId = loggedInUser?.user_id || loggedInUser?.userId;
 
-  // Helper to trigger the modal
   const showNotification = ({ type, title, message, theme = 'neutral', onConfirm = null }) => {
     setNotification({ type, title, message, theme, onConfirm });
   };
@@ -84,7 +120,6 @@ function AdminRosterView({
     setNotification(null);
   };
 
-  // --- SORTING LOGIC ---
   const sortedStaffList = React.useMemo(() => {
     return [...staffList].sort((a, b) => {
       const nameA = (a.full_name || '').toLowerCase();
@@ -114,6 +149,12 @@ function AdminRosterView({
     const fetchData = async () => {
       try {
         setLoading(true);
+        const prefRes = await fetch(`http://localhost:5000/api/preferences/${rosterId}`);
+        if (prefRes.ok) {
+            const prefData = await prefRes.json();
+            // Show dot if there is at least 1 pending request
+            setHasPendingPrefs(prefData.length > 0);
+        }
         const rosterRes = await fetch(`http://localhost:5000/api/rosters/${rosterId}`);
         const rosterData = await rosterRes.json();
         if (rosterData && rosterData.status) setRosterStatus(rosterData.status);
@@ -161,6 +202,203 @@ function AdminRosterView({
     return type ? (type.is_work_shift === 'Y' ? 'Working Shift' : 'Leave / Off') : 'Unknown';
   };
 
+  // --- NEW: FETCH PREFERENCES ---
+  const handleOpenPreferences = async () => {
+    setShowPrefModal(true);
+    setLoadingPrefs(true);
+    setPrefPage(1);
+    try {
+      const res = await fetch(`http://localhost:5000/api/preferences/${rosterId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPreferences(data);
+      } else {
+        setPreferences([]); // Reset if fail
+      }
+    } catch (err) {
+      console.error("Failed to fetch preferences", err);
+    } finally {
+      setLoadingPrefs(false);
+    }
+  };
+
+// --- HANDLE PREFERENCE ACTION (Accept/Reject) ---
+  const handlePrefAction = async (prefId, newStatus, staffName, shiftDate) => {
+    // 1. Find the specific preference object to get details
+    const pref = preferences.find(p => p.shiftPref_id === prefId);
+    if (!pref) return;
+
+    try {
+      // 2. Call Backend to update preference status
+      const res = await fetch('http://localhost:5000/api/preferences/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prefId, status: newStatus })
+      });
+
+      if (res.ok) {
+        setPreferences(prev => {
+        const newList = prev.filter(p => p.shiftPref_id !== prefId);
+        
+        // If the list is now empty, turn off the red dot
+        if (newList.length === 0) {
+            setHasPendingPrefs(false);
+        }
+        
+        return newList;
+      });
+        
+        // 4. Log the Action
+        const actionWord = newStatus === 'Approved' ? 'Approved' : 'Rejected';
+        await logAction({ 
+          userId: adminId, 
+          details: `${adminName} ${actionWord} preference for ${staffName} on ${shiftDate}` 
+        });
+
+        // 5. [NEW] IF APPROVED -> UPDATE THE ROSTER SHIFT
+        if (newStatus === 'Approved') {
+            const dateStr = pref.shift_date.split('T')[0];
+            
+            // Find the shift details from your options so we have the color/code
+            const shiftType = shiftOptions.find(t => t.shift_type_id === pref.shift_type_id);
+            
+            // Determine Ward: Use User's Home Ward, or fallback to first available ward
+            const targetUser = staffList.find(u => u.user_id === pref.user_id);
+            const defaultWard = targetUser?.ward_id || (wardOptions[0] ? wardOptions[0].ward_id : null);
+            
+            // Handle "OFF" shifts (usually don't need a ward)
+            const finalWardId = shiftType?.shift_code === 'OFF' ? null : defaultWard;
+
+            if (shiftType) {
+                // A. Update Database Shift
+                await fetch('http://localhost:5000/api/shifts/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        userId: pref.user_id, 
+                        date: dateStr, 
+                        shiftTypeId: pref.shift_type_id, 
+                        rosterId, 
+                        wardId: finalWardId 
+                    })
+                });
+
+                // B. Update Local Grid State (Instant Reflection)
+                setShifts(prevShifts => {
+                    // Remove any existing shift for this user/date
+                    const filtered = prevShifts.filter(s => !(s.user_id === pref.user_id && s.shift_date.startsWith(dateStr)));
+                    
+                    // Add the new approved shift
+                    return [...filtered, {
+                        user_id: pref.user_id,
+                        shift_date: dateStr,
+                        shift_code: shiftType.shift_code,
+                        shift_color_hex: shiftType.shift_color_hex,
+                        roster_id: rosterId,
+                        ward_id: finalWardId,
+                        shift_type_id: pref.shift_type_id
+                    }];
+                });
+            }
+        }
+
+      } else {
+        alert("Failed to update preference.");
+      }
+    } catch (err) {
+      console.error("Error updating preference:", err);
+      alert("Server connection error.");
+    }
+  };
+
+  // Helper to update the main roster grid locally
+  const updateRosterShiftLocal = async (pref) => {
+    const dateStr = pref.shift_date.split('T')[0];
+    const shiftType = shiftOptions.find(t => t.shift_type_id === pref.shift_type_id);
+    const targetUser = staffList.find(u => u.user_id === pref.user_id);
+    const defaultWard = targetUser?.ward_id || (wardOptions[0] ? wardOptions[0].ward_id : null);
+    const finalWardId = shiftType?.shift_code === 'OFF' ? null : defaultWard;
+
+    if (shiftType) {
+        // Update DB Shift
+        await fetch('http://localhost:5000/api/shifts/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                userId: pref.user_id, 
+                date: dateStr, 
+                shiftTypeId: pref.shift_type_id, 
+                rosterId, 
+                wardId: finalWardId 
+            })
+        });
+
+        // Update Local State
+        setShifts(prevShifts => {
+            const filtered = prevShifts.filter(s => !(s.user_id === pref.user_id && s.shift_date.startsWith(dateStr)));
+            return [...filtered, {
+                user_id: pref.user_id,
+                shift_date: dateStr,
+                shift_code: shiftType.shift_code,
+                shift_color_hex: shiftType.shift_color_hex,
+                roster_id: rosterId,
+                ward_id: finalWardId,
+                shift_type_id: pref.shift_type_id
+            }];
+        });
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    if (selectedPrefIds.length === 0) return;
+    
+    let successCount = 0;
+    
+    for (const id of selectedPrefIds) {
+        const pref = preferences.find(p => p.shiftPref_id === id);
+        if (!pref) continue;
+
+        try {
+            const res = await fetch('http://localhost:5000/api/preferences/update-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prefId: id, status: 'Approved' })
+            });
+
+            if (res.ok) {
+                successCount++;
+                updateRosterShiftLocal(pref); 
+            }
+        } catch (e) {
+            console.error(`Failed to approve ${id}`, e);
+        }
+    }
+
+    if (successCount > 0) {
+        await logAction({ 
+            userId: adminId, 
+            details: `${adminName} bulk Approved ${successCount} shift preferences.` 
+        });
+        
+        // Remove approved items
+        setPreferences(prev => {
+            // 1. Create the new list without the approved items
+            const newList = prev.filter(p => !selectedPrefIds.includes(p.shiftPref_id));
+            
+            // 2. Check if the new list is empty to turn off the red dot
+            if (newList.length === 0) {
+                setHasPendingPrefs(false);
+            }
+            
+            return newList;
+        });
+        setSelectedPrefIds([]); 
+    } else {
+        alert("Failed to approve selected items.");
+    }
+  };
+  // -------------------
+
   // --- ACTIONS ---
 
   // 1. SAVE SHIFT
@@ -184,15 +422,12 @@ function AdminRosterView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, date: dateString, shiftTypeId: typeId, rosterId, wardId: selectedWardId })
       });
-      
-      // LOG ACTION WITH NAME
       const targetStaff = staffList.find(s => s.user_id === userId);
       const targetName = targetStaff ? targetStaff.full_name : `User ID ${userId}`;
       await logAction({ 
         userId: adminId, 
         details: `${adminName} assigned shift ${code} to ${targetName} on ${dateString}` 
       });
-
     } catch (err) { console.error("Failed to save shift", err); }
   };
 
@@ -214,15 +449,12 @@ function AdminRosterView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, date, shiftTypeId: 'OFF', rosterId, wardId: null })
       });
-
-      // LOG ACTION WITH NAME
       const targetStaff = staffList.find(s => s.user_id === userId);
       const targetName = targetStaff ? targetStaff.full_name : `User ID ${userId}`;
       await logAction({ 
         userId: adminId, 
         details: `${adminName} deleted shift for ${targetName} on ${date}` 
       });
-
     } catch (err) {
       console.error("Failed to delete shift", err);
       showNotification({ type: 'alert', title: 'Error', message: 'Failed to delete shift on server.', theme: 'danger' });
@@ -245,8 +477,6 @@ function AdminRosterView({
       if (res.ok) {
         setRosterStatus('Drafting');
         showNotification({ type: 'alert', title: 'Success', message: 'Roster is now in Drafting mode.', theme: 'success' });
-        
-        // LOG ACTION WITH NAME
         await logAction({ 
           userId: adminId, 
           details: `${adminName} closed preferences for Roster ID ${rosterId}` 
@@ -278,8 +508,6 @@ function AdminRosterView({
       if (res.ok) {
         setRosterStatus('Published');
         showNotification({ type: 'alert', title: 'Success', message: 'Roster is now Published.', theme: 'success' });
-        
-        // LOG ACTION WITH NAME
         await logAction({ 
           userId: adminId, 
           details: `${adminName} PUBLISHED Roster ID ${rosterId}` 
@@ -308,13 +536,10 @@ function AdminRosterView({
       if (res.ok) {
         const data = await res.json();
         setRefreshTrigger(prev => prev + 1);
-        
-        // LOG ACTION WITH NAME
         await logAction({ 
           userId: adminId, 
           details: `${adminName} ran Auto-Fill for Roster ID ${rosterId}` 
         });
-
         showNotification({ type: 'alert', title: 'Auto-Fill Complete', message: data.message, theme: 'success' });
       } else {
         showNotification({ type: 'alert', title: 'Auto-Fill Failed', message: 'Check console for details.', theme: 'danger' });
@@ -325,9 +550,6 @@ function AdminRosterView({
     }
   };
 
-  // ... (Remaining Helpers: handleCellClick, getInitials, getContrastTextColor, checkIfRosterComplete, isComplete, getStaffByService, groupedStaff, Return JSX) ...
-  // (Paste in the exact same render logic as before here)
-  
   const handleCellClick = (userId, dateString, currentShiftCode, staffName) => {
     const existingShift = shifts.find(s => s.user_id === userId && s.shift_date.startsWith(dateString));
     if (!isEditing) {
@@ -401,20 +623,88 @@ function AdminRosterView({
   };
   const groupedStaff = getStaffByService();
 
+  const indexOfLastPref = prefPage * prefsPerPage;
+  const indexOfFirstPref = indexOfLastPref - prefsPerPage;
+  const currentPrefs = preferences.slice(indexOfFirstPref, indexOfLastPref);
+  const totalPrefPages = Math.ceil(preferences.length / prefsPerPage);
+
+  // --- INSERT HERE ---
+  const handleSelectAllPrefs = (e) => {
+    if (e.target.checked) {
+        const allIds = currentPrefs.map(p => p.shiftPref_id);
+        // Combine unique IDs
+        const combined = [...new Set([...selectedPrefIds, ...allIds])];
+        setSelectedPrefIds(combined);
+    } else {
+        const currentIds = currentPrefs.map(p => p.shiftPref_id);
+        setSelectedPrefIds(prev => prev.filter(id => !currentIds.includes(id)));
+    }
+  };
+
+  const handleSelectOnePref = (id) => {
+    if (selectedPrefIds.includes(id)) {
+        setSelectedPrefIds(prev => prev.filter(i => i !== id));
+    } else {
+        setSelectedPrefIds(prev => [...prev, id]);
+    }
+  };
+  // -------------------
+
   return (
     <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
-      <Navbar active="roster" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} />
+      <Navbar active="roster" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout}/>
 
       <main style={{ maxWidth: 1400, margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' }}>
+        
+        {/* HEADER SECTION - UPDATED */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, position: 'relative', minHeight: 50 }}>
+          
+          {/* Left: Back Button */}
           <div style={{ zIndex: 10 }}>
             <button type="button" onClick={onBack} style={{ padding: '8px 20px', background: 'white', borderRadius: 68, border: '1px solid #DDDDDD', cursor: 'pointer', fontWeight: 600 }}>← Back</button>
           </div>
 
-          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', width: 'max-content', zIndex: 0 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>{month} Roster {year}</h1>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginTop: 4, textTransform: 'uppercase', letterSpacing: '1px' }}>
-              Status: <span style={{ color: rosterStatus === 'Preference Open' ? '#10B981' : '#F59E0B' }}>{rosterStatus}</span>
+          {/* Center: Title Group WITH BUTTON ON LEFT */}
+          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', zIndex: 0, display: 'flex', alignItems: 'center', gap: 16 }}>
+            
+            {/* NEW PREFERENCE BUTTON */}
+            {rosterStatus === 'Preference Open' && (
+              <button 
+                onClick={handleOpenPreferences}
+                title="View Pending Preferences"
+                style={{
+                  width: 40, height: 40, borderRadius: '50%', 
+                  background: 'white', border: '1px solid #E5E7EB',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#7C3AED', 
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                  transition: 'transform 0.2s',
+                  position: 'relative'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <IconList />
+                {hasPendingPrefs && (
+                  <div style={{
+                      position: 'absolute', 
+                      top: 0, 
+                      right: 0, 
+                      width: 10, 
+                      height: 10, 
+                      background: '#EF4444', // Bright Red
+                      borderRadius: '50%',
+                      border: '2px solid white' // Adds a clean cut from the icon
+                  }} />
+                )}
+              </button>
+            )}
+
+            <div style={{ textAlign: 'center' }}>
+              <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>{month} Roster {year}</h1>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginTop: 4, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Status: <span style={{ color: rosterStatus === 'Preference Open' ? '#10B981' : '#F59E0B' }}>{rosterStatus}</span>
+              </div>
             </div>
           </div>
 
@@ -445,7 +735,7 @@ function AdminRosterView({
           </div>
         </div>
 
-        {/* GRID TABLE (Kept identical to original) */}
+        {/* GRID TABLE */}
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40, fontSize: 18, color: '#666' }}>Loading Roster Data...</div>
         ) : (
@@ -505,6 +795,121 @@ function AdminRosterView({
           </div>
         )}
       </main>
+
+      {/* --- PREFERENCES MODAL (UPDATED WITH ACTIONS & PAGINATION) --- */}
+      {showPrefModal && (
+        <div style={modalOverlayStyle} onClick={() => setShowPrefModal(false)}>
+          <div style={{ ...modalContentStyle, width: 680, textAlign: 'left', padding: 0 }} onClick={e => e.stopPropagation()}>
+            <div style={{ padding: '24px', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
+                <h3 style={{ margin: 0, fontSize: '20px', color: '#111827' }}>Pending Requests ({month} {year})</h3>
+                  {selectedPrefIds.length > 0 && (
+                    <button 
+                      onClick={handleBulkApprove}
+                      style={{ padding: '6px 12px', background: '#DCFCE7', color: '#166534', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      Approve Selected ({selectedPrefIds.length})
+                    </button>
+                  )}
+              </div>
+            <button onClick={() => setShowPrefModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px' }}>✕</button>
+          </div>
+            
+            <div style={{ padding: '24px', minHeight: '300px' }}>
+              {loadingPrefs ? (
+                <div style={{ textAlign: 'center', color: '#6B7280', paddingTop: 40 }}>Loading requests...</div>
+              ) : preferences.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#6B7280', paddingTop: 40 }}>No pending requests found for this period.</div>
+              ) : (
+                <>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '2px solid #E5E7EB', color: '#6B7280', textTransform: 'uppercase', fontSize: '12px' }}>
+                        <th style={{ paddingBottom: 8, width: 40, textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            onChange={handleSelectAllPrefs}
+                            checked={currentPrefs.length > 0 && currentPrefs.every(p => selectedPrefIds.includes(p.shiftPref_id))}
+                          />
+                        </th>
+                        <th style={{ textAlign: 'left', paddingBottom: 8 }}>Staff</th>
+                        <th style={{ textAlign: 'left', paddingBottom: 8 }}>Date</th>
+                        <th style={{ textAlign: 'center', paddingBottom: 8 }}>Shift</th>
+                        <th style={{ textAlign: 'left', paddingBottom: 8 }}>Reason</th>
+                        <th style={{ textAlign: 'center', paddingBottom: 8 }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentPrefs.map((p) => (
+                        <tr key={p.shiftPref_id} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                          <td style={{ padding: '14px 0', textAlign: 'center' }}>
+                            <input 
+                              type="checkbox" 
+                              checked={selectedPrefIds.includes(p.shiftPref_id)}
+                              onChange={() => handleSelectOnePref(p.shiftPref_id)}
+                            />
+                          </td>
+                          <td style={{ padding: '14px 0', fontWeight: 600, color: '#374151' }}>{p.full_name}</td>
+                          <td style={{ padding: '14px 0', color: '#6B7280' }}>{p.shift_date.split('T')[0]}</td>
+                          <td style={{ padding: '14px 0', textAlign: 'center' }}>
+                            <span style={{ padding: '4px 8px', background: '#DBEAFE', color: '#1E40AF', borderRadius: 4, fontWeight: 700, fontSize: '12px' }}>{p.shift_code}</span>
+                          </td>
+                          <td style={{ padding: '14px 0', color: '#6B7280', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.reason || '-'}>
+                            {p.reason || '-'}
+                          </td>
+                          <td style={{ padding: '14px 0', textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                              <button 
+                                onClick={() => handlePrefAction(p.shiftPref_id, 'Approved', p.full_name, p.shift_date.split('T')[0])}
+                                title="Accept"
+                                style={{ width: 32, height: 32, borderRadius: 6, background: '#DCFCE7', color: '#166534', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              >
+                                <IconCheck />
+                              </button>
+                              <button 
+                                onClick={() => handlePrefAction(p.shiftPref_id, 'Denied', p.full_name, p.shift_date.split('T')[0])}
+                                title="Reject"
+                                style={{ width: 32, height: 32, borderRadius: 6, background: '#FEE2E2', color: '#991B1B', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              >
+                                <IconX />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Pagination Controls */}
+                  {preferences.length > prefsPerPage && (
+                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 24, gap: 16 }}>
+                      <button 
+                        onClick={() => setPrefPage(p => Math.max(1, p - 1))}
+                        disabled={prefPage === 1}
+                        style={{ padding: '6px 12px', border: '1px solid #E5E7EB', background: 'white', borderRadius: 6, cursor: prefPage === 1 ? 'not-allowed' : 'pointer', opacity: prefPage === 1 ? 0.5 : 1 }}
+                      >
+                        Previous
+                      </button>
+                      <span style={{ fontSize: '13px', color: '#6B7280' }}>Page {prefPage} of {totalPrefPages}</span>
+                      <button 
+                        onClick={() => setPrefPage(p => Math.min(totalPrefPages, p + 1))}
+                        disabled={prefPage === totalPrefPages}
+                        style={{ padding: '6px 12px', border: '1px solid #E5E7EB', background: 'white', borderRadius: 6, cursor: prefPage === totalPrefPages ? 'not-allowed' : 'pointer', opacity: prefPage === totalPrefPages ? 0.5 : 1 }}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            
+            <div style={{ padding: '20px 24px', borderTop: '1px solid #E5E7EB', textAlign: 'right', background: '#F9FAFB', borderRadius: '0 0 16px 16px' }}>
+              <button onClick={() => setShowPrefModal(false)} style={{ ...modalBtnBase, background: 'white', color: '#374151', border: '1px solid #D1D5DB' }}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- EDIT MODE MODAL --- */}
       {selectedCell && (() => {
@@ -589,7 +994,7 @@ function AdminRosterView({
         );
       })()}
 
-      {/* --- NEW: UNIFIED NOTIFICATION MODAL --- */}
+      {/* --- UNIFIED NOTIFICATION MODAL --- */}
       {notification && (
         <div style={modalOverlayStyle} onClick={closeNotification}>
           <div style={modalContentStyle} onClick={e => e.stopPropagation()}>
