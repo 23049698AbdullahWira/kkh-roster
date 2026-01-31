@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import UserNavbar from '../Nav/UserNavbar.js';
 import { FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
+import './UserAccountInformation.css';
 
 const ActionButton = ({ onClick, icon, color, title }) => (
-  <button type="button" title={title} onClick={onClick} style={{ ...styles.actionButton.base, ...styles.actionButton[color] }}>
+  <button 
+    type="button" 
+    title={title} 
+    onClick={onClick} 
+    className={`user-useraccountinformation-action-btn user-useraccountinformation-action-btn-${color}`}
+  >
     {icon}
   </button>
 );
@@ -16,6 +22,31 @@ const CheckIcon = ({ onClick }) => (
 );
 const CrossIcon = ({ onClick }) => (
   <ActionButton onClick={onClick} title="Cancel" color="red" icon={<FaTimes color="#FF2525" />} />
+);
+
+// --- Updated Field Component ---
+const Field = ({ label, name, value, isEditing, onChange, type = 'text', maxLength }) => (
+  <div className="user-useraccountinformation-field-group">
+    <label className="user-useraccountinformation-label">{label}</label>
+    {isEditing ? (
+      <input
+        type={type}
+        name={name}
+        value={value || ''}
+        onChange={onChange}
+        className="user-useraccountinformation-input"
+        maxLength={maxLength}
+        placeholder={name === 'avatar_url' ? 'https://example.com/image.png' : ''}
+      />
+    ) : (
+      <div 
+        className="user-useraccountinformation-input user-useraccountinformation-input-disabled user-useraccountinformation-display-field"
+        title={value} /* Tooltip: Show full text on hover */
+      >
+        {value || (name === 'avatar_url' ? 'No custom avatar set' : '')}
+      </div>
+    )}
+  </div>
 );
 
 function UserAccountInformation({
@@ -117,10 +148,7 @@ function UserAccountInformation({
       setEditError("Contact cannot be empty.");
       return;
     }
-    // Optional: You could validate that trimmedAvatar looks like a URL here if you want.
     
-    // --- END OF VALIDATION ---
-
     const payload = {
       full_name: trimmedFullName,
       email: trimmedEmail,
@@ -204,12 +232,12 @@ function UserAccountInformation({
     }
   };
 
-  if (loading) return <div style={styles.message}>Loading...</div>;
-  if (error && !successMessage) return <div style={{ ...styles.message, color: '#B91C1C' }}>Error: {error}</div>;
-  if (!userData) return <div style={styles.message}>No user data found.</div>;
+  if (loading) return <div className="user-useraccountinformation-message">Loading...</div>;
+  if (error && !successMessage) return <div className="user-useraccountinformation-message user-useraccountinformation-msg-error-text">Error: {error}</div>;
+  if (!userData) return <div className="user-useraccountinformation-message">No user data found.</div>;
 
   return (
-    <div style={styles.page}>
+    <div className="user-useraccountinformation-page">
       <UserNavbar
         active="account" 
         onGoHome={onGoHome}
@@ -219,28 +247,27 @@ function UserAccountInformation({
         onGoAccount={onGoAccount}
         onLogout={onLogout}
       />
-      <main style={styles.mainContent}>
-        <header style={styles.header}>
-          <h1 style={styles.title}>Account Information</h1>
+      <main className="user-useraccountinformation-main-content">
+        <header className="user-useraccountinformation-header">
+          <h1 className="user-useraccountinformation-title">Account Information</h1>
         </header>
-        <div style={styles.container}>
-          <div style={styles.profileGrid}>
-            <div style={styles.avatarColumn}>
-              {/* Image updates live as user types in the URL box below */}
+        <div className="user-useraccountinformation-card">
+          <div className="user-useraccountinformation-grid">
+            <div className="user-useraccountinformation-col-avatar">
               <img 
-                style={styles.avatar} 
+                className="user-useraccountinformation-avatar-img" 
                 src={userData.avatar_url || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png'} 
                 alt="Profile Avatar" 
                 onError={(e) => { e.target.src = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_960_720.png'; }}
               />
-              <div style={styles.avatarName}>{userData.full_name}</div>
-              <div style={styles.avatarEmail}>{userData.email}</div>
+              <div className="user-useraccountinformation-avatar-name">{userData.full_name}</div>
+              <div className="user-useraccountinformation-avatar-email">{userData.email}</div>
             </div>
 
-            <div style={styles.detailsColumn}>
-              <div style={styles.actionsHeader}>
+            <div className="user-useraccountinformation-col-details">
+              <div className="user-useraccountinformation-actions-header">
                 {isEditing ? (
-                  <div style={styles.actions}>
+                  <div className="user-useraccountinformation-actions-group">
                     <CheckIcon onClick={handleSave} />
                     <CrossIcon onClick={handleCancel} />
                   </div>
@@ -250,21 +277,20 @@ function UserAccountInformation({
               </div>
 
               {/* Display Edit Error Message */}
-              {editError && <div style={styles.errorMessage}>{editError}</div>}
-              {successMessage && <div style={styles.successMessage}>{successMessage}</div>}
+              {editError && <div className="user-useraccountinformation-error-message">{editError}</div>}
+              {successMessage && <div className="user-useraccountinformation-success-message">{successMessage}</div>}
 
               <Field label="Full Name" name="full_name" value={userData.full_name} isEditing={isEditing} onChange={handleInputChange} maxLength={50} />
               <Field label="Email" name="email" value={userData.email} isEditing={isEditing} onChange={handleInputChange} maxLength={50} />
               <Field label="Contact" name="contact" value={userData.contact} isEditing={isEditing} onChange={handleInputChange} />
               
-              {/* NEW FIELD: Avatar URL */}
               <Field label="Avatar URL" name="avatar_url" value={userData.avatar_url} isEditing={isEditing} onChange={handleInputChange} />
 
-              <div style={styles.divider} />
+              <div className="user-useraccountinformation-divider" />
 
               {showPassword ? (
                 <div>
-                  {passwordError && <div style={styles.errorMessage}>{passwordError}</div>}
+                  {passwordError && <div className="user-useraccountinformation-error-message">{passwordError}</div>}
                   <div style={{ marginBottom: '16px' }}>
                     <Field label="Current Password" name="currentPassword" type="password" value={passwords.currentPassword} isEditing={true} onChange={handlePasswordChange} />
                   </div>
@@ -272,13 +298,13 @@ function UserAccountInformation({
                     <Field label="New Password" name="newPassword" type="password" value={passwords.newPassword} isEditing={true} onChange={handlePasswordChange} />
                   </div>
                   <Field label="Confirm New Password" name="confirmPassword" type="password" value={passwords.confirmPassword} isEditing={true} onChange={handlePasswordChange} />
-                  <div style={styles.buttonContainer}>
-                    <button onClick={handleChangePassword} style={styles.primaryButton}>Save Password</button>
-                    <button onClick={handleCancelPasswordChange} style={styles.secondaryButton}>Cancel</button>
+                  <div className="user-useraccountinformation-btn-container">
+                    <button onClick={handleChangePassword} className="user-useraccountinformation-btn-primary">Save Password</button>
+                    <button onClick={handleCancelPasswordChange} className="user-useraccountinformation-btn-secondary">Cancel</button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => setShowPassword(true)} style={styles.secondaryButton}>Change Password</button>
+                <button onClick={() => setShowPassword(true)} className="user-useraccountinformation-btn-secondary">Change Password</button>
               )}
             </div>
           </div>
@@ -287,89 +313,5 @@ function UserAccountInformation({
     </div>
   );
 }
-
-const Field = ({ label, name, value, isEditing, onChange, type = 'text', maxLength }) => (
-  <div style={styles.fieldGroup}>
-    <label style={styles.label}>{label}</label>
-    {isEditing ? (
-      <input
-        type={type}
-        name={name}
-        value={value || ''}
-        onChange={onChange}
-        style={styles.input}
-        maxLength={maxLength}
-        placeholder={name === 'avatar_url' ? 'https://example.com/image.png' : ''}
-      />
-    ) : (
-      <div style={{ ...styles.input, ...styles.inputDisabled, ...styles.displayField }}>
-        {/* If it's the avatar URL, we might want to truncate it if it's super long */}
-        {value || (name === 'avatar_url' ? 'No custom avatar set' : '')}
-      </div>
-    )}
-  </div>
-);
-
-const styles = {
-page: { 
-    width: '100%', 
-    minHeight: '100vh', 
-    background: '#F8F9FA', 
-    fontFamily: "'Inter', sans-serif",
-    // --- ADD THESE TWO LINES ---
-    display: 'flex',
-    flexDirection: 'column',
-  },  mainContent: { maxWidth: 1400, width: '100%', margin: '24px auto 40px', padding: '0 32px', boxSizing: 'border-box' },
-  header: { width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: 800, margin: 0, textAlign: 'center' },
-  container: { width: '100%', maxWidth: 954, margin: '0 auto', background: 'white', borderRadius: 12, border: '1px solid #E6E6E6', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' },
-  profileGrid: { display: 'flex', minHeight: 450 },
-  avatarColumn: { width: 280, padding: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', borderRight: '1px solid #E6E6E6', background: '#F8F9FA', borderRadius: '12px 0 0 12px' },
-  avatar: { width: 150, height: 150, borderRadius: '50%', objectFit: 'cover', marginBottom: 20, border: '4px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' },
-  avatarName: {
-    fontSize: 20,
-    fontWeight: 700,
-    textAlign: 'center',
-    marginBottom: 4,
-    width: '100%',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  },
-  avatarEmail: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    width: '100%',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  },
-  detailsColumn: { flex: 1, padding: '24px 40px', display: 'flex', flexDirection: 'column', gap: 20 },
-  actionsHeader: { display: 'flex', justifyContent: 'flex-end', height: '32px' },
-  actions: { display: 'flex', gap: 8 },
-  fieldGroup: { display: 'flex', flexDirection: 'column', gap: 8 },
-  label: { fontSize: 16, fontWeight: 500 },
-  input: { padding: 12, background: 'white', borderRadius: 6, border: '1px solid #D4D4D4', fontSize: 16, width: '100%', boxSizing: 'border-box' },
-  inputDisabled: { background: '#F3F4F6', color: '#6B7280' },
-  displayField: {
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  },
-  divider: { height: 1, background: '#E6E6E6', margin: '10px 0' },
-  buttonContainer: { marginTop: 24, display: 'flex', gap: 16 },
-  primaryButton: { padding: '10px 20px', background: '#5091CD', borderRadius: 24, border: 'none', color: 'white', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  secondaryButton: { padding: '10px 20px', background: 'white', borderRadius: 24, border: '1px solid #DDDDDD', color: 'black', fontSize: 14, fontWeight: 600, cursor: 'pointer' },
-  message: { padding: '40px', textAlign: 'center', color: '#555', fontSize: 16 },
-  errorMessage: { color: '#DC2626', fontSize: 14, marginBottom: 12, textAlign: 'left' },
-  successMessage: { color: '#059669', fontSize: 15, fontWeight: 500, marginBottom: 10, textAlign: 'left' },
-  actionButton: {
-    base: { width: 32, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-    green: { background: 'rgba(0, 174, 6, 0.15)' },
-    red: { background: 'rgba(255, 37, 37, 0.15)' },
-    blue: { background: 'rgba(0, 110, 255, 0.15)' },
-  },
-};
 
 export default UserAccountInformation;

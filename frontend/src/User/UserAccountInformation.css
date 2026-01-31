@@ -1,0 +1,241 @@
+/* UserAccountInformation.css */
+
+.user-useraccountinformation-page {
+  width: 100%;
+  min-height: 100vh;
+  background: #F8F9FA;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Standardized Main Content Wrapper */
+.user-useraccountinformation-main-content {
+  max-width: 1200px; /* Standard Width */
+  width: 100%;
+  margin: 24px auto 40px;
+  padding: 0 32px; /* Standard Padding */
+  box-sizing: border-box;
+}
+
+.user-useraccountinformation-header {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.user-useraccountinformation-title {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0;
+  text-align: center;
+}
+
+.user-useraccountinformation-card {
+  width: 100%;
+  max-width: 954px; /* Inner card max-width preserved */
+  margin: 0 auto;
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #E6E6E6;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.user-useraccountinformation-grid {
+  display: flex;
+  min-height: 450px;
+}
+
+/* --- Avatar Column --- */
+.user-useraccountinformation-col-avatar {
+  width: 280px;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-right: 1px solid #E6E6E6;
+  background: #F8F9FA;
+  border-radius: 12px 0 0 12px;
+  /* Prevent flex items from overflowing horizontally */
+  min-width: 0; 
+}
+
+.user-useraccountinformation-avatar-img {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 20px;
+  border: 4px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.user-useraccountinformation-avatar-name {
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 4px;
+  width: 100%;
+  /* Handle long names in avatar column */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-useraccountinformation-avatar-email {
+  font-size: 14px;
+  color: #6B7280;
+  text-align: center;
+  width: 100%;
+  /* Handle long emails in avatar column */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Details Column --- */
+.user-useraccountinformation-col-details {
+  flex: 1;
+  padding: 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  /* Crucial for text-overflow to work inside a flex child */
+  min-width: 0; 
+}
+
+.user-useraccountinformation-actions-header {
+  display: flex;
+  justify-content: flex-end;
+  height: 32px;
+}
+
+.user-useraccountinformation-actions-group {
+  display: flex;
+  gap: 8px;
+}
+
+/* --- Fields --- */
+.user-useraccountinformation-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Ensure field group respects parent width */
+  min-width: 0; 
+}
+
+.user-useraccountinformation-label {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.user-useraccountinformation-input {
+  padding: 12px;
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #D4D4D4;
+  font-size: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.user-useraccountinformation-input-disabled {
+  background: #F3F4F6;
+  color: #6B7280;
+}
+
+/* --- TRUNCATION CLASS --- */
+.user-useraccountinformation-display-field {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block; /* Ensures ellipsis works correctly */
+}
+
+.user-useraccountinformation-divider {
+  height: 1px;
+  background: #E6E6E6;
+  margin: 10px 0;
+}
+
+/* --- Buttons --- */
+.user-useraccountinformation-btn-container {
+  margin-top: 24px;
+  display: flex;
+  gap: 16px;
+}
+
+.user-useraccountinformation-btn-primary {
+  padding: 10px 20px;
+  background: #5091CD;
+  border-radius: 24px;
+  border: none;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.user-useraccountinformation-btn-secondary {
+  padding: 10px 20px;
+  background: white;
+  border-radius: 24px;
+  border: 1px solid #DDDDDD;
+  color: black;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* --- Action Buttons (Icon Buttons) --- */
+.user-useraccountinformation-action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-useraccountinformation-action-btn-green {
+  background: rgba(0, 174, 6, 0.15);
+}
+
+.user-useraccountinformation-action-btn-red {
+  background: rgba(255, 37, 37, 0.15);
+}
+
+.user-useraccountinformation-action-btn-blue {
+  background: rgba(0, 110, 255, 0.15);
+}
+
+/* --- Messages --- */
+.user-useraccountinformation-message {
+  padding: 40px;
+  text-align: center;
+  color: #555;
+  font-size: 16px;
+}
+
+.user-useraccountinformation-msg-error-text {
+  color: #B91C1C;
+}
+
+.user-useraccountinformation-error-message {
+  color: #DC2626;
+  font-size: 14px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.user-useraccountinformation-success-message {
+  color: #059669;
+  font-size: 15px;
+  font-weight: 500;
+  margin-bottom: 10px;
+  text-align: left;
+}

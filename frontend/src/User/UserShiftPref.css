@@ -1,0 +1,390 @@
+/* UserShiftPref.css */
+
+/* --- Layout & Container --- */
+.user-usershiftpref-container {
+  width: 100%;
+  min-height: 100vh;
+  background: #F8F9FA;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Standardized Header Row */
+.user-usershiftpref-header-row {
+  max-width: 1200px; /* Standard Width */
+  width: 100%;
+  margin: 24px auto 16px;
+  padding: 0 32px; /* Standard Padding */
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.user-usershiftpref-page-title {
+  font-size: 24px;
+  font-weight: 900;
+  margin: 0;
+}
+
+.user-usershiftpref-user-info {
+  font-size: 13px;
+  color: #6B7280;
+  margin-top: 4px;
+}
+
+.user-usershiftpref-service-highlight {
+  font-weight: 600;
+}
+
+.user-usershiftpref-header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.user-usershiftpref-month-filter {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #D1D5DB;
+}
+
+.user-usershiftpref-btn-new-pref {
+  padding: 10px 24px;
+  border-radius: 68px;
+  background: #5091CD;
+  color: white;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.user-usershiftpref-btn-new-pref:hover {
+  background: #3f7ab0;
+}
+
+/* --- Table Styles --- */
+.user-usershiftpref-table-card {
+  max-width: 1200px; /* Standard Width */
+  width: 100%;
+  margin: 0 auto 40px;
+  padding: 0 32px; /* Standard Padding */
+  box-sizing: border-box;
+}
+
+.user-usershiftpref-table-container {
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #E6E6E6;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+/* Grid Definition */
+.user-usershiftpref-grid-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1.2fr 1.2fr 2fr 1fr;
+  align-items: center;
+}
+
+.user-usershiftpref-table-header {
+  background: #F9FAFB;
+  font-weight: 600;
+  border-bottom: 1px solid #E6E6E6;
+  padding: 16px;
+}
+
+.user-usershiftpref-table-data-row {
+  border-top: 1px solid #E6E6E6;
+}
+
+.user-usershiftpref-row-cell {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #1F2937;
+  display: flex;
+  align-items: center;
+}
+
+.user-usershiftpref-empty-state {
+  padding: 48px;
+  text-align: center;
+  color: #6B7280;
+  font-size: 14px;
+}
+
+/* --- Status Badges --- */
+.user-usershiftpref-status-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.user-usershiftpref-status-approved {
+  background: #D1FAE5;
+  color: #065F46;
+}
+
+.user-usershiftpref-status-denied {
+  background: #FEE2E2;
+  color: #991B1B;
+}
+
+.user-usershiftpref-status-pending {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+/* --- Action Buttons (Icon Buttons) --- */
+.user-usershiftpref-action-group {
+  display: flex;
+  gap: 8px;
+}
+
+.user-usershiftpref-icon-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid #E5E7EB;
+  background: #F3F4F6;
+  cursor: pointer;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.user-usershiftpref-icon-btn:hover {
+  background: #E5E7EB;
+}
+
+/* --- Pagination --- */
+.user-usershiftpref-pagination-container {
+  padding: 12px 16px;
+  border-top: 1px solid #E6E6E6;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.user-usershiftpref-pagination-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.user-usershiftpref-pagination-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #374151;
+  font-size: 14px;
+  margin: 0 4px;
+  transition: all 0.2s;
+}
+
+.user-usershiftpref-pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.user-usershiftpref-pagination-btn:not(:disabled):hover {
+  background: #F3F4F6;
+}
+
+.user-usershiftpref-pagination-info {
+  font-size: 13px;
+  color: #6B7280;
+  margin: 0 12px;
+  font-weight: 500;
+}
+
+/* --- Modals --- */
+.user-usershiftpref-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.user-usershiftpref-modal-overlay.user-usershiftpref-confirm-overlay {
+  z-index: 1100;
+}
+
+.user-usershiftpref-modal-content {
+  background: white;
+  padding: 32px;
+  border-radius: 16px;
+  width: 520px;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+}
+
+.user-usershiftpref-confirm-content {
+  background: white;
+  padding: 40px 32px;
+  border-radius: 16px;
+  width: 450px;
+  text-align: center;
+}
+
+.user-usershiftpref-modal-title {
+  margin-bottom: 24px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.user-usershiftpref-confirm-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 12px 0;
+}
+
+/* Form Elements */
+.user-usershiftpref-form-group {
+  margin-bottom: 16px;
+}
+
+.user-usershiftpref-form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+}
+
+.user-usershiftpref-form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #D1D5DB;
+  font-size: 14px;
+  box-sizing: border-box;
+  font-family: 'Inter', sans-serif;
+}
+
+.user-usershiftpref-form-textarea {
+  margin-bottom: 16px;
+  resize: none;
+}
+
+.user-usershiftpref-roster-status-msg {
+  font-size: 12px;
+  margin-top: 4px;
+  margin-bottom: 16px;
+  font-weight: 700;
+}
+
+.user-usershiftpref-status-valid {
+  color: #16A34A;
+}
+
+.user-usershiftpref-status-invalid {
+  color: #DC2626;
+}
+
+/* Modal Actions */
+.user-usershiftpref-modal-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.user-usershiftpref-action-buttons-right {
+  display: flex;
+  gap: 12px;
+}
+
+.user-usershiftpref-confirm-actions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.user-usershiftpref-confirm-text {
+  color: #6B7280;
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0 0 8px 0;
+}
+
+.user-usershiftpref-confirm-warning {
+  color: #DC2626;
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* --- Rounded Button Styles (Pill Shape) --- */
+.user-usershiftpref-btn-common {
+  padding: 12px 32px;
+  border-radius: 24px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.21px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: all 0.2s ease;
+  min-width: 120px;
+}
+
+.user-usershiftpref-btn-save {
+  background: #5091CD;
+  color: white;
+  border: none;
+}
+
+.user-usershiftpref-btn-save:hover {
+  background: #3f7ab0;
+  transform: translateY(-1px);
+}
+
+.user-usershiftpref-btn-save:disabled {
+  background: #9CA3AF;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.user-usershiftpref-btn-cancel {
+  background: white;
+  color: black;
+  border: 1px solid #DDDDDD;
+}
+
+.user-usershiftpref-btn-cancel:hover {
+  background: #F9FAFB;
+  transform: translateY(-1px);
+}
+
+.user-usershiftpref-btn-delete {
+  background: #DC2626;
+  color: white;
+  border: none;
+}
+
+.user-usershiftpref-btn-delete:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.user-usershiftpref-btn-wide {
+  min-width: 140px;
+}
