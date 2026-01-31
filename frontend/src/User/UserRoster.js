@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react'; // Added useRef
 import UserNavbar from '../Nav/UserNavbar.js';
+import './UserRoster.css';
 
 function UserRoster({ 
   onBack, 
@@ -25,10 +26,15 @@ function UserRoster({
   const [viewModalData, setViewModalData] = useState(null); 
   const [showRosterSelector, setShowRosterSelector] = useState(false); 
   
+  // --- NEW: YEAR FILTER STATE & ANIMATION ---
+  const [filterYear, setFilterYear] = useState('All');
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 4, width: 0 }); // Default position
+  const tabsRef = useRef([]); // To store refs of filter buttons
+
   const [wardOptions, setWardOptions] = useState([]);
   const [shiftOptions, setShiftOptions] = useState([]);
 
-  // --- 1. INITIAL FETCH ---
+  // ... [INITIAL FETCH useEffect remains the same] ...
   useEffect(() => {
     const initData = async () => {
       try {
@@ -41,8 +47,6 @@ function UserRoster({
             } catch (e) { console.error("Failed to parse user", e); }
         }
         
-        console.log("Logged In User ID found:", currentUserId); 
-
         const [rosterRes, wardRes, typeRes, myShiftRes] = await Promise.all([
             fetch('http://localhost:5000/api/rosters'),
             fetch('http://localhost:5000/api/wards'),
@@ -94,7 +98,7 @@ function UserRoster({
     initData();
   }, []);
 
-  // --- 2. FETCH ROSTER DETAILS ---
+  // ... [FETCH ROSTER DETAILS useEffect remains the same] ...
   useEffect(() => {
     if (!selectedRoster) return;
     const activeId = selectedRoster.roster_id || selectedRoster.id;
@@ -147,7 +151,7 @@ function UserRoster({
             shift_type_id: found.shift_type_id 
         }; 
     }
-    return { code: '', color: 'white' };
+    return { code: '', color: 'transparent' };
   };
 
   const getWardName = (wardId) => {
@@ -162,7 +166,7 @@ function UserRoster({
   };
 
   const getContrastTextColor = (hexColor) => {
-    if (!hexColor || hexColor === 'white') return '#1F2937';
+    if (!hexColor || hexColor === 'transparent' || hexColor === 'white' || hexColor === '#FFFFFF') return '#1F2937';
     const hex = hexColor.replace('#', '');
     const r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16);
     return ((r * 299) + (g * 587) + (b * 114)) / 1000 > 160 ? '#1F2937' : 'white';
@@ -187,31 +191,29 @@ function UserRoster({
     }
   };
 
-  // --- 4. CALCULATE "MY SHIFT TODAY" ---
-  const myTodayShift = useMemo(() => {
-    if (!todayShiftData || todayShiftData.length === 0) {
-        return { code: 'OFF', color: '#F3F4F6', ward: 'No Shift', desc: 'Rest Day' };
+  // --- 4. UNIQUE YEARS CALCULATION & SLIDER LOGIC ---
+  const uniqueYears = useMemo(() => {
+    const years = availableRosters.map(r => r.year);
+    return [...new Set(years)].sort((a, b) => b - a);
+  }, [availableRosters]);
+
+  const filteredRosters = useMemo(() => {
+    if (filterYear === 'All') return availableRosters;
+    return availableRosters.filter(r => r.year.toString() === filterYear.toString());
+  }, [availableRosters, filterYear]);
+
+  // --- Effect to calculate slider position ---
+  useEffect(() => {
+    // Find the active tab in the refs array based on the filterYear
+    const activeTab = tabsRef.current.find(ref => ref && ref.getAttribute('data-year') === filterYear.toString());
+    
+    if (activeTab) {
+      setIndicatorStyle({
+        left: activeTab.offsetLeft,
+        width: activeTab.offsetWidth,
+      });
     }
-
-    const localDate = new Date().toLocaleDateString('en-CA'); 
-    const upcomingShift = todayShiftData[0];
-    const apiDate = upcomingShift.shift_date.split('T')[0];
-
-    if (apiDate === localDate) {
-        return {
-            code: upcomingShift.shift_code,
-            color: upcomingShift.shift_color_hex,
-            ward: upcomingShift.ward_name 
-                ? `${upcomingShift.ward_comments || ''} (${upcomingShift.ward_name})` 
-                : 'Not Assigned',
-            desc: getShiftTypeDetails(upcomingShift.shift_code)
-        };
-    }
-
-    return { code: 'OFF', color: '#F3F4F6', ward: 'No Shift', desc: 'Rest Day' };
-
-  }, [todayShiftData, shiftOptions]);
-
+  }, [filterYear, showRosterSelector, uniqueYears]); // Re-run when modal opens or year changes
 
   // --- 5. GROUPING LOGIC ---
   const SERVICE_PRIORITY = ['Acute', 'CE', 'Onco', 'PAS', 'PAME', 'Neonates'];
@@ -233,7 +235,7 @@ function UserRoster({
   const todayString = new Date().toLocaleDateString('en-CA');
 
   return (
-    <div style={{ width: '100%', minHeight: '100vh', background: '#EDF0F5', overflow: 'hidden', fontFamily: 'Inter, sans-serif' }}>
+    <div className="user-userroster-container">
       <UserNavbar
         active="roster"
         onLogout={onLogout}
@@ -244,256 +246,234 @@ function UserRoster({
         onGoAccount={onGoAccount}
       />
 
-      <main style={{ maxWidth: 1600, margin: '24px auto', padding: '0 32px', boxSizing: 'border-box' }}>
-        
-        {/* --- HEADER --- */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, position: 'relative', minHeight: 60 }}>
-          
-          <div style={{ width: 450 }}></div>
-          
-          {/* CENTER: ROSTER SELECTOR */}
-          <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', width: 'max-content', zIndex: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <main className="user-userroster-main">
+        {/* ... Header & Grid code remains identical ... */}
+        <div className="user-userroster-header">
+          <div className="user-userroster-selector-container">
             {availableRosters.length > 0 ? (
               <button 
                 onClick={() => setShowRosterSelector(true)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, padding: '4px 12px', borderRadius: 8, transition: 'background 0.2s' }}
-                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
-                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                className="user-userroster-title-btn"
               >
-                <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, fontFamily: 'Inter, sans-serif', color: '#1F2937' }}>
-                  {selectedRoster ? `${selectedRoster.month} ${selectedRoster.year} Roster` : 'Select Roster'}
+                <h1 className="user-userroster-title-text">
+                  {selectedRoster ? `${selectedRoster.month} Roster ${selectedRoster.year}` : 'Select Roster'}
                 </h1>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1F2937" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginTop: 4 }}>
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
               </button>
             ) : (
-              <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0, fontFamily: 'Inter, sans-serif' }}>No Published Rosters</h1>
+              <h1 className="user-userroster-title-text">No Rosters</h1>
             )}
             
             {selectedRoster && (
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginTop: 4, textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    Status: <span style={{ color: selectedRoster.status === 'Preference Open' ? '#10B981' : (selectedRoster.status === 'Published' ? '#10B981' : '#F59E0B') }}>{selectedRoster.status}</span>
+                <div className="user-userroster-status-line">
+                    STATUS: <span className={`user-userroster-status-value ${selectedRoster.status === 'Published' || selectedRoster.status === 'Preference Open' ? 'user-userroster-status-published' : 'user-userroster-status-draft'}`}>{selectedRoster.status.toUpperCase()}</span>
                 </div>
             )}
           </div>
-          
-          {/* RIGHT: MY SHIFT CARD */}
-          <div style={{ zIndex: 10, width: 450, display: 'flex', justifyContent: 'flex-end' }}>
-            {myTodayShift && (
-                <div style={{ 
-                    display: 'flex', alignItems: 'center', gap: 16, 
-                    background: 'white', 
-                    padding: '8px 24px 8px 16px',
-                    borderRadius: 12, 
-                    border: '1px solid #E5E7EB',
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
-                    height: 54,
-                    minWidth: 200, 
-                    maxWidth: 420  
-                }}>
-                    <div style={{ 
-                        minWidth: 38, height: 38, borderRadius: 8, 
-                        background: myTodayShift.color, 
-                        color: getContrastTextColor(myTodayShift.color),
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontWeight: 800, fontSize: 14,
-                        flexShrink: 0, 
-                        padding: '0 8px',
-                        whiteSpace: 'nowrap' 
-                    }}>
-                        {myTodayShift.code}
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', overflow: 'hidden' }}>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', lineHeight: 1, marginBottom: 4 }}>
-                            TODAY
-                        </div>
-                        <div 
-                            title={myTodayShift.ward !== 'Not Assigned' ? myTodayShift.ward : myTodayShift.desc}
-                            style={{ 
-                                fontSize: 15, fontWeight: 700, color: '#1F2937', lineHeight: 1.2,
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                maxWidth: '320px' 
-                            }}
-                        >
-                            {myTodayShift.ward !== 'Not Assigned' && myTodayShift.ward !== 'No Shift' 
-                                ? myTodayShift.ward 
-                                : myTodayShift.desc}
-                        </div>
-                    </div>
-                </div>
-            )}
-          </div>
-          
         </div>
 
-        {/* --- MAIN GRID --- */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, fontSize: 18, color: '#666' }}>Loading Roster Data...</div>
+          <div className="user-userroster-loading">Loading Roster Data...</div>
         ) : availableRosters.filter(r => r.status === 'Published').length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, background: 'white', borderRadius: 12 }}>No published schedules found.</div>
+          <div className="user-userroster-empty">No published schedules found.</div>
         ) : (
-          <div style={{ background: 'white', boxShadow: '0 4px 10px rgba(0,0,0,0.05)', borderRadius: 8, overflow: 'auto', maxHeight: '75vh' }}>
-            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
-              <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: '#F9FAFB' }}>
-                <tr>
-                  <th style={{ position: 'sticky', left: 0, zIndex: 20, background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', padding: '12px 14px', textAlign: 'left', minWidth: 150 }}>Nurse Name</th>
-                  {days.map(d => {
-                    const isToday = d.fullDate === todayString;
+          <div className="user-userroster-table-wrapper">
+            <div className="user-userroster-table-scroll">
+              <table className="user-userroster-table">
+                <thead className="user-userroster-thead">
+                  <tr>
+                    <th className="user-userroster-th-corner">
+                      <div className="user-userroster-nurse-header-text">Nurse Name ↓</div>
+                    </th>
+                    {days.map(d => {
+                      const isToday = d.fullDate === todayString;
+                      return (
+                          <th key={d.day} className={`user-userroster-th-day ${isToday ? 'user-userroster-th-today' : ''}`}>
+                              <div className="user-userroster-day-num">{d.day}</div>
+                              <div className="user-userroster-day-name">{d.label}</div>
+                          </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(groupedStaff).map(([svc, members]) => {
+                    if (members.length === 0) return null;
                     return (
-                        <th key={d.day} style={{ 
-                            borderLeft: '1px solid #8C8C8C', 
-                            borderBottom: '1px solid #8C8C8C', 
-                            padding: 6, minWidth: 45, fontSize: 13,
-                            // HIGHLIGHT ONLY THE HEADER
-                            background: isToday ? '#DBEAFE' : 'inherit', 
-                            color: isToday ? '#1E40AF' : 'inherit'       
-                        }}>
-                            {d.day}<br/>
-                            <span style={{ fontSize: 11, fontWeight: isToday ? 700 : 400 }}>{d.label}</span>
-                        </th>
+                      <React.Fragment key={svc}>
+                        {members.map((staff, idx) => {
+                          const isFirstInGroup = idx === 0;
+                          return (
+                            <tr key={staff.user_id}>
+                              <td className="user-userroster-td-nurse">
+                                <div className="user-userroster-nurse-cell-content">
+                                  {isFirstInGroup && <div className="user-userroster-service-label">{svc}</div>}
+                                  <div className="user-userroster-name-row">
+                                    <span className="user-userroster-nurse-name">{staff.full_name}</span>
+                                    {staff.ward_id && (
+                                      <span className="user-userroster-ward-badge">
+                                        {wardOptions.find(w => w.ward_id === staff.ward_id)?.ward_name || ''}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              {days.map(d => {
+                                const shiftData = getShift(staff.user_id, d.fullDate);
+                                return (
+                                  <td 
+                                    key={d.day} 
+                                    onClick={() => handleCellClick(staff, d.fullDate, shiftData)} 
+                                    className={`user-userroster-td-shift ${shiftData.code ? 'user-userroster-clickable' : ''}`}
+                                    style={{ 
+                                        backgroundColor: shiftData.color, 
+                                        color: getContrastTextColor(shiftData.color), 
+                                    }}
+                                  >
+                                    {shiftData.code}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </React.Fragment>
                     );
                   })}
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(groupedStaff).map(([svc, members]) => {
-                  if (members.length === 0) return null;
-                  return (
-                    <React.Fragment key={svc}>
-                      {members.map((staff, idx) => {
-                        const isFirstInGroup = idx === 0;
-                        return (
-                          <tr key={staff.user_id}>
-                            <td style={{ position: 'sticky', left: 0, zIndex: 5, background: 'white', borderRight: '1px solid #8C8C8C', borderBottom: '1px solid #8C8C8C', borderTop: isFirstInGroup ? '3px solid #374151' : 'none', padding: '10px 14px' }}>
-                              {isFirstInGroup && <div style={{ fontSize: 10, fontWeight: 900, color: '#2563EB', textTransform: 'uppercase', marginBottom: 2 }}>{svc}</div>}
-                              <div style={{ fontWeight: 600, fontSize: 14, color: '#1F2937' }}>{staff.full_name}</div>
-                            </td>
-                            {days.map(d => {
-                              const shiftData = getShift(staff.user_id, d.fullDate);
-                              return (
-                                <td key={d.day} onClick={() => handleCellClick(staff, d.fullDate, shiftData)} style={{ 
-                                    background: shiftData.color, 
-                                    textAlign: 'center', fontWeight: 700, fontSize: 13, 
-                                    borderBottom: '1px solid #8C8C8C', 
-                                    borderLeft: '1px solid #8C8C8C', 
-                                    height: 40, 
-                                    borderTop: isFirstInGroup ? '3px solid #374151' : 'none', 
-                                    color: getContrastTextColor(shiftData.color), 
-                                    cursor: shiftData.code ? 'pointer' : 'default'
-                                }}>
-                                  {shiftData.code}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </main>
 
-      {/* ... Popups ... */}
+      {/* --- POPUPS --- */}
+      
+      {/* 1. ROSTER SELECTOR MODAL */}
       {showRosterSelector && (
         <div
           onClick={() => setShowRosterSelector(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 2000,
-            background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}
+          className="user-userroster-modal-overlay"
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{
-              background: 'white', borderRadius: 20,
-              boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-              width: 400, maxHeight: '80vh', display: 'flex', flexDirection: 'column',
-              animation: 'fadeIn 0.2s ease-out'
-            }}
+            className="user-userroster-modal-content"
           >
-            <div style={{ padding: '24px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Select Roster</h3>
-              <button onClick={() => setShowRosterSelector(false)} style={{ background: 'transparent', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9CA3AF' }}>✕</button>
+            <div className="user-userroster-modal-header">
+              <h3 className="user-userroster-modal-title">Select Roster</h3>
+              <button onClick={() => setShowRosterSelector(false)} className="user-userroster-modal-close">✕</button>
+            </div>
+
+            {/* --- SLIDING YEAR FILTER BAR --- */}
+            <div className="user-userroster-filter-container">
+                <div className="user-userroster-filter-bar">
+                    {/* The Sliding Background Pill */}
+                    <div 
+                        className="user-userroster-filter-indicator" 
+                        style={{ left: indicatorStyle.left, width: indicatorStyle.width }} 
+                    />
+
+                    {/* "All" Button */}
+                    <button 
+                        ref={el => tabsRef.current[0] = el}
+                        data-year="All"
+                        className={`user-userroster-filter-chip ${filterYear === 'All' ? 'active' : ''}`}
+                        onClick={() => setFilterYear('All')}
+                    >
+                        All Years
+                    </button>
+
+                    {/* Dynamic Year Buttons */}
+                    {uniqueYears.map((y, index) => (
+                        <button 
+                            key={y}
+                            ref={el => tabsRef.current[index + 1] = el}
+                            data-year={y}
+                            className={`user-userroster-filter-chip ${filterYear.toString() === y.toString() ? 'active' : ''}`}
+                            onClick={() => setFilterYear(y)}
+                        >
+                            {y}
+                        </button>
+                    ))}
+                </div>
             </div>
             
-            <div style={{ padding: 16, overflowY: 'auto' }}>
-              {availableRosters.map(r => {
-                const isActive = (selectedRoster?.roster_id || selectedRoster?.id) === (r.roster_id || r.id);
-                const isPublished = r.status === 'Published';
+            {/* ROSTER LIST */}
+            <div className="user-userroster-roster-list">
+              {filteredRosters.length === 0 ? (
+                  <div className="user-userroster-empty-filter">No rosters found for {filterYear}</div>
+              ) : (
+                  filteredRosters.map(r => {
+                    const isActive = (selectedRoster?.roster_id || selectedRoster?.id) === (r.roster_id || r.id);
+                    const isPublished = r.status === 'Published';
+                    const buttonClass = `user-userroster-roster-btn ${!isPublished ? 'user-userroster-btn-disabled' : (isActive ? 'user-userroster-btn-active' : 'user-userroster-btn-default')}`;
 
-                return (
-                  <button
-                    key={r.roster_id || r.id}
-                    disabled={!isPublished}
-                    onClick={() => {
-                      if (isPublished) {
-                        setSelectedRoster(r);
-                        setShowRosterSelector(false);
-                      }
-                    }}
-                    style={{
-                      width: '100%', padding: '16px', marginBottom: 8,
-                      background: !isPublished ? '#F3F4F6' : (isActive ? '#EFF6FF' : 'white'),
-                      border: isActive ? '2px solid #2563EB' : '1px solid #E5E7EB',
-                      borderRadius: 12, 
-                      cursor: isPublished ? 'pointer' : 'not-allowed', 
-                      textAlign: 'left',
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      transition: 'all 0.2s',
-                      opacity: !isPublished ? 0.6 : 1
-                    }}
-                    onMouseOver={(e) => { if(isPublished && !isActive) e.currentTarget.style.background = '#F9FAFB'; }}
-                    onMouseOut={(e) => { if(isPublished && !isActive) e.currentTarget.style.background = 'white'; }}
-                  >
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: !isPublished ? '#9CA3AF' : (isActive ? '#2563EB' : '#1F2937') }}>
-                        {r.month} {r.year}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
-                        Status: <span style={{ fontWeight: 600, color: isPublished ? '#10B981' : '#F59E0B' }}>{r.status}</span>
-                      </div>
-                    </div>
-                    {isActive && <div style={{ color: '#2563EB' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>}
-                    {!isPublished && <div style={{ color: '#9CA3AF' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>}
-                  </button>
-                );
-              })}
+                    return (
+                      <button
+                        key={r.roster_id || r.id}
+                        disabled={!isPublished}
+                        onClick={() => {
+                          if (isPublished) {
+                            setSelectedRoster(r);
+                            setShowRosterSelector(false);
+                          }
+                        }}
+                        className={buttonClass}
+                      >
+                        <div>
+                          <div className="user-userroster-btn-month">
+                            {r.month} {r.year}
+                          </div>
+                          <div className="user-userroster-btn-status">
+                            Status: <span className={isPublished ? 'user-userroster-status-published' : 'user-userroster-status-draft'}>{r.status}</span>
+                          </div>
+                        </div>
+                        {isActive && <div className="user-userroster-icon-active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>}
+                      </button>
+                    );
+                  })
+              )}
             </div>
           </div>
         </div>
       )}
 
+      {/* 2. SHIFT DETAILS MODAL */}
       {viewModalData && (
-        <div onClick={() => setViewModalData(null)} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div onClick={e => e.stopPropagation()} style={{ background: 'white', borderRadius: 20, boxShadow: '0 20px 50px rgba(0,0,0,0.3)', width: 440, overflow: 'hidden', animation: 'fadeIn 0.2s ease-out' }}>
-                <div style={{ background: viewModalData.color, padding: '36px 32px', textAlign: 'center', color: getContrastTextColor(viewModalData.color), position: 'relative' }}>
-                    <button onClick={() => setViewModalData(null)} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.25)', border: 'none', color: 'currentColor', width: 36, height: 36, borderRadius: '50%', cursor: 'pointer', fontSize: 18 }}>✕</button>
-                    <h1 style={{ margin: 0, fontSize: 64, fontWeight: 900, letterSpacing: '-1.5px' }}>{viewModalData.shiftCode}</h1>
-                    <div style={{ display: 'inline-block', marginTop: 12, padding: '6px 16px', borderRadius: 20, background: 'rgba(255,255,255,0.25)', fontSize: 13, fontWeight: 800, textTransform: 'uppercase' }}>{getShiftTypeDetails(viewModalData.shiftCode)}</div>
+        <div onClick={() => setViewModalData(null)} className="user-userroster-modal-overlay">
+            <div onClick={e => e.stopPropagation()} className="user-userroster-view-modal-content">
+                <div 
+                  className="user-userroster-view-header"
+                  style={{ 
+                    background: viewModalData.color, 
+                    color: getContrastTextColor(viewModalData.color) 
+                  }}
+                >
+                    <button onClick={() => setViewModalData(null)} className="user-userroster-view-close">✕</button>
+                    <h1 className="user-userroster-view-title">{viewModalData.shiftCode}</h1>
+                    <div className="user-userroster-view-tag">{getShiftTypeDetails(viewModalData.shiftCode)}</div>
                 </div>
-                <div style={{ padding: 32 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 28, paddingBottom: 28, borderBottom: '1px solid #F3F4F6' }}>
-                        <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#F3F4F6', color: '#9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700 }}>{getInitials(viewModalData.nurseName)}</div>
-                        <div><div style={{ fontSize: 12, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 4 }}>Assigned Nurse</div><div style={{ fontSize: 20, fontWeight: 700, color: '#1F2937' }}>{viewModalData.nurseName}</div></div>
-                    </div>
-                    <div style={{ display: 'grid', gap: 18 }}>
-                        <div style={{ background: '#F9FAFB', padding: 16, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
-                            <div style={{ background: 'white', padding: 10, borderRadius: 10, boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
-                            <div><div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' }}>LOCATION</div><div style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{getWardName(viewModalData.wardId)}</div></div>
-                        </div>
-                        <div style={{ background: '#F9FAFB', padding: 16, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 16 }}>
-                            <div style={{ background: 'white', padding: 10, borderRadius: 10, boxShadow: '0 2px 4px rgba(0,0,0,0.04)' }}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
-                            <div><div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase' }}>DATE</div><div style={{ fontSize: 15, fontWeight: 600, color: '#374151' }}>{viewModalData.date.split('-').reverse().join('-')}</div></div>
+                <div className="user-userroster-view-body">
+                    <div className="user-userroster-nurse-info">
+                        <div className="user-userroster-nurse-avatar">{getInitials(viewModalData.nurseName)}</div>
+                        <div>
+                            <div className="user-userroster-detail-label-sm">Assigned Nurse</div>
+                            <div className="user-userroster-detail-value-lg">{viewModalData.nurseName}</div>
                         </div>
                     </div>
-                    <div style={{ marginTop: 32 }}><button onClick={() => setViewModalData(null)} style={{ width: '100%', padding: '14px', background: '#F3F4F6', color: '#374151', borderRadius: 14, border: 'none', fontWeight: 'bold', fontSize: '14px', cursor: 'pointer' }}>Close</button></div>
+                    <div className="user-userroster-details-grid">
+                        <div className="user-userroster-detail-box">
+                            <div className="user-userroster-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg></div>
+                            <div><div className="user-userroster-detail-label">LOCATION</div><div className="user-userroster-detail-value">{getWardName(viewModalData.wardId)}</div></div>
+                        </div>
+                        <div className="user-userroster-detail-box">
+                            <div className="user-userroster-icon-box"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
+                            <div><div className="user-userroster-detail-label">DATE</div><div className="user-userroster-detail-value">{viewModalData.date.split('-').reverse().join('-')}</div></div>
+                        </div>
+                    </div>
+                    <div className="user-userroster-view-footer"><button onClick={() => setViewModalData(null)} className="user-userroster-view-btn-close">Close</button></div>
                 </div>
             </div>
         </div>

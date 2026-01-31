@@ -1,14 +1,216 @@
 /* src/UserHomePage.css */
 
-/* --- CALENDAR CONTAINER & GENERAL --- */
-.rbc-calendar {
+/* --- Page Layout --- */
+.user-userhomepage-container {
+  width: 100%;
+  min-height: 100vh;
+  background: #F8F9FA;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: 'Inter', sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Standardized Main Content Wrapper */
+.user-userhomepage-main {
+  max-width: 1200px; /* Standard Width */
+  width: 100%;
+  margin: 24px auto 40px;
+  padding: 0 32px; /* Standard Padding */
+  box-sizing: border-box;
+}
+
+.user-userhomepage-welcome-title {
+  color: black;
+  font-size: 22px;
+  font-weight: 900;
+  margin-bottom: 16px;
+}
+
+.user-userhomepage-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr);
+  gap: 24px;
+}
+
+.user-userhomepage-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* --- Cards (Sections) --- */
+.user-userhomepage-card {
+  background: white;
+  border-radius: 10px;
+  padding: 18px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 2px rgba(0,0,0,0.05);
+}
+
+.user-userhomepage-card-no-overflow {
+  overflow: hidden;
+}
+
+.user-userhomepage-card-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0 0 12px 0;
+}
+
+.user-userhomepage-title-large {
+  font-size: 22px;
+}
+
+/* --- Shift Boxes --- */
+.user-userhomepage-shift-box {
+  padding: 13px 24px;
+  position: relative;
+  background: #EDF0F5;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.user-userhomepage-shift-box-today {
+  min-height: 150px;
+}
+
+.user-userhomepage-shift-box-list-item {
+  flex-shrink: 0;
+}
+
+.user-userhomepage-shift-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-userhomepage-shift-strip {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.user-userhomepage-no-shifts {
+  padding: 13px 24px;
+}
+
+/* Text Styles for Shifts */
+.user-userhomepage-shift-text-large {
+  color: black;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.user-userhomepage-shift-text-medium {
+  color: black;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.user-userhomepage-shift-text-bold {
+  color: black;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.user-userhomepage-shift-text-normal {
+  color: black;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+/* --- Scrollable List --- */
+.user-userhomepage-scrollable-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 450px;
+  overflow-y: auto; 
+  padding-right: 8px;
+}
+
+.user-userhomepage-scrollable-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.user-userhomepage-scrollable-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.user-userhomepage-scrollable-list::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.user-userhomepage-scrollable-list::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+/* --- Quick Links --- */
+.user-userhomepage-quicklinks-container {
+  display: flex;
+  justify-content: space-around;
+  gap: 16px;
+}
+
+.user-userhomepage-quicklink-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 80px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.user-userhomepage-quicklink-icon-box {
+  width: 78px;
+  height: 78px;
+  background: #5091CD;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-userhomepage-quicklink-img {
+  width: 40px;
+  height: 40px;
+}
+
+.user-userhomepage-quicklink-text {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: pre-line;
+}
+
+/* --- CALENDAR CUSTOM STYLES --- */
+
+/* Wrapper to scope standard RBC class overrides */
+.user-userhomepage-calendar-wrapper {
+  height: auto;
+}
+
+.user-userhomepage-calendar-wrapper .rbc-calendar {
   border: none;
   font-family: 'Inter', sans-serif;
   color: black;
 }
 
-/* --- TOOLBAR (Month Title & Arrows) --- */
-.rbc-toolbar {
+/* --- Custom Toolbar --- */
+.user-userhomepage-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -16,12 +218,11 @@
   padding: 0 4px;
 }
 
-/* The Month/Year Title (Dropdown or Label) */
-.rbc-toolbar .rbc-toolbar-label,
-.rbc-toolbar select {
-  font-size: 20px; /* Match Widget Header Size */
-  font-weight: 800; /* Extra Bold */
-  color: black;     /* Requested Black Color */
+.user-userhomepage-toolbar-label,
+.user-userhomepage-toolbar-select {
+  font-size: 20px;
+  font-weight: 800;
+  color: black;
   text-transform: capitalize;
   background: transparent;
   border: none;
@@ -29,84 +230,42 @@
   text-align: center;
 }
 
-.rbc-toolbar select:focus {
+.user-userhomepage-toolbar-select:focus {
   outline: none;
 }
 
-/* Navigation Buttons (< >) */
-.rbc-toolbar button {
+.user-userhomepage-toolbar-nav-btn {
   border: none;
-  background-color: #EDF0F5; /* Grey background like other widgets */
+  background-color: #EDF0F5;
   color: black;
-  font-size: 22px; /* Slightly larger for the arrow symbol */
+  font-size: 22px;
   font-weight: bold;
   cursor: pointer;
   width: 40px; 
   height: 40px;
-  border-radius: 50%; /* Make them perfect circles */
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background-color 0.2s, transform 0.1s;
-  padding-bottom: 4px; /* Slight visual adjustment for center alignment */
+  padding-bottom: 4px;
 }
 
-.rbc-toolbar button:hover {
-  background-color: #D1D5DB; /* Darker grey on hover */
+.user-userhomepage-toolbar-nav-btn:hover {
+  background-color: #D1D5DB;
 }
 
-.rbc-toolbar button:active {
+.user-userhomepage-toolbar-nav-btn:active {
   transform: scale(0.95);
 }
 
-/* Hide default button group junk */
-.rbc-btn-group {
+/* Hide default button group junk within our wrapper */
+.user-userhomepage-calendar-wrapper .rbc-btn-group {
   display: none;
 }
 
-/* --- WEEKDAY HEADERS (Sun, Mon, Tue...) --- */
-.rbc-month-view {
-  border: none;
-}
-
-.rbc-header {
-  border: none;
-  text-align: center;
-  padding: 12px 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: black; /* Requested Black Color */
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  
-  /* Make the header row look like a bar */
-  background-color: #EDF0F5; 
-  margin-bottom: 10px; /* Space between header and days */
-}
-
-/* Round the corners of the header bar */
-.rbc-header:first-child {
-  border-top-left-radius: 8px;
-  border-bottom-left-radius: 8px;
-}
-.rbc-header:last-child {
-  border-top-right-radius: 8px;
-  border-bottom-right-radius: 8px;
-}
-
-/* --- DATE CELLS --- */
-.rbc-month-row {
-  border: none;
-  display: flex;
-  /* Change min-height to 0 and use flex: 1 to distribute space evenly */
-  min-height: 0; 
-  flex: 1 0 0; 
-  margin-bottom: 4px;
-}
-
-/* Add this to ensure the calendar container clips the rounded corners correctly 
-   and handles the internal flex layout */
-.rbc-month-view {
+/* --- Calendar Headers & Rows --- */
+.user-userhomepage-calendar-wrapper .rbc-month-view {
   border: none;
   display: flex;
   flex-direction: column;
@@ -114,26 +273,54 @@
   width: 100%;
 }
 
-/* Ensure the custom cell takes up the full height provided by the row */
-.custom-date-cell {
+.user-userhomepage-calendar-wrapper .rbc-header {
+  border: none;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: black;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background-color: #EDF0F5; 
+  margin-bottom: 10px;
+}
+
+.user-userhomepage-calendar-wrapper .rbc-header:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+.user-userhomepage-calendar-wrapper .rbc-header:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.user-userhomepage-calendar-wrapper .rbc-month-row {
+  border: none;
+  display: flex;
+  min-height: 0; 
+  flex: 1 0 0; 
+  margin-bottom: 4px;
+}
+
+/* --- Custom Date Cell --- */
+.user-userhomepage-date-cell {
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
   height: 100%;
-  width: 100%; /* Ensure it fills width */
+  width: 100%;
   padding-top: 8px;
   border-radius: 8px;
   transition: background-color 0.2s;
 }
 
-/* Hover effect on days */
-.custom-date-cell:hover {
+.user-userhomepage-date-cell:hover {
   background-color: #f8f9fa;
 }
 
-/* The number (1, 2, 3...) */
-.custom-date-cell .date-number {
+.user-userhomepage-date-number {
   font-size: 15px;
   font-weight: 600;
   width: 34px;
@@ -147,58 +334,32 @@
 }
 
 /* Dates not in current month */
-.rbc-off-range .custom-date-cell .date-number {
+.user-userhomepage-calendar-wrapper .rbc-off-range .user-userhomepage-date-number {
   color: #E5E7EB; 
 }
 
-/* --- TODAY STYLE --- */
-.custom-date-cell.today .date-number {
-  background-color: #0EA5E9; /* Bright Blue */
+/* Today's Date */
+.user-userhomepage-date-cell-today .user-userhomepage-date-number {
+  background-color: #0EA5E9;
   color: white;
   font-weight: 700;
-  box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.4); /* Nice shadow */
+  box-shadow: 0 4px 6px -1px rgba(14, 165, 233, 0.4);
 }
 
-/* --- EVENT DOTS --- */
-.event-dots-container {
+/* --- Event Dots --- */
+.user-userhomepage-event-dots-container {
   display: flex;
   justify-content: center;
   gap: 4px;
 }
 
-.event-dot {
+.user-userhomepage-event-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
 }
 
-/* Hide default events */
-.rbc-event {
+/* Hide default events text */
+.user-userhomepage-calendar-wrapper .rbc-event {
   display: none;
-}
-
-/* --- SCROLLABLE LIST (Shift Widget) --- */
-.scrollable-shift-list {
-  height: 450px; /* MATCHES CALENDAR HEIGHT */
-  overflow-y: auto; 
-  padding-right: 8px; 
-}
-
-/* Custom Scrollbar */
-.scrollable-shift-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scrollable-shift-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-.scrollable-shift-list::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 4px;
-}
-
-.scrollable-shift-list::-webkit-scrollbar-thumb:hover {
-  background: #aaa;
 }
