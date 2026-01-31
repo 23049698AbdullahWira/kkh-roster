@@ -1,7 +1,7 @@
 // src/services/api.js
 
 // 1. ADD 'export' HERE so other files can use this variable
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+export const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://kkh-rostering-application-fyp-republic.onrender.com';
 
 export const fetchFromApi = async (endpoint, options = {}) => {
   // Ensure endpoint starts with /
