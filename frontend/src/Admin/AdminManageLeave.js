@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar';
+import './AdminManageLeave.css'; // Import the external CSS
 
 const ITEMS_PER_PAGE = 8;
 
@@ -13,19 +14,16 @@ const formatDate = (dateString) => {
     .replace(/ /g, ' ');
 };
 
-const getStatusStyle = (status) => {
+const getStatusClass = (status) => {
   switch (status) {
-    case 'Approved':
-      return { color: '#199325', backgroundColor: 'rgba(25, 147, 37, 0.1)' };
-    case 'Rejected':
-      return { color: '#B91C1C', backgroundColor: 'rgba(185, 28, 28, 0.1)' };
-    default:
-      return { color: '#B8B817', backgroundColor: 'rgba(184, 184, 23, 0.1)' };
+    case 'Approved': return 'admin-manageleave-status-approved';
+    case 'Rejected': return 'admin-manageleave-status-rejected';
+    default: return 'admin-manageleave-status-pending';
   }
 };
 
 // --- Main Component ---
-function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout, }) {
+function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }) {
   const [allLeaveRequests, setAllLeaveRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -147,28 +145,30 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
     }
   };
 
-  // Pagination Logic
+  // --- PAGINATION LOGIC (UPDATED) ---
+  const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
+  const indexOfFirstItem = indexOfLastItem - ITEMS_PER_PAGE;
+  const currentItems = allLeaveRequests.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(allLeaveRequests.length / ITEMS_PER_PAGE);
-  const currentItems = allLeaveRequests.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
   
+  const handleNextPage = () => { if (currentPage < totalPages) setCurrentPage(prev => prev + 1); };
+  const handlePrevPage = () => { if (currentPage > 1) setCurrentPage(prev => prev - 1); };
+
   const isBulkActionDisabled = selectedRequests.length === 0 || !isEditing;
 
   // --- Render ---
   return (
-    <div style={styles.page}>
+    <div className="admin-manageleave-container">
       <Navbar active="staff" onGoHome={onGoHome} onGoRoster={onGoRoster} onGoStaff={onGoStaff} onGoShift={onGoShift} onLogout={onLogout}/>
       
-      <main style={styles.mainContent}>
-        <header style={styles.header}>
-          <button type="button" onClick={onBack} style={styles.backButton}>
-            <span style={styles.backArrow} />
+      <main className="admin-manageleave-content">
+        <header className="admin-manageleave-header">
+          <button type="button" onClick={onBack} className="admin-manageleave-back-btn">
+            <span style={{ fontSize: 18, marginRight: 2, verticalAlign: 'middle' }}>←</span>
             Back
           </button>
-          <h1 style={styles.title}>Manage Leave</h1>
-          <div style={styles.actionButtonsContainer}> {/* Container for action buttons */}
+          <h1 className="admin-manageleave-title">Manage Leave</h1>
+          <div className="admin-manageleave-header-actions">
             <ActionButton
               title="Approve Selected"
               text="Approve"
@@ -197,44 +197,44 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
           </div>
         </header>
 
-        <div style={styles.tableContainer}>
+        <div className="admin-manageleave-table-card">
           {/* Table Header */}
-          <div style={styles.tableHeader}>
-            <div style={{ flex: 1.5 }}>Full Name</div>
-            <div style={{ flex: 1.8 }}>Email</div>
-            <div style={{ flex: 1.5 }}>Remarks</div>
-            <div style={{ flex: 1.2 }}>Leave Type</div>
-            <div style={{ flex: 1.5 }}>Leave Period</div>
-            <div style={{ flex: 1 }}>Status</div>
-            <div style={{ flex: 1 }}>Actions</div>
-            {isEditing && <div style={{ width: 60, textAlign: 'center' }}>Select</div>} {/* Header for checkbox column */}
+          <div className="admin-manageleave-table-header">
+            <div className="admin-manageleave-col-name">Full Name</div>
+            <div className="admin-manageleave-col-email">Email</div>
+            <div className="admin-manageleave-col-remarks">Remarks</div>
+            <div className="admin-manageleave-col-type">Leave Type</div>
+            <div className="admin-manageleave-col-period">Leave Period</div>
+            <div className="admin-manageleave-col-status">Status</div>
+            <div className="admin-manageleave-col-actions">Actions</div>
+            {isEditing && <div className="admin-manageleave-col-select">Select</div>}
           </div>
 
           {/* Table Body */}
-          {loading && <div style={styles.message}>Loading...</div>}
-          {error && <div style={{...styles.message, color: '#B91C1C' }}>Error: {error}</div>}
+          {loading && <div className="admin-manageleave-state-message">Loading...</div>}
+          {error && <div className="admin-manageleave-state-message admin-manageleave-text-error">Error: {error}</div>}
           {!loading && !error && currentItems.length === 0 && (
-            <div style={styles.message}>No leave requests found.</div>
+            <div className="admin-manageleave-state-message">No leave requests found.</div>
           )}
           
           {!loading && !error && currentItems.map((row) => {
             const hasDocument = !!row.leave_url;
-            const statusStyle = getStatusStyle(row.status);
+            const statusClass = getStatusClass(row.status);
             const isRowSelected = selectedRequests.includes(row.leave_data_id);
 
             return (
-              <div key={row.leave_data_id} style={{ ...styles.tableRow, ...(isRowSelected && styles.selectedRow) }}>
-                <div style={{ flex: 1.5 }}>{row.fullName}</div>
-                <div style={{ flex: 1.8, wordBreak: 'break-all' }}>{row.email}</div>
-                <div style={{ flex: 1.5 }}>{row.remarks}</div>
-                <div style={{ flex: 1.2 }}>{row.type}</div>
-                <div style={{ flex: 1.5 }}>{row.period}</div>
-                <div style={{ flex: 1 }}>
-                  <span style={{ ...styles.statusBadge, ...statusStyle }}>
+              <div key={row.leave_data_id} className={`admin-manageleave-table-row ${isRowSelected ? 'selected' : ''}`}>
+                <div className="admin-manageleave-col-name">{row.fullName}</div>
+                <div className="admin-manageleave-col-email">{row.email}</div>
+                <div className="admin-manageleave-col-remarks">{row.remarks}</div>
+                <div className="admin-manageleave-col-type">{row.type}</div>
+                <div className="admin-manageleave-col-period">{row.period}</div>
+                <div className="admin-manageleave-col-status">
+                  <span className={`admin-manageleave-status-badge ${statusClass}`}>
                     {row.status}
                   </span>
                 </div>
-                <div style={{ ...styles.actions, flex: 1 }}>
+                <div className="admin-manageleave-col-actions">
                   <ActionButton
                     title={hasDocument ? "Download Document" : "No Document Uploaded"}
                     onClick={() => hasDocument && handleDownload(row.leave_url)}
@@ -244,7 +244,7 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
                   />
                 </div>
                 {isEditing && (
-                  <div style={{ width: 60, display: 'flex', justifyContent: 'center' }}> {/* Adjusted width */}
+                  <div className="admin-manageleave-col-select">
                     <input
                       type="checkbox"
                       checked={isRowSelected}
@@ -255,58 +255,73 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
               </div>
             );
           })}
-        </div>
 
-        {/* Pagination */}
-        {allLeaveRequests.length > ITEMS_PER_PAGE && (
-          <div style={styles.pagination.container}>
-            <span style={styles.pagination.text}>
-              Page {currentPage} of {totalPages}
-            </span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-                disabled={currentPage === 1}
-                style={{ ...styles.pagination.button, ...(currentPage === 1 && styles.pagination.disabled) }}
-              >
-                &lt;
-              </button>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                style={{ ...styles.pagination.button, ...(currentPage === totalPages && styles.pagination.disabled) }}
-              >
-                &gt;
-              </button>
+          {/* Pagination (Moved Inside the Table Card, matching Staff Page) */}
+          {allLeaveRequests.length > ITEMS_PER_PAGE && (
+            <div className="admin-manageleave-pagination-container">
+              <div className="admin-manageleave-pagination-controls">
+                <button 
+                  onClick={() => setCurrentPage(1)} 
+                  disabled={currentPage === 1} 
+                  className="admin-manageleave-pagination-btn"
+                >
+                  «
+                </button>
+                <button 
+                  onClick={handlePrevPage} 
+                  disabled={currentPage === 1} 
+                  className="admin-manageleave-pagination-btn"
+                >
+                  ‹
+                </button>
+                
+                <span className="admin-manageleave-pagination-text">
+                  {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, allLeaveRequests.length)} of {allLeaveRequests.length}
+                </span>
+                
+                <button 
+                  onClick={handleNextPage} 
+                  disabled={currentPage === totalPages} 
+                  className="admin-manageleave-pagination-btn"
+                >
+                  ›
+                </button>
+                <button 
+                  onClick={() => setCurrentPage(totalPages)} 
+                  disabled={currentPage === totalPages} 
+                  className="admin-manageleave-pagination-btn"
+                >
+                  »
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </main>
     </div>
   );
 }
 
 // --- Sub-components for Icons and Buttons ---
-const ActionButton = ({ onClick, disabled, isGreyscaled, icon, color, title, text }) => (
-  <button
-    type="button"
-    title={title}
-    onClick={onClick}
-    disabled={disabled}
-    style={{ 
-      ...styles.actionButton.base, 
-      ...(styles.actionButton[color] || styles.actionButton.default),
-      ...(isGreyscaled && styles.actionButton.greyscale),
-      ...(disabled && styles.actionButton.disabled),
-      padding: text ? '8px 12px' : '0',
-      width: text ? 'auto' : 32,
-      gap: text ? 6 : 0,
-    }}
-  >
-    {icon}
-    {text && <span style={styles.actionButton.text}>{text}</span>} {/* Conditionally render text */}
-  </button>
-);
+const ActionButton = ({ onClick, disabled, isGreyscaled, icon, color, title, text }) => {
+  // Construct namespaced class names based on props
+  let className = `admin-manageleave-action-btn btn-${color}`;
+  if (text) className += ' has-text';
+  if (isGreyscaled) className += ' greyscale';
+
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      className={className}
+    >
+      {icon}
+      {text && <span className="admin-manageleave-btn-text">{text}</span>}
+    </button>
+  );
+};
 
 const FileIcon = ({ color }) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -315,11 +330,12 @@ const FileIcon = ({ color }) => (
     <line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>
   </svg>
 );
-const CheckIcon = () => <div style={{ width: 12, height: 8, borderLeft: '3px solid #00AE06', borderBottom: '3px solid #00AE06', transform: 'rotate(-45deg)', flexShrink: 0 }} />; // Added flexShrink
+
+const CheckIcon = () => <div className="admin-manageleave-check-icon" />;
 const CrossIcon = () => (
-  <div style={{ width: 12, height: 12, position: 'relative', flexShrink: 0 }}>
-    <span style={styles.crossIcon.line1} />
-    <span style={styles.crossIcon.line2} />
+  <div className="admin-manageleave-cross-icon">
+    <span className="cross-line rotate-45" />
+    <span className="cross-line rotate-neg-45" />
   </div>
 );
 
@@ -329,189 +345,5 @@ const EditIcon = ({ color }) => (
     <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
   </svg>
 );
-
-// --- Styles ---
-const styles = {
-  page: {
-    width: '100%',
-    minHeight: '100vh',
-    background: '#F8F9FA',
-    fontFamily: "'Inter', sans-serif",
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  mainContent: {
-    maxWidth: 1400,
-    width: '100%',
-    margin: '24px auto 40px',
-    padding: '0 32px',
-    boxSizing: 'border-box',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    flex: 1,
-  },
-header: {
-    width: '100%',
-    display: 'flex',
-    // CHANGE THIS: 'space-between' pushes the first item (Back) to the left 
-    // and the last item (Actions) to the right.
-    justifyContent: 'space-between', 
-    alignItems: 'center',
-    marginBottom: 24,
-    position: 'relative', 
-    height: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 800,
-    margin: 0,
-    textAlign: 'center',
-    // Change 3: absolutely center the title
-    position: 'absolute',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    // Change 4: Prevent title from overlapping buttons on small screens
-    whiteSpace: 'nowrap', 
-  },
-  backButton: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '8px 20px',
-    background: 'white',
-    borderRadius: 68,
-    border: '1px solid #DDDDDD',
-    cursor: 'pointer',
-    fontSize: 16,
-    fontWeight: 600,
-  },
-  backArrow: {
-    display: 'inline-block',
-    width: 12,
-    height: 12,
-    borderLeft: '2px solid black',
-    borderBottom: '2px solid black',
-    transform: 'rotate(45deg)',
-    marginRight: 2,
-  },
-  actionButtonsContainer: {
-    display: 'flex',
-    gap: 8,
-  },
-  tableContainer: {
-    width: '100%',
-    background: 'white',
-    borderRadius: 12,
-    border: '1px solid #E6E6E6',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
-    overflow: 'hidden',
-  },
-  tableHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    height: 56,
-    padding: '0 24px',
-    fontSize: 15,
-    fontWeight: 600,
-    color: '#555',
-    borderBottom: '1px solid #E6E6E6',
-    background: 'white',
-  },
-  tableRow: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '16px 24px',
-    fontSize: 14,
-    borderTop: '1px solid #E6E6E6',
-    transition: 'background-color 0.2s',
-  },
-  selectedRow: {
-    backgroundColor: '#e6f7ff',
-  },
-  statusBadge: {
-    padding: '5px 10px',
-    borderRadius: 8,
-    fontWeight: 600,
-    fontSize: 13,
-  },
-  actions: {
-    display: 'flex',
-    gap: 8,
-  },
-  message: {
-    padding: '40px',
-    textAlign: 'center',
-    color: '#555',
-    fontSize: 16,
-  },
-  pagination: {
-    container: {
-      width: '100%',
-      display: 'flex',
-      justifyContent: 'flex-end',
-      alignItems: 'center',
-      marginTop: 24,
-    },
-    text: {
-      fontSize: 14,
-      fontWeight: 600,
-      color: '#333',
-      marginRight: 16,
-    },
-    button: {
-      width: 36,
-      height: 36,
-      borderRadius: 8,
-      border: '1px solid #CCC',
-      cursor: 'pointer',
-      background: 'white',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: 20,
-      transition: 'background-color 0.2s',
-    },
-    disabled: {
-      cursor: 'not-allowed',
-      background: '#F0F0F0',
-      color: '#AAA',
-    }
-  },
-  actionButton: {
-    base: {
-      display: 'inline-flex', 
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 8,
-      border: 'none',
-      cursor: 'pointer',
-      transition: 'filter 0.2s, opacity 0.2s',
-      minWidth: 32,
-      height: 32,
-    },
-    default: { background: '#E0E0E0' },
-    green: { background: 'rgba(0, 174, 6, 0.15)' },
-    red: { background: 'rgba(255, 37, 37, 0.15)' },
-    blue: { background: 'rgba(0, 110, 255, 0.15)' },
-    grey: { background: '#F0F0F0' },
-    greyscale: {
-      filter: 'grayscale(100%)',
-      opacity: 0.6,
-    },
-    disabled: { 
-      cursor: 'not-allowed',
-      opacity: 0.6,
-    },
-    text: {
-      fontSize: 14,
-      fontWeight: 600,
-    }
-  },
-  crossIcon: {
-    line1: { position: 'absolute', top: '50%', left: 0, width: '100%', height: 2, background: '#FF2525', transform: 'rotate(45deg)' },
-    line2: { position: 'absolute', top: '50%', left: 0, width: '100%', height: 2, background: '#FF2525', transform: 'rotate(-45deg)' },
-  }
-};
 
 export default AdminManageLeave;

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../Nav/navbar';
 import AdminNewRoster from './AdminNewRoster';
+import './AdminRoster.css'; 
 
 // --- 1. ICON COMPONENTS (SVG) ---
 const IconView = () => (
@@ -25,7 +26,6 @@ const IconTrash = () => (
   </svg>
 );
 
-// New Plus Icon for the button
 const IconPlus = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -36,61 +36,20 @@ const IconPlus = () => (
 // --- 2. HELPER BUTTON COMPONENT ---
 const ActionBtn = ({ icon, onClick, bg = '#EBF5FF', border = '#D6E4FF', color = '#2F80ED' }) => (
   <button
+    className="admin-roster-action-btn"
     onClick={(e) => {
       e.stopPropagation();
       if (onClick) onClick();
     }}
     style={{
-      width: 32,
-      height: 32,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: bg, // Now uses dynamic background
-      border: `1px solid ${border}`, // Now uses dynamic border
-      borderRadius: 8,
-      color: color, // Now uses dynamic color
-      cursor: 'pointer',
-      padding: 0,
+      background: bg, 
+      border: `1px solid ${border}`,
+      color: color, 
     }}
   >
     {icon}
   </button>
 );
-
-// Define the button style to match your reference snippet's usage
-const paginationButtonStyle = {
-  width: 32,
-  height: 32,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: 'white',
-  border: '1px solid #E6E6E6',
-  borderRadius: 8,
-  cursor: 'pointer',
-  color: '#374151', // Dark grey text
-  fontSize: '16px',
-  transition: 'all 0.2s'
-};
-
-// --- NEW: MODAL STYLES ---
-const modalOverlayStyle = {
-  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-  backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)',
-  display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 2000
-};
-
-const modalContentStyle = {
-  background: 'white', padding: '32px', borderRadius: '12px',
-  width: '400px', textAlign: 'center',
-  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
-};
-
-const modalButtonStyle = {
-  padding: '10px 24px', borderRadius: '6px', fontSize: '14px',
-  fontWeight: 600, cursor: 'pointer', border: 'none', transition: 'all 0.2s'
-};
 
 // --- LOGGING HELPER ---
 const logAction = async ({ userId, details }) => {
@@ -104,16 +63,42 @@ const logAction = async ({ userId, details }) => {
   } catch (err) { console.error('Failed to insert action log:', err); }
 };
 
+const statusOptions = ['All', 'Preference Open', 'Drafting', 'Published'];
+
 function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRoster, onLogout, loggedInUser }) {
   const [showNewRoster, setShowNewRoster] = useState(false);
   const [rosterRows, setRosterRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // Change this number to show more/less items
+  const itemsPerPage = 10; 
   
-  // --- NEW: DELETE MODAL STATE ---
+  // --- DELETE MODAL STATE ---
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedRosterToDelete, setSelectedRosterToDelete] = useState(null);
+
+  // --- FILTER & SORT STATE ---
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'ascending' });
+  const [filterMonth, setFilterMonth] = useState('All');
+  const [filterYear, setFilterYear] = useState('All');
+  const [filterStatus, setFilterStatus] = useState('All'); // Added for Pills
+
+  // --- START: ADD THIS BLOCK ---
+  const [gliderStyle, setGliderStyle] = useState({ left: 0, width: 0 });
+  const pillsRef = useRef([]); 
+
+  // Calculate the position of the black pill (glider) whenever filterStatus changes
+  useEffect(() => {
+    const activeIndex = statusOptions.indexOf(filterStatus);
+    const activeElement = pillsRef.current[activeIndex];
+
+    if (activeElement) {
+      setGliderStyle({
+        left: activeElement.offsetLeft,
+        width: activeElement.offsetWidth
+      });
+    }
+  }, [filterStatus]);
+  
 
   // --- SAFE ACCESS TO USER DETAILS ---
   const adminName = loggedInUser?.full_name || loggedInUser?.fullName || 'Admin';
@@ -132,25 +117,9 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
         setLoading(false);
       });
   };
-  // -----------------------------
 
-  // --- INITIAL FETCH ---
   useEffect(() => {
-    fetchRosters(); // <--- We call it here when page loads
-  }, []);
-
-  // --- FETCH DATA ---
-  useEffect(() => {
-    fetch('http://localhost:5000/api/rosters')
-      .then((res) => res.json())
-      .then((data) => {
-        setRosterRows(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch rosters:", err);
-        setLoading(false);
-      });
+    fetchRosters(); 
   }, []);
 
   // --- HELPER FUNCTIONS ---
@@ -172,22 +141,78 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
     }
   };
 
-  // --- PAGINATION CALCULATIONS (ADDED) ---
+  const requestSort = (key) => {
+    let direction = 'ascending';
+    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // --- DERIVE UNIQUE YEARS FOR DROPDOWN ---
+  const uniqueYears = React.useMemo(() => {
+    const years = rosterRows.map(r => r.year).filter(y => y);
+    return [...new Set(years)].sort((a, b) => b - a);
+  }, [rosterRows]);
+
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  // --- FILTER & SORT LOGIC ---
+  const processedRosters = React.useMemo(() => {
+    // 1. Filter
+    let items = [...rosterRows];
+    
+    if (filterMonth !== 'All') {
+      items = items.filter(r => r.month === filterMonth);
+    }
+    if (filterYear !== 'All') {
+      items = items.filter(r => String(r.year) === String(filterYear));
+    }
+    if (filterStatus !== 'All') {
+        items = items.filter(r => r.status === filterStatus);
+    }
+
+    // 2. Sort
+    if (sortConfig.key !== null) {
+      items.sort((a, b) => {
+        // Custom Status Sort
+        if (sortConfig.key === 'status') {
+          const statusOrder = { 'Preference Open': 1, 'Drafting': 2, 'Published': 3 };
+          const rankA = statusOrder[a.status] || 99;
+          const rankB = statusOrder[b.status] || 99;
+          if (rankA < rankB) return sortConfig.direction === 'ascending' ? -1 : 1;
+          if (rankA > rankB) return sortConfig.direction === 'ascending' ? 1 : -1;
+          return 0;
+        }
+        // Standard Sort
+        if (a[sortConfig.key] < b[sortConfig.key]) {
+          return sortConfig.direction === 'ascending' ? -1 : 1;
+        }
+        if (a[sortConfig.key] > b[sortConfig.key]) {
+          return sortConfig.direction === 'ascending' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return items;
+  }, [rosterRows, sortConfig, filterMonth, filterYear, filterStatus]);
+
+  // --- PAGINATION ---
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  // This slices the main array so we only render 10 items at a time
-  const currentItems = rosterRows.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(rosterRows.length / itemsPerPage);
+  const currentItems = processedRosters.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(processedRosters.length / itemsPerPage);
 
-  // --- PAGINATION HANDLERS (ADDED) ---
-  const handleNextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
-  };
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterMonth, filterYear, filterStatus]);
 
-  const handlePrevPage = () => {
-    if (currentPage > 1) setCurrentPage(prev => prev - 1);
-  };
-
+  const handleNextPage = () => { if (currentPage < totalPages) setCurrentPage(prev => prev + 1); };
+  const handlePrevPage = () => { if (currentPage > 1) setCurrentPage(prev => prev - 1); };
   const handleFirstPage = () => setCurrentPage(1);
   const handleLastPage = () => setCurrentPage(totalPages);
 
@@ -196,67 +221,38 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
     if (onOpenRoster) onOpenRoster(row.id, row.month, row.year);
   };
 
-
   const handleDownload = async (row) => {
     try {
       const response = await fetch(`http://localhost:5000/api/rosters/${row.id}/download`);
-      
-      if (!response.ok) {
-        throw new Error("Failed to download file");
-      }
-
-      // 1. Convert response to Blob (Binary Large Object)
+      if (!response.ok) throw new Error("Failed to download file");
       const blob = await response.blob();
-
-      // 2. Create a hidden link element
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${row.month}_${row.year}_Roster.xlsx`; // Name the file
+      a.download = `${row.month}_${row.year}_Roster.xlsx`; 
       document.body.appendChild(a);
-
-      // 3. Click it programmatically
       a.click();
-
-      // 4. Clean up
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
     } catch (err) {
       console.error("Download error:", err);
       alert("Error downloading roster. Please try again.");
     }
   };
 
-  // 1. TRIGGER MODAL (Replaces window.confirm)
   const handleDeleteClick = (row) => {
     setSelectedRosterToDelete(row);
     setShowDeleteModal(true);
   };
 
-  // 2. EXECUTE DELETE (Called by the Modal)
   const confirmDelete = async () => {
     if (!selectedRosterToDelete) return;
-
     try {
-      const res = await fetch(`http://localhost:5000/api/rosters/${selectedRosterToDelete.id}`, {
-        method: 'DELETE',
-      });
-
+      const res = await fetch(`http://localhost:5000/api/rosters/${selectedRosterToDelete.id}`, { method: 'DELETE' });
       if (res.ok) {
         setRosterRows(prev => prev.filter(r => r.id !== selectedRosterToDelete.id));
-        // Safety: If deleting the last item on a page, go back 1 page
-        if (currentItems.length === 1 && currentPage > 1) {
-            setCurrentPage(prev => prev - 1);
-        }
-        
-        // --- LOG DELETE ACTION ---
-        await logAction({ 
-          userId: adminId, 
-          details: `${adminName} deleted roster: ${selectedRosterToDelete.title}` 
-        });
-
-        // Success - Modal closes in finally block
+        if (currentItems.length === 1 && currentPage > 1) setCurrentPage(prev => prev - 1);
+        await logAction({ userId: adminId, details: `${adminName} deleted roster: ${selectedRosterToDelete.title}` });
         alert("Roster deleted successfully.");
       } else {
         alert("Failed to delete roster.");
@@ -270,33 +266,17 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
     }
   };
 
-  // --- NEW HANDLER FOR CREATION LOGGING ---
   const handleRosterCreated = async (newRosterData) => {
-    // Attempt to get title if passed back, otherwise generic
     const details = newRosterData && newRosterData.title 
         ? `${adminName} created a new roster: ${newRosterData.title}`
         : `${adminName} created a new roster`;
-
-    await logAction({ 
-        userId: adminId, 
-        details: details
-    });
-    
+    await logAction({ userId: adminId, details: details });
     setShowNewRoster(false);
-    fetchRosters(); // Refresh list
+    fetchRosters(); 
   };
 
   return (
-    <div
-      style={{
-        width: '100%',
-        minHeight: '100vh',
-        background: '#EDF0F5',
-        overflowX: 'hidden',
-        overflowY: 'auto',
-        fontFamily: 'Inter, sans-serif',
-      }}
-    >
+    <div className="admin-roster-container">
       <Navbar
         active="roster"
         onGoHome={onGoHome}
@@ -306,84 +286,120 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
         onLogout={onLogout}
       />
 
-      <main
-        style={{
-          maxWidth: 1200,
-          margin: '24px auto 40px',
-          padding: '0 32px',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 900, margin: 0 }}>All Rosters</h1>
-
-          {/* UPDATED "NEW ROSTER" BUTTON */}
+      <main className="admin-roster-content">
+        <div className="admin-roster-header">
+          <h1 className="admin-roster-title">All Rosters</h1>
           <button
             type="button"
             onClick={() => setShowNewRoster(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '10px 20px', paddingRight: '16px',
-              background: '#5091CD', borderRadius: 999, border: 'none', color: 'white',
-              fontSize: 16, fontWeight: 600, cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(80, 145, 205, 0.4)'
-            }}
+            className="admin-roster-btn-new"
           >
             New Roster
-            {/* The Plus Icon */}
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 24, height: 24,
-              background: 'rgba(255,255,255,0.2)', borderRadius: '50%'
-            }}>
+            <div className="admin-roster-icon-circle">
               <IconPlus />
             </div>
           </button>
-
-          {/* THE MODAL COMPONENT */}
           <AdminNewRoster
             open={showNewRoster}
             onCancel={() => setShowNewRoster(false)}
-            onConfirm={handleRosterCreated} // Using the new handler with logging
+            onConfirm={handleRosterCreated} 
           />
         </div>
 
-        {/* ... TABLE HEADERS AND BODY REMAIN THE SAME ... */}
-        <div
-          style={{
-            background: 'white', borderRadius: '10px 10px 0 0', border: '1px solid #E6E6E6', borderBottom: 'none',
-            display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.4fr 1.7fr 1.2fr 0.8fr', alignItems: 'center',
-            height: 56, padding: '0 16px', boxSizing: 'border-box', fontSize: 16, fontWeight: 600,
-          }}
-        >
+        {/* --- FILTER SECTION --- */}
+        <div className="admin-roster-filter-card">
+          
+          {/* Row 1: Status Pills */}
+          <div className="admin-roster-filter-pills-row">
+            <div className="admin-roster-pill-group">
+              
+              {/* 1. The Sliding Black Background (Glider) */}
+              <div 
+                className="admin-roster-pill-glider"
+                style={{ 
+                  left: gliderStyle.left, 
+                  width: gliderStyle.width 
+                }} 
+              />
+
+              {/* 2. The Buttons */}
+              {statusOptions.map((status, index) => (
+                <button
+                  key={status}
+                  ref={(el) => (pillsRef.current[index] = el)} // Capture element reference
+                  onClick={() => setFilterStatus(status)}
+                  className={`admin-roster-pill-btn ${filterStatus === status ? 'active' : ''}`}
+                >
+                  {status === 'All' ? 'All Status' : status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 2: Dropdowns */}
+          <div className="admin-roster-filter-controls-row">
+            <div className="admin-roster-filter-group">
+                <label className="admin-roster-filter-label">Month</label>
+                <select
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+                className="admin-roster-filter-select"
+                >
+                <option value="All">All Months</option>
+                {months.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                ))}
+                </select>
+            </div>
+
+            <div className="admin-roster-filter-group">
+                <label className="admin-roster-filter-label">Year</label>
+                <select
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
+                className="admin-roster-filter-select"
+                >
+                <option value="All">All Years</option>
+                {uniqueYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                ))}
+                </select>
+            </div>
+          </div>
+        </div>
+
+        {/* TABLE HEADER */}
+        <div className="admin-roster-table-header">
           <div>Roster Title</div>
           <div>Generated By</div>
           <div>Created On</div>
           <div>Publish Date</div>
-          <div>Status</div>
+          <div 
+            onClick={() => requestSort('status')}
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+          >
+            Status
+            {sortConfig.key === 'status' ? (
+              <span>{sortConfig.direction === 'ascending' ? '▲' : '▼'}</span>
+            ) : (
+              <span style={{ color: '#ccc' }}>⇅</span>
+            )}
+          </div>
           <div>Actions</div>
         </div>
 
-        <div
-          style={{
-            background: 'white', borderRadius: '0 0 10px 10px', border: '1px solid #E6E6E6', borderTop: 'none',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          }}
-        >
+        {/* TABLE BODY */}
+        <div className="admin-roster-table-body">
           {loading ? (
-            <div style={{ padding: '20px', textAlign: 'center' }}>Loading rosters...</div>
-          ) : rosterRows.length === 0 ? (
-            <div style={{ padding: '20px', textAlign: 'center' }}>No rosters found.</div>
+            <div className="admin-roster-loading">Loading rosters...</div>
+          ) : processedRosters.length === 0 ? (
+            <div className="admin-roster-empty">No rosters found matching filters.</div>
           ) : (
             currentItems.map((row, idx) => (
               <div
                 key={row.id || idx}
                 onClick={() => handleNavigateToRoster(row)}
-                style={{
-                  display: 'grid', gridTemplateColumns: '2fr 1.3fr 1.4fr 1.7fr 1.2fr 0.8fr', alignItems: 'center',
-                  padding: '12px 16px', boxSizing: 'border-box', fontSize: 14,
-                  borderTop: idx === 0 ? 'none' : '1px solid #E6E6E6', cursor: 'pointer',
-                }}
+                className="admin-roster-row"
               >
                 <div>{row.title}</div>
                 <div>{row.generatedBy}</div>
@@ -394,9 +410,10 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
                     const style = getStatusStyle(row.status);
                     return (
                       <span
+                        className="admin-roster-status-badge"
                         style={{
-                          padding: '4px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                          backgroundColor: style.background, color: style.color,
+                          backgroundColor: style.background,
+                          color: style.color,
                         }}
                       >
                         {row.status}
@@ -405,7 +422,7 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
                   })()}
                 </div>
 
-                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-start' }}>
+                <div className="admin-roster-actions-cell">
                   <ActionBtn icon={<IconView />} onClick={() => handleNavigateToRoster(row)} />
                   {row.status === 'Published' ? (
                     <ActionBtn icon={<IconDownload />} onClick={() => handleDownload(row)} />
@@ -413,107 +430,82 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
                     <ActionBtn
                       icon={<IconTrash />}
                       onClick={() => handleDeleteClick(row)}
-                      bg="#FEE2E2"      // Red Background
-                      border="#FECACA"  // Red Border
-                      color="#DC2626"   // Red Icon
+                      bg="#FEE2E2"      
+                      border="#FECACA"  
+                      color="#DC2626"   
                     />
                   )}
                 </div>
-
               </div>
             ))
           )}
 
-          {/* --- PAGINATION FOOTER (MATCHING STAFF PAGE) --- */}
-          {rosterRows.length > 0 && (
-            <div 
-              style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center', 
-                padding: '12px 16px',       // Matches reference padding
-                borderTop: '1px solid #E6E6E6', 
-                background: 'white',
-                borderRadius: '0 0 10px 10px' // Kept this to maintain the rounded bottom corners of your table
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                
-                {/* First Page */}
+          {/* PAGINATION FOOTER */}
+          {processedRosters.length > 0 && (
+            <div className="admin-roster-pagination-container">
+              <div className="admin-roster-pagination-controls">
                 <button 
                   onClick={handleFirstPage} 
                   disabled={currentPage === 1} 
-                  style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1 }}
+                  className="admin-roster-pagination-btn"
                 >
                   «
                 </button>
-                
-                {/* Previous Page */}
                 <button 
                   onClick={handlePrevPage} 
                   disabled={currentPage === 1} 
-                  style={{ ...paginationButtonStyle, opacity: currentPage === 1 ? 0.4 : 1 }}
+                  className="admin-roster-pagination-btn"
                 >
                   ‹
                 </button>
-
-                {/* Page Info Text - Matches reference style exactly */}
-                <span style={{ fontSize: 13, color: '#6B7280', margin: '0 12px', fontWeight: 500 }}>
-                  {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, rosterRows.length)} of {rosterRows.length}
+                <span className="admin-roster-pagination-text">
+                  {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, processedRosters.length)} of {processedRosters.length}
                 </span>
-
-                {/* Next Page */}
                 <button 
                   onClick={handleNextPage} 
                   disabled={currentPage === totalPages} 
-                  style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1 }}
+                  className="admin-roster-pagination-btn"
                 >
                   ›
                 </button>
-
-                {/* Last Page */}
                 <button 
                   onClick={handleLastPage} 
                   disabled={currentPage === totalPages} 
-                  style={{ ...paginationButtonStyle, opacity: currentPage === totalPages ? 0.4 : 1 }}
+                  className="admin-roster-pagination-btn"
                 >
                   »
                 </button>
               </div>
             </div>
           )}
-
         </div>
       </main>
-      {/* --- NEW: DELETE CONFIRMATION MODAL --- */}
+      
+      {/* DELETE CONFIRMATION MODAL */}
       {showDeleteModal && (
-        <div style={modalOverlayStyle}>
-          <div style={modalContentStyle}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+        <div className="admin-roster-modal-overlay">
+          <div className="admin-roster-modal-content">
+            <h3 className="admin-roster-modal-title">
               Confirm Deletion
             </h3>
-            <p style={{ margin: '0 0 24px 0', fontSize: '15px', color: '#6B7280', lineHeight: 1.5 }}>
+            <p className="admin-roster-modal-text">
               Are you sure you want to delete <br/>
-              <span style={{ fontWeight: 600, color: '#111827' }}>"{selectedRosterToDelete?.title}"</span>?
+              <span className="admin-roster-text-bold">"{selectedRosterToDelete?.title}"</span>?
               <br/>
-              <span style={{ color: '#DC2626', fontSize: '13px', fontWeight: 500 }}>
+              <span className="admin-roster-text-danger">
                 This action cannot be undone.
               </span>
             </p>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '12px' }}>
+            <div className="admin-roster-modal-actions">
               <button 
                 onClick={() => setShowDeleteModal(false)} 
-                style={{ ...modalButtonStyle, background: 'white', color: '#374151', border: '1px solid #D1D5DB' }}
-                onMouseOver={(e) => e.currentTarget.style.background = '#F9FAFB'}
-                onMouseOut={(e) => e.currentTarget.style.background = 'white'}
+                className="admin-roster-modal-btn admin-roster-btn-cancel"
               >
                 Cancel
               </button>
               <button 
                 onClick={confirmDelete} 
-                style={{ ...modalButtonStyle, background: '#DC2626', color: 'white' }}
-                onMouseOver={(e) => e.currentTarget.style.background = '#B91C1C'}
-                onMouseOut={(e) => e.currentTarget.style.background = '#DC2626'}
+                className="admin-roster-modal-btn admin-roster-btn-delete"
               >
                 Delete
               </button>
