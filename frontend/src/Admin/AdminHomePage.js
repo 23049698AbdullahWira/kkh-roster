@@ -260,7 +260,7 @@ function AdminHome({ user, onGoHome, onGoRoster, onGoStaff, onGoShift, onGoManag
                   <div className="admin-home-icon-box">
                     <img className="admin-home-icon-img" src="/addNewStaff.png" alt="Add New Staff" />
                   </div>
-                  <div className="admin-home-link-text">{'Add\nNew Staff'}</div>
+                  <div className="admin-home-link-text">{'View\nStaff List'}</div>
                 </button>
 
                 <button type="button" onClick={goManageLeave} className="admin-home-link-btn">
@@ -274,7 +274,7 @@ function AdminHome({ user, onGoHome, onGoRoster, onGoStaff, onGoShift, onGoManag
                   <div className="admin-home-icon-box">
                     <img className="admin-home-icon-img" src="/staffPref.png" alt="Staff Preferences" />
                   </div>
-                  <div className="admin-home-link-text">{'Staff\nPreferences'}</div>
+                  <div className="admin-home-link-text">{'View\nShift Balance'}</div>
                 </button>
               </div>
             </section>
