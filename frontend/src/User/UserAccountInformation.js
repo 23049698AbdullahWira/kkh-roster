@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import UserNavbar from '../Nav/UserNavbar.js';
 import { FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
 import './UserAccountInformation.css';
+// 1. IMPORT THE CENTRALIZED API HELPER
+import { fetchFromApi } from '../services/api';
 
 const ActionButton = ({ onClick, icon, color, title }) => (
   <button 
@@ -24,7 +26,6 @@ const CrossIcon = ({ onClick }) => (
   <ActionButton onClick={onClick} title="Cancel" color="red" icon={<FaTimes color="#FF2525" />} />
 );
 
-// --- Updated Field Component ---
 const Field = ({ label, name, value, isEditing, onChange, type = 'text', maxLength }) => (
   <div className="user-useraccountinformation-field-group">
     <label className="user-useraccountinformation-label">{label}</label>
@@ -41,7 +42,7 @@ const Field = ({ label, name, value, isEditing, onChange, type = 'text', maxLeng
     ) : (
       <div 
         className="user-useraccountinformation-input user-useraccountinformation-input-disabled user-useraccountinformation-display-field"
-        title={value} /* Tooltip: Show full text on hover */
+        title={value} 
       >
         {value || (name === 'avatar_url' ? 'No custom avatar set' : '')}
       </div>
@@ -78,10 +79,9 @@ function UserAccountInformation({
       }
       try {
         setLoading(true);
-        // Using the new dedicated endpoint
-        const response = await fetch(`http://localhost:5000/api/profile/${loggedInUser.userId}`);
-        if (!response.ok) throw new Error('Failed to fetch user data.');
-        const data = await response.json();
+        // 2. UPDATED: Using fetchFromApi
+        // Note: api.js automatically handles response.json() and error throwing
+        const data = await fetchFromApi(`/api/profile/${loggedInUser.userId}`);
         setUserData(data);
         setInitialUserData(data);
       } catch (err) {
@@ -135,19 +135,9 @@ function UserAccountInformation({
     const trimmedContact = userData.contact ? String(userData.contact).trim() : '';
     const trimmedAvatar = userData.avatar_url ? userData.avatar_url.trim() : '';
 
-    // --- VALIDATION LOGIC ---
-    if (!trimmedFullName) {
-      setEditError("Full Name cannot be empty.");
-      return;
-    }
-    if (!trimmedEmail) {
-      setEditError("Email cannot be empty.");
-      return;
-    }
-    if (!trimmedContact) {
-      setEditError("Contact cannot be empty.");
-      return;
-    }
+    if (!trimmedFullName) { setEditError("Full Name cannot be empty."); return; }
+    if (!trimmedEmail) { setEditError("Email cannot be empty."); return; }
+    if (!trimmedContact) { setEditError("Contact cannot be empty."); return; }
     
     const payload = {
       full_name: trimmedFullName,
@@ -167,12 +157,12 @@ function UserAccountInformation({
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/profile/${userData.user_id}`, {
+      // 3. UPDATED: Using fetchFromApi (PUT)
+      // We don't need to specify 'Content-Type' or check response.ok manually; api.js does it.
+      await fetchFromApi(`/api/profile/${userData.user_id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error('Failed to update profile.');
 
       setSuccessMessage('Account Details Updated Successfully');
       setTimeout(() => setSuccessMessage(''), 4000);
@@ -188,22 +178,10 @@ function UserAccountInformation({
 
   const handleChangePassword = async () => {
     setPasswordError('');
-    if (!passwords.currentPassword) {
-      setPasswordError("Please enter your current password.");
-      return;
-    }
-    if (!passwords.newPassword) {
-      setPasswordError("Enter new password.");
-      return;
-    }
-    if (passwords.newPassword === passwords.currentPassword) {
-      setPasswordError("New password cannot be the same as the current password.");
-      return;
-    }
-    if (passwords.newPassword !== passwords.confirmPassword) {
-      setPasswordError("Passwords do not match.");
-      return;
-    }
+    if (!passwords.currentPassword) { setPasswordError("Please enter your current password."); return; }
+    if (!passwords.newPassword) { setPasswordError("Enter new password."); return; }
+    if (passwords.newPassword === passwords.currentPassword) { setPasswordError("New password cannot be the same as the current password."); return; }
+    if (passwords.newPassword !== passwords.confirmPassword) { setPasswordError("Passwords do not match."); return; }
 
     try {
       const payload = {
@@ -211,16 +189,11 @@ function UserAccountInformation({
         newPassword: passwords.newPassword,
       };
 
-      const response = await fetch(`http://localhost:5000/users/${userData.user_id}/change-password`, {
+      // 4. UPDATED: Using fetchFromApi (POST)
+      await fetchFromApi(`/users/${userData.user_id}/change-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to change password.');
-      }
 
       setSuccessMessage('Password Updated Successfully');
       setTimeout(() => setSuccessMessage(''), 4000);
@@ -276,7 +249,6 @@ function UserAccountInformation({
                 )}
               </div>
 
-              {/* Display Edit Error Message */}
               {editError && <div className="user-useraccountinformation-error-message">{editError}</div>}
               {successMessage && <div className="user-useraccountinformation-success-message">{successMessage}</div>}
 

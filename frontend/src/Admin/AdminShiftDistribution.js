@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../Nav/navbar.js';
-import './AdminShiftDistribution.css'; // Import the new CSS
+import './AdminShiftDistribution.css'; 
+// 1. Import centralized helper
+import { fetchFromApi } from '../services/api';
 
 const getWorkloadStatus = (total, targetVal) => {
   const diff = total - targetVal;
@@ -18,7 +20,6 @@ const getDaysInMonth = (year, month) => {
   return new Date(year, month, 0).getDate();
 };
 
-// --- MOVED OUTSIDE FOR STABILITY ---
 const timeFrameOptions = ['Year', 'Month', 'Day'];
 
 function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }) {
@@ -82,15 +83,14 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
   useEffect(() => {
     const initData = async () => {
       try {
-        const yearRes = await fetch('http://localhost:5000/available-years');
-        const dbYears = await yearRes.json();
+        // 2. UPDATED: Using fetchFromApi
+        const dbYears = await fetchFromApi('/available-years');
         const currentSystemYear = new Date().getFullYear();
         const uniqueYears = [...new Set([...dbYears, currentSystemYear])].sort((a, b) => b - a);
         setAvailableYears(uniqueYears);
         setYear(currentSystemYear);
 
-        const typeRes = await fetch('http://localhost:5000/api/shift-types');
-        const typesData = await typeRes.json();
+        const typesData = await fetchFromApi('/api/shift-types');
         setAvailableShiftTypes(typesData);
       } catch (err) {
         console.error("Error initializing:", err);
@@ -113,8 +113,8 @@ function AdminShiftDistributionPage({ onGoHome, onGoRoster, onGoStaff, onGoShift
       service: serviceFilter
     });
 
-    fetch(`http://localhost:5000/shift-distribution?${queryParams}`)
-      .then(res => res.json())
+    // 3. UPDATED: Using fetchFromApi
+    fetchFromApi(`/shift-distribution?${queryParams}`)
       .then(data => {
         const formattedData = data.map(item => ({
           id: item.user_id,

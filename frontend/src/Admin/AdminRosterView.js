@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar';
 import './AdminRosterView.css';
+// 1. Import centralized helper
+import { fetchFromApi } from '../services/api';
 
 // --- ICON COMPONENTS ---
 const IconSort = ({ direction }) => (
@@ -37,9 +39,9 @@ const IconX = () => (
 const logAction = async ({ userId, details }) => {
   try {
     if (!userId) return;
-    await fetch('http://localhost:5000/action-logs', {
+    // 2. UPDATED: Using fetchFromApi
+    await fetchFromApi('/action-logs', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, details })
     });
   } catch (err) { console.error('Failed to insert action log:', err); }
@@ -132,27 +134,26 @@ function AdminRosterView({
     const fetchData = async () => {
       try {
         setLoading(true);
-        const prefRes = await fetch(`http://localhost:5000/api/preferences/${rosterId}`);
-        if (prefRes.ok) {
-            const prefData = await prefRes.json();
+        // 3. UPDATED: Using fetchFromApi for initial load
+        // Note: fetchFromApi throws if status is not OK, so we catch error
+        
+        // Check for pending prefs
+        try {
+            const prefData = await fetchFromApi(`/api/preferences/${rosterId}`);
             setHasPendingPrefs(prefData.length > 0);
-        }
-        const rosterRes = await fetch(`http://localhost:5000/api/rosters/${rosterId}`);
-        const rosterData = await rosterRes.json();
+        } catch (e) { /* ignore 404/empty */ }
+
+        const rosterData = await fetchFromApi(`/api/rosters/${rosterId}`);
         if (rosterData && rosterData.status) setRosterStatus(rosterData.status);
 
-        const userRes = await fetch('http://localhost:5000/users');
-        const userData = await userRes.json();
+        const [userData, shiftData, typeData, wardData] = await Promise.all([
+            fetchFromApi('/users'),
+            fetchFromApi(`/api/shifts/${rosterId}`),
+            fetchFromApi('/api/shift-types'),
+            fetchFromApi('/api/wards')
+        ]);
+
         const nursesOnly = userData.filter(user => user.role === 'APN' && user.status === 'Active');
-
-        const shiftRes = await fetch(`http://localhost:5000/api/shifts/${rosterId}`);
-        const shiftData = await shiftRes.json();
-
-        const typeRes = await fetch('http://localhost:5000/api/shift-types');
-        const typeData = await typeRes.json();
-
-        const wardRes = await fetch('http://localhost:5000/api/wards');
-        const wardData = await wardRes.json();
 
         setStaffList(nursesOnly);
         setShifts(shiftData);
@@ -190,15 +191,12 @@ function AdminRosterView({
     setLoadingPrefs(true);
     setPrefPage(1);
     try {
-      const res = await fetch(`http://localhost:5000/api/preferences/${rosterId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPreferences(data);
-      } else {
-        setPreferences([]); 
-      }
+      // 4. UPDATED: Using fetchFromApi
+      const data = await fetchFromApi(`/api/preferences/${rosterId}`);
+      setPreferences(data);
     } catch (err) {
       console.error("Failed to fetch preferences", err);
+      setPreferences([]); 
     } finally {
       setLoadingPrefs(false);
     }
@@ -210,68 +208,65 @@ function AdminRosterView({
     if (!pref) return;
 
     try {
-      const res = await fetch('http://localhost:5000/api/preferences/update-status', {
+      // 5. UPDATED: Using fetchFromApi (POST)
+      await fetchFromApi('/api/preferences/update-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prefId, status: newStatus })
       });
 
-      if (res.ok) {
-        setPreferences(prev => {
+      // If successful:
+      setPreferences(prev => {
         const newList = prev.filter(p => p.shiftPref_id !== prefId);
         if (newList.length === 0) {
             setHasPendingPrefs(false);
         }
         return newList;
       });
-        
-        const actionWord = newStatus === 'Approved' ? 'Approved' : 'Rejected';
-        await logAction({ 
-          userId: adminId, 
-          details: `${adminName} ${actionWord} preference for ${staffName} on ${shiftDate}` 
-        });
+      
+      const actionWord = newStatus === 'Approved' ? 'Approved' : 'Rejected';
+      await logAction({ 
+        userId: adminId, 
+        details: `${adminName} ${actionWord} preference for ${staffName} on ${shiftDate}` 
+      });
 
-        if (newStatus === 'Approved') {
-            const dateStr = pref.shift_date.split('T')[0];
-            const shiftType = shiftOptions.find(t => t.shift_type_id === pref.shift_type_id);
-            const targetUser = staffList.find(u => u.user_id === pref.user_id);
-            const defaultWard = targetUser?.ward_id || (wardOptions[0] ? wardOptions[0].ward_id : null);
-            const finalWardId = shiftType?.shift_code === 'OFF' ? null : defaultWard;
+      if (newStatus === 'Approved') {
+          const dateStr = pref.shift_date.split('T')[0];
+          const shiftType = shiftOptions.find(t => t.shift_type_id === pref.shift_type_id);
+          const targetUser = staffList.find(u => u.user_id === pref.user_id);
+          const defaultWard = targetUser?.ward_id || (wardOptions[0] ? wardOptions[0].ward_id : null);
+          const finalWardId = shiftType?.shift_code === 'OFF' ? null : defaultWard;
 
-            if (shiftType) {
-                await fetch('http://localhost:5000/api/shifts/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        userId: pref.user_id, 
-                        date: dateStr, 
-                        shiftTypeId: pref.shift_type_id, 
-                        rosterId, 
-                        wardId: finalWardId 
-                    })
-                });
+          if (shiftType) {
+              // 6. UPDATED: Using fetchFromApi
+              await fetchFromApi('/api/shifts/update', {
+                  method: 'POST',
+                  body: JSON.stringify({ 
+                      userId: pref.user_id, 
+                      date: dateStr, 
+                      shiftTypeId: pref.shift_type_id, 
+                      rosterId, 
+                      wardId: finalWardId 
+                  })
+              });
 
-                setShifts(prevShifts => {
-                    const filtered = prevShifts.filter(s => !(s.user_id === pref.user_id && s.shift_date.startsWith(dateStr)));
-                    return [...filtered, {
-                        user_id: pref.user_id,
-                        shift_date: dateStr,
-                        shift_code: shiftType.shift_code,
-                        shift_color_hex: shiftType.shift_color_hex,
-                        roster_id: rosterId,
-                        ward_id: finalWardId,
-                        shift_type_id: pref.shift_type_id
-                    }];
-                });
-            }
-        }
-
-      } else {
-        alert("Failed to update preference.");
+              setShifts(prevShifts => {
+                  const filtered = prevShifts.filter(s => !(s.user_id === pref.user_id && s.shift_date.startsWith(dateStr)));
+                  return [...filtered, {
+                      user_id: pref.user_id,
+                      shift_date: dateStr,
+                      shift_code: shiftType.shift_code,
+                      shift_color_hex: shiftType.shift_color_hex,
+                      roster_id: rosterId,
+                      ward_id: finalWardId,
+                      shift_type_id: pref.shift_type_id
+                  }];
+              });
+          }
       }
+
     } catch (err) {
       console.error("Error updating preference:", err);
-      alert("Server connection error.");
+      alert("Server connection error or failed update.");
     }
   };
 
@@ -283,9 +278,9 @@ function AdminRosterView({
     const finalWardId = shiftType?.shift_code === 'OFF' ? null : defaultWard;
 
     if (shiftType) {
-        await fetch('http://localhost:5000/api/shifts/update', {
+        // 7. UPDATED: Using fetchFromApi
+        await fetchFromApi('/api/shifts/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
                 userId: pref.user_id, 
                 date: dateStr, 
@@ -319,16 +314,15 @@ function AdminRosterView({
         if (!pref) continue;
 
         try {
-            const res = await fetch('http://localhost:5000/api/preferences/update-status', {
+            // 8. UPDATED: Using fetchFromApi
+            await fetchFromApi('/api/preferences/update-status', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prefId: id, status: 'Approved' })
             });
 
-            if (res.ok) {
-                successCount++;
-                updateRosterShiftLocal(pref); 
-            }
+            successCount++;
+            updateRosterShiftLocal(pref); 
+            
         } catch (e) {
             console.error(`Failed to approve ${id}`, e);
         }
@@ -368,9 +362,9 @@ function AdminRosterView({
     setSelectedCell(null);
 
     try {
-      await fetch('http://localhost:5000/api/shifts/update', {
+      // 9. UPDATED: Using fetchFromApi
+      await fetchFromApi('/api/shifts/update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, date: dateString, shiftTypeId: typeId, rosterId, wardId: selectedWardId })
       });
       const targetStaff = staffList.find(s => s.user_id === userId);
@@ -394,9 +388,9 @@ function AdminRosterView({
     closeNotification();
 
     try {
-      await fetch('http://localhost:5000/api/shifts/update', {
+      // 10. UPDATED: Using fetchFromApi
+      await fetchFromApi('/api/shifts/update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, date, shiftTypeId: 'OFF', rosterId, wardId: null })
       });
       const targetStaff = staffList.find(s => s.user_id === userId);
@@ -418,19 +412,19 @@ function AdminRosterView({
   const executeClosePreferences = async () => {
     closeNotification();
     try {
-      const res = await fetch('http://localhost:5000/api/rosters/update-status', {
+      // 11. UPDATED: Using fetchFromApi
+      await fetchFromApi('/api/rosters/update-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rosterId, status: 'Drafting' })
       });
-      if (res.ok) {
-        setRosterStatus('Drafting');
-        showNotification({ type: 'alert', title: 'Success', message: 'Roster is now in Drafting mode.', theme: 'success' });
-        await logAction({ 
-          userId: adminId, 
-          details: `${adminName} closed preferences for Roster ID ${rosterId}` 
-        });
-      }
+      
+      setRosterStatus('Drafting');
+      showNotification({ type: 'alert', title: 'Success', message: 'Roster is now in Drafting mode.', theme: 'success' });
+      await logAction({ 
+        userId: adminId, 
+        details: `${adminName} closed preferences for Roster ID ${rosterId}` 
+      });
+      
     } catch (err) {
       showNotification({ type: 'alert', title: 'Error', message: 'Error updating status.', theme: 'danger' });
     }
@@ -448,19 +442,19 @@ function AdminRosterView({
   const executePublishRoster = async () => {
     closeNotification();
     try {
-      const res = await fetch('http://localhost:5000/api/rosters/update-status', {
+      // 12. UPDATED: Using fetchFromApi
+      await fetchFromApi('/api/rosters/update-status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rosterId, status: 'Published' })
       });
-      if (res.ok) {
-        setRosterStatus('Published');
-        showNotification({ type: 'alert', title: 'Success', message: 'Roster is now Published.', theme: 'success' });
-        await logAction({ 
-          userId: adminId, 
-          details: `${adminName} PUBLISHED Roster ID ${rosterId}` 
-        });
-      }
+      
+      setRosterStatus('Published');
+      showNotification({ type: 'alert', title: 'Success', message: 'Roster is now Published.', theme: 'success' });
+      await logAction({ 
+        userId: adminId, 
+        details: `${adminName} PUBLISHED Roster ID ${rosterId}` 
+      });
+      
     } catch (err) {
       showNotification({ type: 'alert', title: 'Error', message: 'Server connection error.', theme: 'danger' });
     }
@@ -474,26 +468,23 @@ function AdminRosterView({
     closeNotification();
     try {
       document.body.style.cursor = 'wait';
-      const res = await fetch('http://localhost:5000/api/rosters/auto-fill', {
+      // 13. UPDATED: Using fetchFromApi
+      const data = await fetchFromApi('/api/rosters/auto-fill', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rosterId, month, year })
       });
+      
       document.body.style.cursor = 'default';
-      if (res.ok) {
-        const data = await res.json();
-        setRefreshTrigger(prev => prev + 1);
-        await logAction({ 
-          userId: adminId, 
-          details: `${adminName} ran Auto-Fill for Roster ID ${rosterId}` 
-        });
-        showNotification({ type: 'alert', title: 'Auto-Fill Complete', message: data.message, theme: 'success' });
-      } else {
-        showNotification({ type: 'alert', title: 'Auto-Fill Failed', message: 'Check console for details.', theme: 'danger' });
-      }
+      setRefreshTrigger(prev => prev + 1);
+      await logAction({ 
+        userId: adminId, 
+        details: `${adminName} ran Auto-Fill for Roster ID ${rosterId}` 
+      });
+      showNotification({ type: 'alert', title: 'Auto-Fill Complete', message: data.message, theme: 'success' });
+      
     } catch(e) {
       document.body.style.cursor = 'default';
-      showNotification({ type: 'alert', title: 'Error', message: 'Error connecting to server.', theme: 'danger' });
+      showNotification({ type: 'alert', title: 'Auto-Fill Failed', message: 'Check console for details.', theme: 'danger' });
     }
   };
 

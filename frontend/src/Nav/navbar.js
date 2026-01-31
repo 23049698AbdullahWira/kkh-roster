@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+// 1. IMPORT CENTRALIZED CONFIG & HELPER
+import { API_BASE_URL, fetchFromApi } from '../services/api';
 
-// --- CONFIGURATION ---
-const API_BASE_URL = "http://localhost:5000";
 const DEFAULT_AVATAR = "https://i.pinimg.com/736x/9e/83/75/9e837528f01cf3f42119c5aeeed1b336.jpg";
 
 function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }) {
@@ -28,13 +28,14 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
     let clean = String(url).replace(/['"]+/g, '').trim().replace(/\\/g, '/');
     if (clean.startsWith('http') || clean.startsWith('blob:')) return clean;
     if (!clean.startsWith('/')) clean = `/${clean}`;
+    // Uses the imported API_BASE_URL
     return `${API_BASE_URL}${clean}`;
   };
 
   // --- STATE ---
   const initialData = getStoredData();
   
-  // 1. Time State (Updated to allow setting state)
+  // 1. Time State
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // 2. Navbar Display State
@@ -60,22 +61,21 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
 
   const dropdownRef = useRef(null);
 
-  // --- TIMER EFFECT (Updates Time Every Second) ---
+  // --- TIMER EFFECT ---
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentDate(new Date());
-    }, 1000); // Update every second so minutes change immediately
+    }, 1000); 
 
-    // Cleanup interval on unmount
     return () => clearInterval(timer);
   }, []);
 
   // --- LOGGING FUNCTION ---
   const logAction = async ({ userId, details }) => {
     try {
-      await fetch(`${API_BASE_URL}/action-logs`, {
+      // 2. UPDATED: Using fetchFromApi
+      await fetchFromApi('/action-logs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, details })
       });
       console.log("Action Logged:", details);
@@ -122,21 +122,19 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
     if (!userId) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/users/${userId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setProfileFormData({
-          fullName: data.fullName || '',
-          email: data.email || '',
-          phone: data.phone || '', 
-          avatar: data.avatar || '',
-          currentPassword: '',
-          newPassword: ''
-        });
-        if(data.phone) localStorage.setItem('phone', data.phone);
-      } else {
-        console.error("Failed to fetch user data");
-      }
+      // 3. UPDATED: Using fetchFromApi
+      const data = await fetchFromApi(`/users/${userId}`);
+      
+      setProfileFormData({
+        fullName: data.fullName || '',
+        email: data.email || '',
+        phone: data.phone || '', 
+        avatar: data.avatar || '',
+        currentPassword: '',
+        newPassword: ''
+      });
+      if(data.phone) localStorage.setItem('phone', data.phone);
+      
     } catch (error) {
       console.error("Network error fetching profile", error);
     }
@@ -159,15 +157,11 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
         avatar_url: profileFormData.avatar,
       };
 
-      const profileResponse = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      // 4. UPDATED: Using fetchFromApi (PUT)
+      await fetchFromApi(`/users/${userId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profilePayload)
       });
-
-      if (!profileResponse.ok) {
-        throw new Error("Failed to update profile details.");
-      }
 
       // 2. Update Password (POST) - Only if requested
       if (showPasswordChange) {
@@ -176,19 +170,14 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
            return;
         }
 
-        const passwordResponse = await fetch(`${API_BASE_URL}/users/${userId}/change-password`, {
+        // 5. UPDATED: Using fetchFromApi (POST)
+        await fetchFromApi(`/users/${userId}/change-password`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 currentPassword: profileFormData.currentPassword,
                 newPassword: profileFormData.newPassword
             })
         });
-
-        if (!passwordResponse.ok) {
-            const errData = await passwordResponse.json();
-            throw new Error(errData.message || "Failed to update password.");
-        }
       }
 
       // 3. LOG THE ACTION
@@ -218,18 +207,18 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
     const fetchUserData = async () => {
       if (!initialData.id) return;
       try {
-        const response = await fetch(`${API_BASE_URL}/users/${initialData.id}`);
-        if (response.ok) {
-          const userData = await response.json();
-          if (userData.fullName) {
+        // 6. UPDATED: Using fetchFromApi
+        const userData = await fetchFromApi(`/users/${initialData.id}`);
+        
+        if (userData.fullName) {
              setNavUserName(userData.fullName);
              localStorage.setItem('userName', userData.fullName);
-          }
-          if (userData.avatar) {
+        }
+        if (userData.avatar) {
              setNavAvatarUrl(userData.avatar);
              localStorage.setItem('avatar', userData.avatar);
-          }
         }
+        
       } catch (e) { console.error(e); }
     };
     fetchUserData();
@@ -260,7 +249,6 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
     transition: 'border-color 0.2s'
   });
 
-  // Check if current user is SUPERADMIN
   const isSuperAdmin = (initialData.role || '').toUpperCase() === 'SUPERADMIN';
 
   return (
@@ -296,7 +284,6 @@ function Navbar({ active, onGoHome, onGoRoster, onGoStaff, onGoShift, onLogout }
                 <div style={styles.dropdownMenu}>
                   <div style={styles.dropdownArrow}></div>
                   
-                  {/* RESTRICTION: Only show 'My Profile' & Separator if NOT SuperAdmin */}
                   {!isSuperAdmin && (
                     <>
                         <div style={styles.dropdownItem} onClick={(e) => { e.stopPropagation(); handleOpenProfile(); }}>

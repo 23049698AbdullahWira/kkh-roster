@@ -1,10 +1,8 @@
 // src/UserNavbar.js
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+// 1. IMPORT CENTRALIZED CONFIG & HELPER
+import { API_BASE_URL, fetchFromApi } from '../services/api';
 
-
-// --- CONFIGURATION ---
-const API_BASE_URL = "http://localhost:5000";
 const DEFAULT_AVATAR = "https://i.pinimg.com/736x/9e/83/75/9e837528f01cf3f42119c5aeeed1b336.jpg";
 
 function UserNavbar({
@@ -16,7 +14,6 @@ function UserNavbar({
   onGoApplyLeave,
   onGoAccount,
 }) {
-
 
   // --- HELPERS ---
   const getStoredData = () => {
@@ -39,6 +36,7 @@ function UserNavbar({
     clean = clean.replace(/\\/g, '/');
     if (clean.startsWith('http') || clean.startsWith('blob:')) return clean;
     if (!clean.startsWith('/')) clean = `/${clean}`;
+    // Uses the imported API_BASE_URL from services/api.js
     return `${API_BASE_URL}${clean}`;
   };
 
@@ -50,7 +48,7 @@ function UserNavbar({
   
   // UI States
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false); // New State
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false); 
   const dropdownRef = useRef(null);
 
   // --- LOGOUT LOGIC ---
@@ -82,24 +80,26 @@ function UserNavbar({
       if (!userId) return;
 
       try {
-        const response = await fetch(`${API_BASE_URL}/users/${userId}`);
-        if (response.ok) {
-          const userData = await response.json();
-          const newName = userData.fullName || userData.full_name;
-          if (newName) {
+        // 2. UPDATED: Using fetchFromApi
+        // fetchFromApi returns parsed JSON directly
+        const userData = await fetchFromApi(`/users/${userId}`);
+        
+        const newName = userData.fullName || userData.full_name;
+        if (newName) {
             setUserName(newName);
             localStorage.setItem('userName', newName);
-          }
-          const rawAvatar = userData.avatar || userData.avatar_url;
-          if (rawAvatar) {
+        }
+        
+        const rawAvatar = userData.avatar || userData.avatar_url;
+        if (rawAvatar) {
             const cleanAvatar = String(rawAvatar).replace(/['"]+/g, '').trim();
             setAvatarUrl(cleanAvatar);
             localStorage.setItem('avatar', cleanAvatar);
-          } else {
+        } else {
             setAvatarUrl(null);
             localStorage.removeItem('avatar');
-          }
         }
+        
       } catch (error) {
         console.error("[UserNavbar] Failed to sync user data:", error);
       }

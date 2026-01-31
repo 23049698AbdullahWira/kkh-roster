@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import Navbar from '../Nav/navbar.js';
 import './AdminHomePage.css'; // Import the external CSS
+// 1. Import centralized helper
+import { fetchFromApi } from '../services/api';
 
 function AdminHome({ user, onGoHome, onGoRoster, onGoStaff, onGoShift, onGoManageLeave, onLogout }) {
   const goRoster = onGoRoster;
@@ -27,25 +29,20 @@ function AdminHome({ user, onGoHome, onGoRoster, onGoStaff, onGoShift, onGoManag
   useEffect(() => {
     async function fetchAll() {
       try {
-        const [logsRes, leaveRes, prefRes, rosterRes] = await Promise.all([
-          fetch('http://localhost:5000/actionlogs?limit=100'), // Fetch more for the modal
-          fetch('http://localhost:5000/api/leave/pending-count'),
-          fetch('http://localhost:5000/api/shiftpref/pending-count'),
-          fetch('http://localhost:5000/api/rosters/next'),
-        ]);
-
-        const [logsData, leaveData, prefData] = await Promise.all([
-          logsRes.json(),
-          leaveRes.json(),
-          prefRes.json(),
+        // 2. UPDATED: Using fetchFromApi for all dashboard calls
+        // fetchFromApi returns the parsed data directly.
+        const [logsData, leaveData, prefData, rosterData] = await Promise.all([
+          fetchFromApi('/actionlogs?limit=100'), // Fetch more for the modal
+          fetchFromApi('/api/leave/pending-count'),
+          fetchFromApi('/api/shiftpref/pending-count'),
+          fetchFromApi('/api/rosters/next').catch(() => null), // Handle roster 404 gracefully
         ]);
 
         setLogs(logsData || []);
         setPendingLeaveCount(leaveData?.pendingCount ?? 0);
         setPendingPrefCount(prefData?.pendingCount ?? 0);
 
-        if (rosterRes.ok) {
-          const rosterData = await rosterRes.json();
+        if (rosterData) {
           setNextRosterLabel(`${rosterData.month} ${rosterData.year}`);
           setNextRosterStatus(rosterData.status || 'Unknown');
         } else {

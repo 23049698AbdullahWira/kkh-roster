@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react'; // Added useRef
+import React, { useState, useEffect, useMemo, useRef } from 'react'; 
 import UserNavbar from '../Nav/UserNavbar.js';
 import './UserRoster.css';
+// 1. Import centralized helper
+import { fetchFromApi } from '../services/api';
 
+const SERVICE_PRIORITY = ['Acute', 'CE', 'Onco', 'PAS', 'PAME', 'Neonates'];
 function UserRoster({ 
   onBack, 
   onGoHome, 
@@ -34,7 +37,7 @@ function UserRoster({
   const [wardOptions, setWardOptions] = useState([]);
   const [shiftOptions, setShiftOptions] = useState([]);
 
-  // ... [INITIAL FETCH useEffect remains the same] ...
+  // ... [INITIAL FETCH useEffect] ...
   useEffect(() => {
     const initData = async () => {
       try {
@@ -47,17 +50,14 @@ function UserRoster({
             } catch (e) { console.error("Failed to parse user", e); }
         }
         
-        const [rosterRes, wardRes, typeRes, myShiftRes] = await Promise.all([
-            fetch('http://localhost:5000/api/rosters'),
-            fetch('http://localhost:5000/api/wards'),
-            fetch('http://localhost:5000/api/shift-types'),
-            fetch(`http://localhost:5000/api/users/${currentUserId}/shifts`) 
+        // 2. UPDATED: Removed .json() calls. 
+        // fetchFromApi returns the data directly.
+        const [rosterData, wardData, typeData, myShiftData] = await Promise.all([
+            fetchFromApi('/api/rosters'),
+            fetchFromApi('/api/wards'),
+            fetchFromApi('/api/shift-types'),
+            fetchFromApi(`/api/users/${currentUserId}/shifts`) 
         ]);
-
-        const rosterData = await rosterRes.json();
-        const wardData = await wardRes.json();
-        const typeData = await typeRes.json();
-        const myShiftData = await myShiftRes.json();
 
         setWardOptions(wardData);
         setShiftOptions(typeData);
@@ -98,7 +98,7 @@ function UserRoster({
     initData();
   }, []);
 
-  // ... [FETCH ROSTER DETAILS useEffect remains the same] ...
+  // ... [FETCH ROSTER DETAILS useEffect] ...
   useEffect(() => {
     if (!selectedRoster) return;
     const activeId = selectedRoster.roster_id || selectedRoster.id;
@@ -119,13 +119,11 @@ function UserRoster({
         }
         setDays(tempDays);
 
-        const [userRes, shiftRes] = await Promise.all([
-          fetch('http://localhost:5000/users'),
-          fetch(`http://localhost:5000/api/shifts/${activeId}`)
+        // 3. UPDATED: Removed .json() calls.
+        const [userData, shiftData] = await Promise.all([
+          fetchFromApi('/users'),
+          fetchFromApi(`/api/shifts/${activeId}`)
         ]);
-
-        const userData = await userRes.json();
-        const shiftData = await shiftRes.json();
 
         setStaffList(userData.filter(u => u.role === 'APN' && u.status === 'Active'));
         setShifts(shiftData);
@@ -241,7 +239,6 @@ function UserRoster({
   }, [filterYear, showRosterSelector, uniqueYears]); // Re-run when modal opens or year changes
 
   // --- 5. GROUPING LOGIC ---
-  const SERVICE_PRIORITY = ['Acute', 'CE', 'Onco', 'PAS', 'PAME', 'Neonates'];
   const groupedStaff = useMemo(() => {
     const groups = {};
     SERVICE_PRIORITY.forEach(s => groups[s] = []);

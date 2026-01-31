@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import UserNavbar from '../Nav/UserNavbar.js';
-import './UserShiftPref.css'; 
+import './UserShiftPref.css';
+// 1. Import centralized helper
+import { fetchFromApi } from '../services/api'; 
 
 // --- CONFIGURATION: Service to Shift Mapping ---
 const SERVICE_SHIFTS_CONFIG = {
@@ -46,9 +48,9 @@ function UserShiftPref({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLea
   const logAction = async ({ userId, details }) => {
     try {
       if (!userId) return;
-      await fetch('http://localhost:5000/action-logs', {
+      // 2. UPDATED: Removed headers (api.js handles Content-Type)
+      await fetchFromApi('/action-logs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, details })
       });
     } catch (err) { console.error('Logging failed:', err); }
@@ -56,8 +58,8 @@ function UserShiftPref({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLea
 
   const fetchPreferences = useCallback((userId) => {
     setLoading(true);
-    fetch(`http://localhost:5000/api/get-shift-preferences/${userId}`)
-      .then((res) => res.json())
+    // 3. UPDATED: Removed .json() chain
+    fetchFromApi(`/api/get-shift-preferences/${userId}`)
       .then((data) => {
         const formattedData = data.map((item) => ({
           ...item,
@@ -85,8 +87,8 @@ function UserShiftPref({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLea
     const year = dateObj.getFullYear();
 
     try {
-      const response = await fetch(`http://localhost:5000/api/get-roster-status?month=${month}&year=${year}`);
-      const data = await response.json();
+      // 4. UPDATED: Removed .json() call
+      const data = await fetchFromApi(`/api/get-roster-status?month=${month}&year=${year}`);
       setModalRosterStatus(data.status || "No Roster Created");
       setIsModalDateValid(data.status === 'Preference Open');
     } catch (error) {
@@ -117,13 +119,16 @@ function UserShiftPref({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLea
   const executeDelete = async () => {
     if (!prefToDelete) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/delete-shift-preference/${prefToDelete}`, { method: 'DELETE' });
-      if (response.ok) {
-        await logAction({ userId: currentUser.userId, details: `APN ${currentUser.fullName} deleted shift preference request.` });
-        fetchPreferences(currentUser.userId);
-        setShowDeleteConfirm(false);
-        setShowModal(false);
-      }
+      // 5. UPDATED: Removed response.ok check
+      // fetchFromApi throws an error if the status is not 200-299.
+      // If we reach the next line, it means it was successful.
+      await fetchFromApi(`/api/delete-shift-preference/${prefToDelete}`, { method: 'DELETE' });
+      
+      await logAction({ userId: currentUser.userId, details: `APN ${currentUser.fullName} deleted shift preference request.` });
+      fetchPreferences(currentUser.userId);
+      setShowDeleteConfirm(false);
+      setShowModal(false);
+      
     } catch (error) { console.error(error); }
   };
 
@@ -164,8 +169,8 @@ function UserShiftPref({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLea
     const finalShiftCode = formData.shift_code || allowedShifts[0];
 
     const endpoint = modalMode === 'create' 
-      ? 'http://localhost:5000/api/add-shift-preference'
-      : `http://localhost:5000/api/update-shift-preference/${selectedPrefId}`;
+      ? '/api/add-shift-preference'
+      : `/api/update-shift-preference/${selectedPrefId}`;
     
     const method = modalMode === 'create' ? 'POST' : 'PUT';
     const body = modalMode === 'create' 
@@ -173,19 +178,19 @@ function UserShiftPref({ onGoHome, onGoRoster, onGoShiftPreference, onGoApplyLea
       : { date: formData.date, shift_code: finalShiftCode, remarks: formData.remarks };
 
     try {
-      const response = await fetch(endpoint, {
+      await fetchFromApi(endpoint, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (response.ok) {
-        await logAction({ 
-          userId: currentUser.userId, 
-          details: `APN ${currentUser.fullName} ${modalMode === 'create' ? 'created' : 'updated'} preference for ${formData.date}.` 
-        });
-        setShowModal(false);
-        fetchPreferences(currentUser.userId);
-      }
+
+      // If we are here, request was successful
+      await logAction({ 
+        userId: currentUser.userId, 
+        details: `APN ${currentUser.fullName} ${modalMode === 'create' ? 'created' : 'updated'} preference for ${formData.date}.` 
+      });
+      setShowModal(false);
+      fetchPreferences(currentUser.userId);
+      
     } catch (error) { console.error(error); }
   };
 

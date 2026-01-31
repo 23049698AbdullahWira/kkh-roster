@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import './AdminNewRoster.css'; // Import the external CSS
+import './AdminNewRoster.css'; 
+// 1. Import centralized helper
+import { fetchFromApi } from '../services/api';
 
 function AdminNewRoster({ open, onConfirm, onCancel }) {
   const [month, setMonth] = useState('');
@@ -34,9 +36,10 @@ function AdminNewRoster({ open, onConfirm, onCancel }) {
     const finalTitle = `${month} ${year} Roster`;
 
     try {
-      const response = await fetch('http://localhost:5000/api/rosters', {
+      // 2. UPDATED: Using fetchFromApi (POST)
+      // No need to manually check response.ok or parse .json()
+      await fetchFromApi('/api/rosters', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: finalTitle, // Uses the auto-generated title
           month: month,
@@ -46,19 +49,15 @@ function AdminNewRoster({ open, onConfirm, onCancel }) {
         }),
       });
 
-      if (response.ok) {
-        setIsSubmitting(false);
-        setMonth('');
-        setYear('');
-        if (onConfirm) onConfirm();
-      } else {
-        const errData = await response.json();
-        setError(errData.message || 'Failed to create roster');
-        setIsSubmitting(false);
-      }
+      // If we reach here, it was successful
+      setIsSubmitting(false);
+      setMonth('');
+      setYear('');
+      if (onConfirm) onConfirm();
+
     } catch (err) {
       console.error(err);
-      setError('Server connection error.');
+      setError(err.message || 'Failed to create roster');
       setIsSubmitting(false);
     }
   };
