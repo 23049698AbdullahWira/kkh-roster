@@ -113,6 +113,7 @@ function App() {
               setRosterYear(year);
               navigate('/admin/rosters/view');
             }}
+            loggedInUser={loggedInUser}
           />
         }
       />
@@ -124,6 +125,7 @@ function App() {
       rosterId={rosterId}
       month={rosterMonth}
       year={rosterYear}
+      loggedInUser={loggedInUser}
       onBack={() => navigate('/admin/rosters')}
     />
   }

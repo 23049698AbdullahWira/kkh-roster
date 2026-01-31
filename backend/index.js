@@ -413,6 +413,16 @@ app.post('/api/rosters/update-status', async (req, res) => {
 
     await pool.query(sql, [status, rosterId]);
 
+    if (status === 'Drafting') {
+      const rejectSql = `
+        UPDATE shiftpref 
+        SET status = 'Denied', 
+            remarks = CONCAT(IFNULL(remarks, ''), ' [System: Auto-rejected on close]') 
+        WHERE roster_id = ? AND status = 'Pending'
+      `;
+      await pool.query(rejectSql, [rosterId]);
+    }
+
     res.json({ success: true, status });
   } catch (err) {
     console.error("Error updating status:", err);
@@ -438,7 +448,7 @@ app.get('/api/rosters/:id', async (req, res) => {
 // UPDATE User (PUT /users/:id)
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
-  const { full_name, email, role, status, password, avatar_url, contact, service } = req.body; // Added service
+  const { full_name, email, role, status, password, avatar_url, contact, service, ward_id } = req.body; // Added service
 
   try {
     const [check] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
@@ -456,6 +466,11 @@ app.put('/users/:id', async (req, res) => {
     if (avatar_url !== undefined) { fields.push('avatar_url = ?'); params.push(avatar_url); }
     if (contact !== undefined) { fields.push('contact = ?'); params.push(contact); }
     if (service !== undefined) { fields.push('service = ?'); params.push(service); } // Add service update
+
+    if (ward_id !== undefined) { 
+        fields.push('ward_id = ?'); 
+        params.push(ward_id === "" ? null : ward_id); // Handle empty string as NULL
+    }
 
     if (password && password.trim() !== "") {
       fields.push('password = ?');
@@ -1126,6 +1141,7 @@ app.delete('/api/rosters/:id', async (req, res) => {
   await connection.beginTransaction();
 
   try {
+    await connection.query('DELETE FROM shiftpref WHERE roster_id = ?', [rosterId]);
     await connection.query('DELETE FROM shifts WHERE roster_id = ?', [rosterId]);
     const [result] = await connection.query('DELETE FROM rosters WHERE roster_id = ?', [rosterId]);
 
@@ -1408,6 +1424,50 @@ app.delete('/api/delete-shift-preference/:id', async (req, res) => {
   } catch (err) {
     console.error("Database Error deleting preference:", err);
     res.status(500).json({ error: err.sqlMessage || err.message || "Database error" });
+  }
+});
+
+// --- GET ALL PREFERENCES FOR A SPECIFIC ROSTER (For Admin View) ---
+app.get('/api/preferences/:rosterId', async (req, res) => {
+  const { rosterId } = req.params;
+  
+  try {
+    const query = `
+      SELECT 
+        sp.shiftPref_id,
+        sp.date AS shift_date,
+        sp.remarks AS reason,
+        sp.status,
+        sp.user_id,
+        sp.shift_type_id,
+        u.full_name,
+        sd.shift_code
+      FROM shiftpref sp
+      JOIN users u ON sp.user_id = u.user_id
+      JOIN shift_desc sd ON sp.shift_type_id = sd.shift_type_id
+      WHERE sp.roster_id = ? AND sp.status = 'Pending'
+      ORDER BY sp.date ASC
+    `;
+
+    const [rows] = await pool.query(query, [rosterId]);
+    
+    // Send the data back to the frontend
+    res.json(rows);
+
+  } catch (err) {
+    console.error("Error fetching roster preferences:", err);
+    res.status(500).json({ error: "Failed to fetch preferences" });
+  }
+});
+
+// Add to your index.js
+app.post('/api/preferences/update-status', async (req, res) => {
+  const { prefId, status } = req.body;
+  try {
+    await pool.query('UPDATE shiftpref SET status = ? WHERE shiftPref_id = ?', [status, prefId]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: "Update failed" });
   }
 });
 
