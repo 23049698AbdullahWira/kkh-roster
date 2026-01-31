@@ -1,0 +1,454 @@
+/* --- Layout & Main Container --- */
+.admin-staffmanagement-container {
+  width: 100%;
+  min-height: 100vh;
+  background-color: #f8f9fa;
+  font-family: 'Inter', sans-serif;
+}
+
+.admin-staffmanagement-content {
+  max-width: 1200px;
+  margin: 24px auto 40px;
+  padding: 0 32px;
+  box-sizing: border-box;
+}
+
+/* --- Header Section --- */
+.admin-staffmanagement-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.admin-staffmanagement-title {
+  font-size: 24px;
+  font-weight: 900;
+  margin: 0;
+  color: #111827;
+}
+
+.admin-staffmanagement-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* --- Buttons --- */
+.admin-staffmanagement-btn-primary {
+  padding: 10px 24px;
+  background-color: #5091cd;
+  border-radius: 68px;
+  border: none;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.admin-staffmanagement-btn-primary:disabled {
+  background-color: #a9c3e0;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.admin-staffmanagement-btn-icon {
+  width: 32px;
+  height: 32px;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.admin-staffmanagement-btn-icon:hover {
+  background-color: #e5e7eb;
+}
+
+/* --- Filter Card --- */
+.admin-staffmanagement-filter-card {
+  background: white;
+  border: 1px solid #e6e6e6;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+/* --- Filter Card Pills (Animated) --- */
+.admin-staffmanagement-filter-pills-row {
+  margin-bottom: 20px;
+}
+
+.admin-staffmanagement-pill-group {
+  display: inline-flex;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+  /* Required for the sliding glider */
+  position: relative;
+  isolation: isolate;
+}
+
+/* THE SLIDING GLIDER */
+.admin-staffmanagement-pill-glider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  background-color: #111827; /* The "Black Pill" color */
+  border-radius: 999px;
+  z-index: 1; /* Sits BEHIND the text */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Smooth slide */
+}
+
+.admin-staffmanagement-pill-btn {
+  /* Added positioning so text sits on top of glider */
+  position: relative;
+  z-index: 2;
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.admin-staffmanagement-pill-btn:hover:not(.active) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.admin-staffmanagement-pill-btn.active {
+  /* Background is now handled by the glider */
+  background: transparent; 
+  color: white;
+}
+
+.admin-staffmanagement-filter-controls-row {
+  border-top: 1px solid #e5e7eb;
+  padding-top: 20px;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.admin-staffmanagement-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-staffmanagement-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-staffmanagement-filter-select {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: white;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  min-width: 160px;
+  outline: none;
+  cursor: pointer;
+}
+
+/* --- Table Styles --- */
+.admin-staffmanagement-table-card {
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e6e6e6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+/* Shared Grid Layout */
+.admin-staffmanagement-grid-layout {
+  display: grid;
+  grid-template-columns: 0.8fr 1.3fr 1fr 1.2fr 1.8fr 0.8fr 0.8fr;
+  align-items: center;
+  padding: 0 16px;
+}
+
+.admin-staffmanagement-table-header {
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background: white;
+  border-bottom: 1px solid #e6e6e6;
+  font-weight: 600;
+  font-size: 16px;
+  color: #374151;
+}
+
+.admin-staffmanagement-table-row {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-top: 1px solid #e6e6e6;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.admin-staffmanagement-table-row:first-of-type {
+  border-top: none;
+}
+
+.admin-staffmanagement-service-badge {
+  padding: 2px 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-staffmanagement-table-cell-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 10px;
+}
+
+.admin-staffmanagement-action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-staffmanagement-loading-state,
+.admin-staffmanagement-empty-state {
+  padding: 40px;
+  text-align: center;
+  color: #6b7280;
+}
+
+/* --- Pagination --- */
+.admin-staffmanagement-pagination-container {
+  width: 100%;
+  display: flex;
+  justify-content: center; /* Centered as requested */
+  align-items: center;
+  padding: 12px 16px;
+  border-top: 1px solid #e6e6e6;
+  background: white;
+  box-sizing: border-box;
+}
+
+.admin-staffmanagement-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-staffmanagement-btn-pagination {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  color: #374151;
+  font-size: 18px;
+  line-height: 1;
+  transition: all 0.2s;
+  outline: none;
+  cursor: pointer;
+}
+
+.admin-staffmanagement-btn-pagination:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.admin-staffmanagement-pagination-text {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 12px;
+  font-weight: 500;
+}
+
+/* --- Modals --- */
+.admin-staffmanagement-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.admin-staffmanagement-modal-content {
+  background: white;
+  padding: 32px;
+  border-radius: 16px;
+  width: 520px;
+  max-width: 90vw;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.admin-staffmanagement-modal-content.admin-staffmanagement-create-mode {
+    background: white;
+    width: 520px;
+    max-width: 90vw;
+    padding: 32px;
+}
+
+.admin-staffmanagement-modal-title {
+  margin: 0 0 24px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.admin-staffmanagement-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-staffmanagement-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.admin-staffmanagement-input-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.admin-staffmanagement-form-control {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.admin-staffmanagement-form-control:focus {
+  border-color: #2563eb;
+}
+
+.admin-staffmanagement-modal-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 32px;
+}
+
+.admin-staffmanagement-modal-actions-right {
+  display: flex;
+  gap: 12px;
+}
+
+/* Modal Buttons */
+.admin-staffmanagement-btn-save {
+  padding: 10px 20px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.admin-staffmanagement-btn-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.admin-staffmanagement-btn-cancel {
+  padding: 10px 20px;
+  background: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.admin-staffmanagement-btn-delete {
+  padding: 10px 20px;
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* --- Text Utilities --- */
+.admin-staffmanagement-text-medium {
+  font-weight: 500;
+}
+
+.admin-staffmanagement-text-danger {
+  color: #DC2626;
+  font-weight: 600;
+}
+
+.admin-staffmanagement-text-muted {
+  margin: 0 0 24px 0;
+  font-size: 15px;
+  color: #6B7280;
+}
+
+/* --- Specific Modal Overrides --- */
+
+/* For the Delete Confirmation Modal */
+.admin-staffmanagement-modal-content.admin-staffmanagement-delete-mode {
+  width: 400px;
+  text-align: center;
+  padding: 40px;
+}
+
+/* Align buttons to the right (used in Create Modal) */
+.admin-staffmanagement-modal-actions.admin-staffmanagement-align-right {
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Center buttons (used in Delete Modal) */
+.admin-staffmanagement-modal-actions.admin-staffmanagement-align-center {
+  justify-content: center;
+  gap: 12px;
+}
+
+/* Fixed width for Yes/No buttons */
+.admin-staffmanagement-btn-fixed {
+  width: 100px;
+}

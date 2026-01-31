@@ -1,0 +1,337 @@
+/* --- Layout --- */
+.admin-shift-dist-container {
+  width: 100%;
+  min-height: 100vh;
+  background-color: #F8F9FA;
+  font-family: 'Inter', sans-serif;
+}
+
+.admin-shift-dist-main {
+  max-width: 1200px;
+  margin: 24px auto 40px;
+  padding: 0 32px;
+  box-sizing: border-box;
+}
+
+/* --- Header --- */
+.admin-shift-dist-title {
+  font-size: 24px;
+  font-weight: 900;
+  margin-bottom: 8px;
+  color: #111827;
+}
+
+.admin-shift-dist-subtitle {
+  font-size: 14px;
+  color: #6B7280;
+  margin-bottom: 24px;
+}
+
+/* --- Controls Card --- */
+.admin-shift-dist-controls-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px 32px;
+  margin-bottom: 32px;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+  border: 1px solid #F3F4F6;
+}
+
+/* --- Time Frame Pills (Animated) --- */
+.admin-shift-dist-toggle-row {
+  margin-bottom: 24px;
+  border-bottom: 1px solid #E5E7EB;
+  padding-bottom: 24px;
+}
+
+.admin-shift-dist-pill-group {
+  display: inline-flex;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+  /* Required for glider positioning */
+  position: relative;
+  isolation: isolate;
+}
+
+/* The Sliding Glider */
+.admin-shift-dist-pill-glider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  background-color: #111827; /* Black background */
+  border-radius: 999px;
+  z-index: 1; /* Behind text */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.admin-shift-dist-pill-btn {
+  position: relative;
+  z-index: 2; /* Above glider */
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.admin-shift-dist-pill-btn:hover:not(.active) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.admin-shift-dist-pill-btn.active {
+  color: white; /* Text turns white */
+}
+
+/* Filters Row */
+.admin-shift-dist-filters-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+}
+
+.admin-shift-dist-filters-left {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+/* Filter Group Styles */
+.admin-shift-dist-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-shift-dist-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6B7280;
+  text-transform: uppercase;
+}
+
+.admin-shift-dist-select-wrapper {
+  position: relative;
+}
+
+.admin-shift-dist-select {
+  padding: 10px 32px 10px 12px;
+  background: #F9FAFB;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  font-size: 14px;
+  min-width: 140px;
+  cursor: pointer;
+  appearance: none;
+  color: #1F2937;
+}
+
+.admin-shift-dist-chevron {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: #6B7280;
+  pointer-events: none;
+}
+
+/* Specialized Selects */
+.admin-shift-dist-select.shift-type {
+  border-color: #FCD34D;
+  background-color: #FFFBEB;
+  color: #92400E;
+}
+
+.admin-shift-dist-select.service {
+  border-color: #BFDBFE;
+  background-color: #EFF6FF;
+  color: #1E40AF;
+}
+
+/* Target Input */
+.admin-shift-dist-input-container {
+  display: flex;
+  align-items: center;
+  background: #F9FAFB;
+  border-radius: 8px;
+  border: 1px solid #D1D5DB;
+  padding: 0 12px;
+  height: 40px; 
+}
+
+.admin-shift-dist-input {
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  color: #2563EB;
+  width: 40px;
+  text-align: center;
+  outline: none;
+}
+
+.admin-shift-dist-suffix {
+  font-size: 14px;
+  color: #9CA3AF;
+}
+
+/* Metrics Section */
+.admin-shift-dist-metrics {
+  display: flex;
+  gap: 40px;
+  padding-left: 40px;
+  border-left: 2px solid #F3F4F6;
+}
+
+.admin-shift-dist-metric-box {
+  text-align: right;
+}
+
+.admin-shift-dist-metric-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #9CA3AF;
+  font-weight: 700;
+}
+
+.admin-shift-dist-metric-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.admin-shift-dist-metric-value.unbalanced {
+  color: #DC2626;
+}
+
+.admin-shift-dist-metric-value.balanced {
+  color: #16A34A;
+}
+
+/* --- Data Table --- */
+.admin-shift-dist-table-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.admin-shift-dist-grid-header {
+  display: grid;
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.admin-shift-dist-header-cell {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #6B7280;
+}
+
+.admin-shift-dist-loading,
+.admin-shift-dist-empty {
+  padding: 60px;
+  text-align: center;
+  color: #6B7280;
+}
+
+/* Table Row */
+.admin-shift-dist-row {
+  display: grid;
+  padding: 16px 24px;
+  align-items: center;
+  background-color: white;
+  border-top: 1px solid #E5E7EB;
+}
+
+.admin-shift-dist-row:first-child {
+  border-top: none;
+}
+
+.admin-shift-dist-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.admin-shift-dist-role {
+  font-size: 12px;
+  color: #6B7280;
+}
+
+.admin-shift-dist-cell-val {
+  font-size: 14px;
+  color: #4B5563;
+}
+
+.admin-shift-dist-cell-total {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Status Badge */
+.admin-shift-dist-status-badge {
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* --- Pagination --- */
+.admin-shift-dist-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border-top: 1px solid #E6E6E6;
+  background: white;
+}
+
+.admin-shift-dist-pagination-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.admin-shift-dist-page-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 18px; /* Matched size */
+  line-height: 1;
+}
+
+.admin-shift-dist-page-btn:hover:not(:disabled) {
+  background-color: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+.admin-shift-dist-page-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.admin-shift-dist-page-text {
+  font-size: 13px;
+  color: #6B7280;
+  margin: 0 12px;
+  font-weight: 500;
+}

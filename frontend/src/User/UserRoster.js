@@ -191,6 +191,31 @@ function UserRoster({
     }
   };
 
+  // --- RESTORED: CALCULATE "MY SHIFT TODAY" ---
+  const myTodayShift = useMemo(() => {
+    if (!todayShiftData || todayShiftData.length === 0) {
+        return { code: 'OFF', color: '#F3F4F6', ward: 'No Shift', desc: 'Rest Day' };
+    }
+
+    const localDate = new Date().toLocaleDateString('en-CA'); 
+    const upcomingShift = todayShiftData[0];
+    const apiDate = upcomingShift.shift_date.split('T')[0];
+
+    if (apiDate === localDate) {
+        return {
+            code: upcomingShift.shift_code,
+            color: upcomingShift.shift_color_hex,
+            ward: upcomingShift.ward_name 
+                ? `${upcomingShift.ward_comments || ''} (${upcomingShift.ward_name})` 
+                : 'Not Assigned',
+            desc: getShiftTypeDetails(upcomingShift.shift_code)
+        };
+    }
+
+    return { code: 'OFF', color: '#F3F4F6', ward: 'No Shift', desc: 'Rest Day' };
+
+  }, [todayShiftData, shiftOptions]);
+
   // --- 4. UNIQUE YEARS CALCULATION & SLIDER LOGIC ---
   const uniqueYears = useMemo(() => {
     const years = availableRosters.map(r => r.year);
@@ -269,6 +294,37 @@ function UserRoster({
             {selectedRoster && (
                 <div className="user-userroster-status-line">
                     STATUS: <span className={`user-userroster-status-value ${selectedRoster.status === 'Published' || selectedRoster.status === 'Preference Open' ? 'user-userroster-status-published' : 'user-userroster-status-draft'}`}>{selectedRoster.status.toUpperCase()}</span>
+                </div>
+            )}
+          </div>
+
+          {/* RIGHT: RESTORED MY SHIFT CARD */}
+          <div className="user-userroster-myshift-container">
+            {myTodayShift && (
+                <div className="user-userroster-myshift-card">
+                    <div 
+                      className="user-userroster-myshift-colorbox"
+                      style={{ 
+                        background: myTodayShift.color, 
+                        color: getContrastTextColor(myTodayShift.color)
+                      }}
+                    >
+                        {myTodayShift.code}
+                    </div>
+
+                    <div className="user-userroster-myshift-text">
+                        <div className="user-userroster-myshift-label">
+                            TODAY
+                        </div>
+                        <div 
+                            className="user-userroster-myshift-value"
+                            title={myTodayShift.ward !== 'Not Assigned' ? myTodayShift.ward : myTodayShift.desc}
+                        >
+                            {myTodayShift.ward !== 'Not Assigned' && myTodayShift.ward !== 'No Shift' 
+                                ? myTodayShift.ward 
+                                : myTodayShift.desc}
+                        </div>
+                    </div>
                 </div>
             )}
           </div>
