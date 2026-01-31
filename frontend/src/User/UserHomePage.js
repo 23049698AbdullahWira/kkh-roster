@@ -1,6 +1,5 @@
 // src/UserHomePage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import UserNavbar from '../Nav/UserNavbar.js';
 
 // --- CALENDAR IMPORTS ---
@@ -51,13 +50,13 @@ const CustomToolbar = (toolbar) => {
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   return (
-    <div className="rbc-toolbar">
+    <div className="user-userhomepage-toolbar">
       {/* Used unicode single angle quote for a cleaner centered look in the circle button */}
-      <button onClick={goToBack}>&#8249;</button>
+      <button className="user-userhomepage-toolbar-nav-btn" onClick={goToBack}>&#8249;</button>
 
       {/* Conditionally render dropdown or plain label */}
       {publishedRosters.length > 0 ? (
-        <select value={currentRosterValue} onChange={handleRosterChange}>
+        <select className="user-userhomepage-toolbar-select" value={currentRosterValue} onChange={handleRosterChange}>
           {publishedRosters.map(roster => {
             const rosterValue = `${roster.year}-${roster.month}`;
             const rosterLabel = `${monthNames[roster.month - 1]} ${roster.year}`;
@@ -69,11 +68,10 @@ const CustomToolbar = (toolbar) => {
           })}
         </select>
       ) : (
-        // Fallback if no rosters are loaded or API fails
-        <span className="rbc-toolbar-label">{toolbar.label}</span>
+        <span className="user-userhomepage-toolbar-label">{toolbar.label}</span>
       )}
 
-      <button onClick={goToNext}>&#8250;</button>
+      <button className="user-userhomepage-toolbar-nav-btn" onClick={goToNext}>&#8250;</button>
     </div>
   );
 };
@@ -103,17 +101,17 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       const isToday = dateKey === moment().format('YYYY-MM-DD');
 
       return React.cloneElement(React.Children.only(children), {
-        className: `${children.props.className} custom-date-cell-container`,
+        className: `${children.props.className} user-userhomepage-date-cell-container`,
         children: (
-          <div className={`custom-date-cell ${isToday ? 'today' : ''}`}>
-            <div className="date-number">
+          <div className={`user-userhomepage-date-cell ${isToday ? 'user-userhomepage-date-cell-today' : ''}`}>
+            <div className="user-userhomepage-date-number">
               {moment(value).format('D')}
             </div>
-            <div className="event-dots-container">
+            <div className="user-userhomepage-event-dots-container">
               {dayEvents.map(event => (
                 <div
                   key={event.id}
-                  className="event-dot"
+                  className="user-userhomepage-event-dot"
                   style={{ backgroundColor: event.resource.shift_color_hex || '#3174ad' }}
                 ></div>
               ))}
@@ -190,16 +188,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
 
   // --- Main Render Function ---
   return (
-    <div
-      style={{
-        width: '100%',
-        minHeight: '100vh',
-        background: '#EDF0F5',
-        overflowX: 'hidden',
-        overflowY: 'auto',
-        fontFamily: 'Inter, sans-serif',
-      }}
-    >
+    <div className="user-userhomepage-container">
       <UserNavbar
         active="home"
         onLogout={onLogout}
@@ -210,70 +199,31 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
         onGoAccount={onGoAccount}
       />
 
-
-
-      <main
-        style={{
-          maxWidth: 1200,
-          margin: '24px auto 40px',
-          padding: '0 32px',
-          boxSizing: 'border-box',
-        }}
-      >
-        <div
-          style={{
-            color: 'black',
-            fontSize: 22,
-            fontWeight: 900,
-            marginBottom: 16,
-          }}
-        >
+      <main className="user-userhomepage-main">
+        <div className="user-userhomepage-welcome-title">
           Welcome back, {user?.fullName || 'User'}!
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1.4fr)',
-            gap: 24,
-          }}
-        >
+        <div className="user-userhomepage-grid">
           {/* LEFT COLUMN */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="user-userhomepage-column">
             {/* TODAY FOR YOU SECTION */}
-            <section
-              style={{
-                background: 'white',
-                borderRadius: 10,
-                padding: 18,
-                boxSizing: 'border-box',
-                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              {/* INCREASED FONT SIZE FOR HEADER */}
-              <h2 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 12px 0' }}>Today For You</h2>
-              <div
-                style={{
-                  padding: '13px 24px',
-                  position: 'relative',
-                  background: '#EDF0F5',
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  minHeight: '150px'
-                }}
-              >
+            <section className="user-userhomepage-card">
+              <h2 className="user-userhomepage-card-title user-userhomepage-title-large">Today For You</h2>
+              <div className="user-userhomepage-shift-box user-userhomepage-shift-box-today">
                 {isLoading ? (
                   <div>Loading...</div>
                 ) : todayShift ? (
                   <>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {/* INCREASED FONT SIZES FOR CONTENT */}
-                      <div style={{ color: 'black', fontSize: 20, fontWeight: 700 }}>{moment(todayShift.shift_date).format('DD MMMM YYYY')}</div>
-                      <div style={{ color: 'black', fontSize: 20, fontWeight: 700 }}>{todayShift.shift_code} - {todayShift.ward_name}</div>
-                      <div style={{ color: 'black', fontSize: 18, fontWeight: 400 }}>You have been assigned to {todayShift.ward_comments || todayShift.ward_name} for {todayShift.shift_code} shift.</div>
+                    <div className="user-userhomepage-shift-content">
+                      <div className="user-userhomepage-shift-text-large">{moment(todayShift.shift_date).format('DD MMMM YYYY')}</div>
+                      <div className="user-userhomepage-shift-text-large">{todayShift.shift_code} - {todayShift.ward_name}</div>
+                      <div className="user-userhomepage-shift-text-medium">You have been assigned to {todayShift.ward_comments || todayShift.ward_name} for {todayShift.shift_code} shift.</div>
                     </div>
-                    <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 10, background: todayShift.shift_color_hex || '#0EA5E9', borderTopRightRadius: 8, borderBottomRightRadius: 8 }} />
+                    <div 
+                        className="user-userhomepage-shift-strip" 
+                        style={{ background: todayShift.shift_color_hex || '#0EA5E9' }} 
+                    />
                   </>
                 ) : (
                   <div>You are off today.</div>
@@ -282,84 +232,61 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
             </section>
 
             {/* MY NEXT 7 SHIFTS SECTION */}
-            <section
-              style={{
-                background: 'white',
-                borderRadius: 10,
-                padding: 18,
-                boxSizing: 'border-box',
-                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              <h2 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 12px 0' }}>My Next 7 Scheduled Shifts</h2>
+            <section className="user-userhomepage-card">
+              <h2 className="user-userhomepage-card-title">My Next 7 Scheduled Shifts</h2>
 
-              {/* SCROLLABLE CONTAINER WITH FIXED HEIGHT */}
-              <div className="scrollable-shift-list" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="user-userhomepage-scrollable-list">
                 {isLoading ? (
                   <div>Loading...</div>
                 ) : upcomingShifts.length > 0 ? (
                   upcomingShifts.map((item) => (
-                    <div key={item.shift_id} style={{ padding: '13px 24px', position: 'relative', background: '#EDF0F5', borderRadius: 8, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <div style={{ color: 'black', fontSize: 16, fontWeight: 700 }}>{moment(item.shift_date).format('DD MMMM YYYY')}</div>
-                        <div style={{ color: 'black', fontSize: 16, fontWeight: 700 }}>{item.shift_code} - {item.ward_name}</div>
-                        <div style={{ color: 'black', fontSize: 16, fontWeight: 400 }}>You have been assigned at {item.ward_comments || item.ward_name} for {item.shift_code} shift.</div>
+                    <div key={item.shift_id} className="user-userhomepage-shift-box user-userhomepage-shift-box-list-item">
+                      <div className="user-userhomepage-shift-content">
+                        <div className="user-userhomepage-shift-text-bold">{moment(item.shift_date).format('DD MMMM YYYY')}</div>
+                        <div className="user-userhomepage-shift-text-bold">{item.shift_code} - {item.ward_name}</div>
+                        <div className="user-userhomepage-shift-text-normal">You have been assigned at {item.ward_comments || item.ward_name} for {item.shift_code} shift.</div>
                       </div>
-                      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 10, background: item.shift_color_hex || '#FFFFFF', borderTopRightRadius: 8, borderBottomRightRadius: 8 }} />
+                      <div 
+                        className="user-userhomepage-shift-strip" 
+                        style={{ background: item.shift_color_hex || '#FFFFFF' }} 
+                      />
                     </div>
                   ))
                 ) : (
-                  <div style={{ padding: '13px 24px' }}>No upcoming shifts in the next 7 days.</div>
+                  <div className="user-userhomepage-no-shifts">No upcoming shifts in the next 7 days.</div>
                 )}
               </div>
             </section>
           </div>
 
           {/* RIGHT COLUMN */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="user-userhomepage-column">
             {/* QUICK LINKS SECTION */}
-            <section
-              style={{
-                background: 'white',
-                borderRadius: 10,
-                padding: 18,
-                boxSizing: 'border-box',
-                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-              }}
-            >
-              <h2 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 12px 0' }}>Quick Links</h2>
-              <div style={{ display: 'flex', justifyContent: 'space-around', gap: 16 }}>
-                <button type="button" onClick={onGoRoster} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
-                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="/userViewRoster.png" alt="View Monthly Roster" /></div>
-                  <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, whiteSpace: 'pre-line' }}>{'View\nMonthly Roster'}</div>
+            <section className="user-userhomepage-card">
+              <h2 className="user-userhomepage-card-title">Quick Links</h2>
+              <div className="user-userhomepage-quicklinks-container">
+                <button type="button" onClick={onGoRoster} className="user-userhomepage-quicklink-btn">
+                  <div className="user-userhomepage-quicklink-icon-box"><img className="user-userhomepage-quicklink-img" src="/userViewRoster.png" alt="View Monthly Roster" /></div>
+                  <div className="user-userhomepage-quicklink-text">{'View\nMonthly Roster'}</div>
                 </button>
-                <button type="button" onClick={onGoShiftPreference} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
-                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="/userShiftPref.png" alt="Shifts Preference" /></div>
-                  <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, whiteSpace: 'pre-line' }}>{'Shifts\nPreference'}</div>
+                <button type="button" onClick={onGoShiftPreference} className="user-userhomepage-quicklink-btn">
+                  <div className="user-userhomepage-quicklink-icon-box"><img className="user-userhomepage-quicklink-img" src="/userShiftPref.png" alt="Shifts Preference" /></div>
+                  <div className="user-userhomepage-quicklink-text">{'Shifts\nPreference'}</div>
                 </button>
-                <button type="button" onClick={onGoApplyLeave} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
-                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="/userApplyLeave.png" alt="Apply Leave" /></div>
-                  <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, whiteSpace: 'pre-line' }}>{'Apply\nLeave'}</div>
+                <button type="button" onClick={onGoApplyLeave} className="user-userhomepage-quicklink-btn">
+                  <div className="user-userhomepage-quicklink-icon-box"><img className="user-userhomepage-quicklink-img" src="/userApplyLeave.png" alt="Apply Leave" /></div>
+                  <div className="user-userhomepage-quicklink-text">{'Apply\nLeave'}</div>
                 </button>
-                <button type="button" onClick={onGoAccount} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
-                  <div style={{ width: 78, height: 78, background: '#5091CD', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><img style={{ width: 40, height: 40 }} src="/userEditProfile.png" alt="Edit Profile" /></div>
-                  <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, whiteSpace: 'pre-line' }}>{'Edit\nProfile'}</div>
+                <button type="button" onClick={onGoAccount} className="user-userhomepage-quicklink-btn">
+                  <div className="user-userhomepage-quicklink-icon-box"><img className="user-userhomepage-quicklink-img" src="/userEditProfile.png" alt="Edit Profile" /></div>
+                  <div className="user-userhomepage-quicklink-text">{'Edit\nProfile'}</div>
                 </button>
               </div>
             </section>
 
             {/* CALENDAR SECTION */}
-            <section
-              style={{
-                background: 'white',
-                borderRadius: 10,
-                padding: 18,
-                boxSizing: 'border-box',
-                boxShadow: '0 2px 2px rgba(0,0,0,0.05)',
-                overflow: 'hidden', // <--- Add this line
-              }}
-            >
-              <div style={{ height: 'auto' }}>
+            <section className="user-userhomepage-card user-userhomepage-card-no-overflow">
+              <div className="user-userhomepage-calendar-wrapper">
                 <Calendar
                   localizer={localizer}
                   events={calendarEvents}
@@ -372,7 +299,7 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
                     toolbar: CustomToolbar,
                     dateCellWrapper: CustomDateCellWrapper,
                     month: {
-                      dateHeader: () => null,  // <--- ADD THIS LINE to hide the default number
+                      dateHeader: () => null,
                     },
                   }}
                   style={{ height: 550 }}
@@ -386,4 +313,4 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
   );
 }
 
-export default UserHomePage;  
+export default UserHomePage;
