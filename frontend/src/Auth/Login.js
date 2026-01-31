@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchFromApi, API_BASE_URL } from '../services/api';
+import { fetchFromApi } from '../services/api';
 
 function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
   const [identifier, setIdentifier] = useState('');
@@ -28,15 +28,12 @@ function Login({ onAdminLoginSuccess, onUserLoginSuccess, onGoSignup }) {
       setLoading(true);
       setError('');
 
-      const res = await fetchFromApi(`${API_BASE_URL}/api/auth/login`, {
+      const data = await fetchFromApi('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail, password }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
+      if (!data.success) {
         setError(data.message || 'Login failed. Please check your credentials.');
         return;
       }
