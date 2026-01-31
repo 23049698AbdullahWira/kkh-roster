@@ -7,6 +7,8 @@ const axios = require('axios');
 const { generateRoster } = require('./services/rosterEngine');
 const ExcelJS = require('exceljs');
 require('dotenv').config();
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 
 // Create the Express application instance
 const app = express();
@@ -446,6 +448,7 @@ app.get('/api/rosters/:id', async (req, res) => {
 });
 
 // UPDATE User (PUT /users/:id)
+// MODIFIED: Now handles password hashing if password is provided
 app.put('/users/:id', async (req, res) => {
   const { id } = req.params;
   const { full_name, email, role, status, password, avatar_url, contact, service, ward_id } = req.body; // Added service
@@ -472,9 +475,11 @@ app.put('/users/:id', async (req, res) => {
         params.push(ward_id === "" ? null : ward_id); // Handle empty string as NULL
     }
 
+    // MODIFIED: Hash password if provided
     if (password && password.trim() !== "") {
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
       fields.push('password = ?');
-      params.push(password);
+      params.push(hashedPassword);
     }
 
     if (fields.length === 0) {
@@ -522,6 +527,7 @@ app.post('/action-logs', async (req, res) => {
 });
 
 // Change Password
+// MODIFIED: Now verifies current password hash and hashes new password
 app.post('/users/:id/change-password', async (req, res) => {
   const { id } = req.params;
   const { currentPassword, newPassword } = req.body;
@@ -538,13 +544,19 @@ app.post('/users/:id/change-password', async (req, res) => {
     }
 
     const user = rows[0];
-    if (currentPassword !== user.password) {
+    
+    // Compare hashed current password
+    const match = await bcrypt.compare(currentPassword, user.password);
+    if (!match) {
       return res.status(401).json({ message: 'Incorrect current password.' });
     }
 
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
     await pool.query(
       'UPDATE users SET password = ? WHERE user_id = ?',
-      [newPassword, id]
+      [hashedNewPassword, id]
     );
 
     res.json({ message: 'Password changed successfully.' });
@@ -823,15 +835,15 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
   try {
     const [leaveDetails] = await pool.query(
       `SELECT 
-         lhu.user_id, 
-         lhu.leave_start,
-         lhu.leave_end,   
-         u_applicant.full_name AS applicant_name, 
-         lt.leave_type
-       FROM leave_has_users lhu
-       JOIN users u_applicant ON lhu.user_id = u_applicant.user_id
-       JOIN leave_type lt ON lhu.leave_id = lt.leave_id
-       WHERE lhu.leave_data_id = ?`,
+          lhu.user_id, 
+          lhu.leave_start,
+          lhu.leave_end,   
+          u_applicant.full_name AS applicant_name, 
+          lt.leave_type
+        FROM leave_has_users lhu
+        JOIN users u_applicant ON lhu.user_id = u_applicant.user_id
+        JOIN leave_type lt ON lhu.leave_id = lt.leave_id
+        WHERE lhu.leave_data_id = ?`,
       [id]
     );
 
@@ -917,8 +929,10 @@ app.patch('/leave_has_users/:id/status', async (req, res) => {
   }
 });
 
-// POST Register
+// POST Register (Create Account)
+// MODIFIED: Uses bcrypt to hash password
 app.post('/api/auth/register', async (req, res) => {
+  // 1. Get plain password from body
   const { firstName, lastName, email, phone, password, role, service, createdByUserId, createdByName, createdByRole } = req.body;
 
   try {
@@ -927,12 +941,16 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email already exists' });
     }
 
+    // 2. Hash the password securely
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
     const fullName = `${firstName} ${lastName}`.trim();
-    // Insert with Service
+
+    // 3. Insert the HASHED password into the database (not the plain one)
     const [result] = await pool.query(
       `INSERT INTO users (full_name, email, contact, role, password, status, service) 
        VALUES (?, ?, ?, ?, ?, 'Active', ?)`,
-      [fullName, email, phone, role, password, service || 'General']
+      [fullName, email, phone, role, hashedPassword, service || 'General']
     );
 
     if (createdByUserId) {
@@ -955,6 +973,7 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // POST Login
+// MODIFIED: Uses bcrypt.compare for authentication
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
@@ -963,15 +982,22 @@ app.post('/api/auth/login', async (req, res) => {
       'SELECT user_id, email, password, role, full_name, avatar_url, service, contact FROM users WHERE email = ?',
       [email]
     );
+    
     if (rows.length === 0) {
       return res.status(401).json({ success: false, message: 'User not found' });
     }
+    
     const user = rows[0];
 
-    if (user.password !== password) {
+    // 1. Compare the incoming plain text password with the stored hash
+    const match = await bcrypt.compare(password, user.password);
+
+    // 2. If they don't match, return error
+    if (!match) {
       return res.status(401).json({ success: false, message: 'Incorrect password' });
     }
 
+    // 3. If match is true, proceed with login
     const details = `${user.role || 'User'} ${user.full_name} logged in.`;
     logAction({ userId: user.user_id, details });
 

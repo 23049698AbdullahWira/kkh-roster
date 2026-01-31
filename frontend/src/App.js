@@ -18,25 +18,38 @@ import UserShiftPref from './User/UserShiftPref.js';
 import UserApplyLeave from './User/UserApplyLeave.js';
 import UserAccountInformation from './User/UserAccountInformation.js';
 
-// --- SECURITY: Protected Route Wrapper ---
+// --- SECURITY: Protected Route Wrapper (Loop Proof) ---
 const ProtectedRoute = ({ user, allowedRoles }) => {
   // 1. Not logged in? Go to login.
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Normalize role for comparison (handle 'ADMIN' vs 'Admin')
+  // Normalize roles to Uppercase to avoid 'Admin' vs 'ADMIN' issues
   const userRole = (user.role || '').toUpperCase();
   const normalizedAllowed = allowedRoles.map(r => r.toUpperCase());
 
-  // 2. Logged in, but wrong role?
-  if (allowedRoles && !normalizedAllowed.includes(userRole)) {
-    // Redirect to their correct home based on their actual role to stop loops
-    if (userRole === 'APN' || userRole === 'USER') {
-      return <Navigate to="/user/home" replace />;
-    } else {
-      return <Navigate to="/admin/home" replace />;
-    }
+  // 2. Permission Check
+  if (!normalizedAllowed.includes(userRole)) {
+    // STOP THE LOOP: Do not redirect here. 
+    // If we redirect to /admin/home, and that page also fails this check, it crashes the browser.
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'sans-serif' }}>
+        <h1 style={{ color: '#DC2626' }}>Access Denied</h1>
+        <p style={{ fontSize: '18px', color: '#374151' }}>
+          Your current role is: <strong>{user.role}</strong>
+        </p>
+        <p style={{ color: '#6B7280' }}>
+          You are not authorized to view this page.
+        </p>
+        <button 
+          onClick={() => { localStorage.clear(); window.location.href = '/login'; }}
+          style={{ marginTop: '20px', padding: '10px 20px', background: '#2563EB', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+        >
+          Logout
+        </button>
+      </div>
+    );
   }
 
   // 3. Authorized -> Render the page
@@ -51,7 +64,7 @@ function App() {
   const [rosterMonth, setRosterMonth] = useState('December');
   const [rosterYear, setRosterYear] = useState(2025);
 
-  // --- 1. SAFE LAZY INITIALIZATION (Fixes White Screen) ---
+  // --- 1. SAFE LAZY INITIALIZATION ---
   const [loggedInUser, setLoggedInUser] = useState(() => {
     try {
       const stored = localStorage.getItem('user');
@@ -59,13 +72,11 @@ function App() {
 
       const user = JSON.parse(stored);
 
-      // SAFETY CHECK: If user data is corrupted (missing role), force logout immediately
+      // Safety check for bad data
       if (!user.role) {
-        console.warn("Corrupted user data found. Clearing session.");
         localStorage.removeItem('user');
         return null;
       }
-
       return user;
     } catch (e) {
       localStorage.removeItem('user');
@@ -89,26 +100,23 @@ function App() {
     navigate('/login');
   };
 
-  // Sync state if needed
+  // Sync state (Optional safety net)
   useEffect(() => {
     const stored = localStorage.getItem('user');
     if (stored) {
       try {
         const user = JSON.parse(stored);
         if (user && user.role) {
-          // Only update if different to avoid re-renders
-          if (!loggedInUser || user.userId !== loggedInUser.userId) {
+           // Only set if different to prevent re-render loops
+           if (!loggedInUser || user.userId !== loggedInUser.userId) {
              setLoggedInUser(user);
              setCurrentUserRole(user.role);
-          }
+           }
         }
-      } catch (e) {
-        // Ignore bad JSON
-      }
+      } catch (e) { }
     }
   }, []);
 
-  // Shared Navigation Props
   const navProps = {
     onGoHome: () => navigate('/admin/home'),
     onGoRoster: () => navigate('/admin/rosters'),
@@ -132,7 +140,6 @@ function App() {
       <Route
         path="/login"
         element={
-          // Prevent loop: Only redirect if we are SURE we have a role
           loggedInUser && loggedInUser.role ? (
              <Navigate to={(loggedInUser.role === 'APN' || loggedInUser.role === 'USER') ? '/user/home' : '/admin/home'} replace />
           ) : (
@@ -150,8 +157,8 @@ function App() {
       />
 
       {/* --- ADMIN ROUTES (Secured) --- */}
-      {/* We check for 'Admin' or 'Super Admin' (case insensitive in wrapper) */}
-      <Route element={<ProtectedRoute user={loggedInUser} allowedRoles={['Admin', 'Super Admin', 'ADMIN', 'SUPER ADMIN']} />}>
+      {/* Added 'SuperAdmin' (no space) just in case your DB has it that way */}
+      <Route element={<ProtectedRoute user={loggedInUser} allowedRoles={['Admin', 'Super Admin', 'SuperAdmin', 'ADMIN', 'SUPER ADMIN']} />}>
         <Route
           path="/admin/home"
           element={<AdminHomePage {...navProps} user={loggedInUser} />}
@@ -288,7 +295,6 @@ function App() {
         />
       </Route>
 
-      {/* Fallback - Catches any undefined routes and sends to Login */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   );
