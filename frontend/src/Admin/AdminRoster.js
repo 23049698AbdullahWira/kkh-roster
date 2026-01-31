@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../Nav/navbar';
 import AdminNewRoster from './AdminNewRoster';
 import './AdminRoster.css'; 
+// 1. Import centralized helper and Base URL
+import { fetchFromApi, API_BASE_URL } from '../services/api';
 
 // --- 1. ICON COMPONENTS (SVG) ---
 const IconView = () => (
@@ -55,9 +57,9 @@ const ActionBtn = ({ icon, onClick, bg = '#EBF5FF', border = '#D6E4FF', color = 
 const logAction = async ({ userId, details }) => {
   try {
     if (!userId) return;
-    await fetch('http://localhost:5000/action-logs', {
+    // 2. UPDATED: Using fetchFromApi
+    await fetchFromApi('/action-logs', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, details })
     });
   } catch (err) { console.error('Failed to insert action log:', err); }
@@ -104,18 +106,17 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
   const adminName = loggedInUser?.full_name || loggedInUser?.fullName || 'Admin';
   const adminId = loggedInUser?.user_id || loggedInUser?.userId;
 
-  const fetchRosters = () => {
+  const fetchRosters = async () => {
     setLoading(true);
-    fetch('http://localhost:5000/api/rosters')
-      .then((res) => res.json())
-      .then((data) => {
-        setRosterRows(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch rosters:", err);
-        setLoading(false);
-      });
+    try {
+      // 3. UPDATED: Using fetchFromApi
+      const data = await fetchFromApi('/api/rosters');
+      setRosterRows(data);
+    } catch (err) {
+      console.error("Failed to fetch rosters:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -223,7 +224,8 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
 
   const handleDownload = async (row) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/rosters/${row.id}/download`);
+      // 4. UPDATED: Using raw fetch + API_BASE_URL for BLOB download
+      const response = await fetch(`${API_BASE_URL}/api/rosters/${row.id}/download`);
       if (!response.ok) throw new Error("Failed to download file");
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -248,18 +250,18 @@ function AdminRosterPage({ onGoHome, onGoRoster, onGoStaff, onGoShift, onOpenRos
   const confirmDelete = async () => {
     if (!selectedRosterToDelete) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/rosters/${selectedRosterToDelete.id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setRosterRows(prev => prev.filter(r => r.id !== selectedRosterToDelete.id));
-        if (currentItems.length === 1 && currentPage > 1) setCurrentPage(prev => prev - 1);
-        await logAction({ userId: adminId, details: `${adminName} deleted roster: ${selectedRosterToDelete.title}` });
-        alert("Roster deleted successfully.");
-      } else {
-        alert("Failed to delete roster.");
-      }
+      // 5. UPDATED: Using fetchFromApi
+      await fetchFromApi(`/api/rosters/${selectedRosterToDelete.id}`, { method: 'DELETE' });
+      
+      // Success Logic
+      setRosterRows(prev => prev.filter(r => r.id !== selectedRosterToDelete.id));
+      if (currentItems.length === 1 && currentPage > 1) setCurrentPage(prev => prev - 1);
+      await logAction({ userId: adminId, details: `${adminName} deleted roster: ${selectedRosterToDelete.title}` });
+      alert("Roster deleted successfully.");
+      
     } catch (err) {
       console.error("Error deleting roster:", err);
-      alert("Error connecting to server.");
+      alert("Failed to delete roster.");
     } finally {
         setShowDeleteModal(false);
         setSelectedRosterToDelete(null);

@@ -1,6 +1,8 @@
 // src/UserHomePage.jsx
 import React, { useState, useEffect, useMemo } from 'react';
 import UserNavbar from '../Nav/UserNavbar.js';
+// 1. Import centralized helper
+import { fetchFromApi } from '../services/api';
 
 // --- CALENDAR IMPORTS ---
 import { Calendar, momentLocalizer } from 'react-big-calendar';
@@ -21,8 +23,9 @@ const CustomToolbar = (toolbar) => {
   useEffect(() => {
     const fetchPublishedRosters = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/rosters/published');
-        const data = await response.json();
+        // 2. UPDATED: Removed .json() call. 
+        // fetchFromApi returns the data directly now.
+        const data = await fetchFromApi('/api/rosters/published');
         setPublishedRosters(data);
       } catch (error) {
         console.error("Failed to fetch published rosters:", error);
@@ -51,10 +54,8 @@ const CustomToolbar = (toolbar) => {
 
   return (
     <div className="user-userhomepage-toolbar">
-      {/* Used unicode single angle quote for a cleaner centered look in the circle button */}
       <button className="user-userhomepage-toolbar-nav-btn" onClick={goToBack}>&#8249;</button>
 
-      {/* Conditionally render dropdown or plain label */}
       {publishedRosters.length > 0 ? (
         <select className="user-userhomepage-toolbar-select" value={currentRosterValue} onChange={handleRosterChange}>
           {publishedRosters.map(roster => {
@@ -128,8 +129,8 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
       const fetchUserShifts = async () => {
         setIsLoading(true);
         try {
-          const response = await fetch(`http://localhost:5000/api/users/${user.userId}/shifts`);
-          const shifts = await response.json();
+          // 3. UPDATED: Removed .json() call.
+          const shifts = await fetchFromApi(`/api/users/${user.userId}/shifts`);
           const todayString = new Date().toISOString().split('T')[0];
 
           let foundTodayShift = null;
@@ -164,8 +165,8 @@ function UserHomePage({ user, onGoHome, onGoRoster, onGoShiftPreference, onGoApp
         const month = calendarDate.getMonth() + 1;
 
         try {
-          const response = await fetch(`http://localhost:5000/api/users/${user.userId}/shifts-by-month?year=${year}&month=${month}`);
-          const shifts = await response.json();
+          // 4. UPDATED: Removed .json() call.
+          const shifts = await fetchFromApi(`/api/users/${user.userId}/shifts-by-month?year=${year}&month=${month}`);
 
           const events = shifts.map(shift => ({
             id: shift.shift_id,

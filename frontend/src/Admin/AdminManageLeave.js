@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Nav/navbar';
-import './AdminManageLeave.css'; // Import the external CSS
+import './AdminManageLeave.css'; 
+// 1. Import centralized helper AND base URL
+import { fetchFromApi, API_BASE_URL } from '../services/api';
 
 const ITEMS_PER_PAGE = 8;
 
@@ -38,19 +40,12 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
     const fetchLeaveData = async () => {
       setLoading(true);
       try {
-        const [leavesRes, usersRes, leaveTypesRes] = await Promise.all([
-          fetch('http://localhost:5000/leave_has_users'),
-          fetch('http://localhost:5000/users'),
-          fetch('http://localhost:5000/leave_type'),
+        // 2. UPDATED: Using fetchFromApi
+        const [leavesData, usersData, leaveTypesData] = await Promise.all([
+          fetchFromApi('/leave_has_users'),
+          fetchFromApi('/users'),
+          fetchFromApi('/leave_type'),
         ]);
-
-        if (!leavesRes.ok || !usersRes.ok || !leaveTypesRes.ok) {
-          throw new Error('Failed to fetch all required data.');
-        }
-
-        const leavesData = await leavesRes.json();
-        const usersData = await usersRes.json();
-        const leaveTypesData = await leaveTypesRes.json();
 
         const formattedData = leavesData.map(leave => {
           const user = usersData.find(u => u.user_id === leave.user_id);
@@ -81,9 +76,12 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
 
   const handleDownload = async (fileUrl) => {
     try {
-      const fullUrl = `http://localhost:5000${fileUrl}`;
+      // 3. UPDATED: Using imported API_BASE_URL constant
+      // Note: We use raw fetch here because we need a Blob, not JSON.
+      const fullUrl = `${API_BASE_URL}${fileUrl}`;
       const fileName = fileUrl.split('/').pop();
       const response = await fetch(fullUrl);
+      
       if (!response.ok) throw new Error('Network response was not ok.');
 
       const blob = await response.blob();
@@ -121,13 +119,10 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
 
     try {
       const promises = selectedRequests.map(id =>
-        fetch(`http://localhost:5000/leave_has_users/${id}/status`, {
+        // 4. UPDATED: Using fetchFromApi (PATCH)
+        fetchFromApi(`/leave_has_users/${id}/status`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status, approverId: currentUserId }),
-        }).then(res => {
-          if (!res.ok) throw new Error(`Failed to update status for ID ${id}`);
-          return res.json();
         })
       );
 
@@ -256,7 +251,7 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
             );
           })}
 
-          {/* Pagination (Moved Inside the Table Card, matching Staff Page) */}
+          {/* Pagination */}
           {allLeaveRequests.length > ITEMS_PER_PAGE && (
             <div className="admin-manageleave-pagination-container">
               <div className="admin-manageleave-pagination-controls">
@@ -304,7 +299,6 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
 
 // --- Sub-components for Icons and Buttons ---
 const ActionButton = ({ onClick, disabled, isGreyscaled, icon, color, title, text }) => {
-  // Construct namespaced class names based on props
   let className = `admin-manageleave-action-btn btn-${color}`;
   if (text) className += ' has-text';
   if (isGreyscaled) className += ' greyscale';

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Navbar from '../Nav/navbar.js';
 import './AdminStaffManagement.css'; 
+// 1. Import centralized helper
+import { fetchFromApi } from '../services/api';
 
 // --- HELPER: Status Colors ---
 const getStatusStyle = (status) => {
@@ -77,9 +79,9 @@ function AdminStaffManagementPage({
   const logAction = async ({ userId, details }) => {
     try {
       if (!userId) return;
-      await fetch('http://localhost:5000/action-logs', {
+      // 2. UPDATED: Using fetchFromApi
+      await fetchFromApi('/action-logs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, details })
       });
     } catch (err) { console.error('Failed to insert action log:', err); }
@@ -89,14 +91,15 @@ function AdminStaffManagementPage({
   const fetchInitialData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const resUsers = await fetch('http://localhost:5000/users');
-      const dataUsers = await resUsers.json();
+      // 3. UPDATED: Using fetchFromApi
+      // Fetch Users
+      const dataUsers = await fetchFromApi('/users');
 
-      const resWards = await fetch('http://localhost:5000/api/wards'); 
-      if (resWards.ok) {
-        const wardsData = await resWards.json();
+      // Fetch Wards (Handle separately incase of error, though api.js throws)
+      try {
+        const wardsData = await fetchFromApi('/api/wards');
         setWardOptions(wardsData);
-      }
+      } catch (e) { console.warn("Failed to load wards", e); }
 
       const filteredData = dataUsers.filter(user => {
         const userRole = user.role ? user.role.toUpperCase() : '';
@@ -122,18 +125,18 @@ function AdminStaffManagementPage({
       });
       setStaffRows(formattedStaff);
 
-      const resRoles = await fetch('http://localhost:5000/roles'); 
-      const rolesData = await resRoles.json();
+      // Fetch Roles
+      const rolesData = await fetchFromApi('/roles');
       setRoleOptions(rolesData);
 
-      const resServices = await fetch('http://localhost:5000/api/services');
-      if (resServices.ok) {
-        const servicesData = await resServices.json();
+      // Fetch Services
+      try {
+        const servicesData = await fetchFromApi('/api/services');
         setServiceOptions(servicesData);
         if (servicesData.length > 0) {
             setCreateForm(prev => ({ ...prev, service: servicesData[0] }));
         }
-      }
+      } catch (e) { console.warn("Failed to load services", e); }
 
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -170,15 +173,14 @@ function AdminStaffManagementPage({
     };
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/register', {
+      // 4. UPDATED: Using fetchFromApi
+      const data = await fetchFromApi('/api/auth/register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
+      // API returns success: false if logic fails (e.g. email exists)
+      if (!data.success) {
         alert(data.message || 'Failed to create staff account.');
         return;
       }
@@ -194,7 +196,7 @@ function AdminStaffManagementPage({
       fetchInitialData();
     } catch (err) {
       console.error('Error creating staff:', err);
-      alert('Unable to connect to server.');
+      alert(err.message || 'Unable to connect to server.');
     }
   };
 
@@ -242,41 +244,38 @@ function AdminStaffManagementPage({
   const executeDelete = async () => {
     if (!selectedStaff) return;
     try {
-      const res = await fetch(`http://localhost:5000/users/${selectedStaff.staffId}`, { method: 'DELETE' });
-      if (res.ok) {
-        await logAction({ userId: loggedInUser?.userId, details: `${currentUserRole} deleted staff: ${selectedStaff.fullName}` });
-        alert('Staff account deleted successfully.');
-        setShowDeleteConfirm(false);
-        handleCloseModal(); 
-        fetchInitialData();
-      } else {
-        const data = await res.json();
-        alert(data.message || 'Failed to delete staff account.');
-        setShowDeleteConfirm(false);
-      }
+      // 5. UPDATED: Using fetchFromApi
+      await fetchFromApi(`/users/${selectedStaff.staffId}`, { method: 'DELETE' });
+      
+      await logAction({ userId: loggedInUser?.userId, details: `${currentUserRole} deleted staff: ${selectedStaff.fullName}` });
+      alert('Staff account deleted successfully.');
+      setShowDeleteConfirm(false);
+      handleCloseModal(); 
+      fetchInitialData();
+      
     } catch (err) {
       console.error("Error deleting staff:", err);
+      alert(err.message || 'Failed to delete staff account.');
       setShowDeleteConfirm(false);
     }
   };
 
   const handleUpdate = () => {
-    fetch(`http://localhost:5000/users/${selectedStaff.staffId}`, {
+    // 6. UPDATED: Using fetchFromApi
+    fetchFromApi(`/users/${selectedStaff.staffId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
     })
-      .then(async res => {
-        if (res.ok) {
-          await logAction({ userId: loggedInUser?.userId, details: `${currentUserRole} updated staff: ${formData.full_name}` });
-          alert("Staff updated successfully!");
-          handleCloseModal();
-          fetchInitialData();
-        } else {
-          alert('Failed to update staff.');
-        }
+      .then(async () => {
+        await logAction({ userId: loggedInUser?.userId, details: `${currentUserRole} updated staff: ${formData.full_name}` });
+        alert("Staff updated successfully!");
+        handleCloseModal();
+        fetchInitialData();
       })
-      .catch((err) => console.error('Error updating:', err));
+      .catch((err) => {
+        console.error('Error updating:', err);
+        alert('Failed to update staff.');
+      });
   };
 
   // --- FILTER & PAGINATION ---

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import UserNavbar from '../Nav/UserNavbar.js';
 import './UserApplyLeave.css';
+// 1. Import the centralized helper
+import { fetchFromApi } from '../services/api';
 
 // --- Helper Functions ---
 const formatDate = (dateString) => {
@@ -90,11 +92,9 @@ function UserApplyLeave({
   useEffect(() => {
     const fetchLeaveTypes = async () => {
       try {
-        const response = await fetch('http://localhost:5000/leave_type');
-        if (!response.ok) {
-          throw new Error('Failed to fetch leave types.');
-        }
-        const data = await response.json();
+        // 2. UPDATED FETCH (GET)
+        // fetchFromApi returns the parsed JSON data directly
+        const data = await fetchFromApi('/leave_type');
         setLeaveTypes(data);
       } catch (err) {
         setError(err.message);
@@ -156,14 +156,15 @@ function UserApplyLeave({
     }
 
     try {
-      const response = await fetch('http://localhost:5000/leave_has_users', {
+      // 3. UPDATED FETCH (POST with FormData)
+      const result = await fetchFromApi('/leave_has_users', {
         method: 'POST',
         body: formData,
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
+      // Note: api.js throws automatically on !response.ok, 
+      // so we just check logical success here if your API returns { success: true }
+      if (result.success === false) {
         throw new Error(result.message || 'Failed to submit leave request.');
       }
 
@@ -203,14 +204,6 @@ function UserApplyLeave({
 
       <main className="user-userapplyleave-main-content">
         <header className="user-userapplyleave-header">
-          {/* <button
-            type="button"
-            onClick={onBack}
-            className={`user-userapplyleave-back-button ${isSubmitted ? 'user-userapplyleave-hidden' : ''}`}
-          >
-            <span className="user-userapplyleave-back-arrow" />
-            Back
-          </button> */}
           <h1 className="user-userapplyleave-title">
             {isSubmitted ? 'Submission Successful' : 'Apply Leave'}
           </h1>
