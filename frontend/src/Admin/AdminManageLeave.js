@@ -201,7 +201,7 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
             <div className="admin-manageleave-col-type">Leave Type</div>
             <div className="admin-manageleave-col-period">Leave Period</div>
             <div className="admin-manageleave-col-status">Status</div>
-            <div className="admin-manageleave-col-actions">Actions</div>
+            {/* <div className="admin-manageleave-col-actions">Actions</div> */}
             {isEditing && <div className="admin-manageleave-col-select">Select</div>}
           </div>
 
@@ -229,7 +229,7 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
                     {row.status}
                   </span>
                 </div>
-                <div className="admin-manageleave-col-actions">
+                {/* <div className="admin-manageleave-col-actions">
                   <ActionButton
                     title={hasDocument ? "Download Document" : "No Document Uploaded"}
                     onClick={() => hasDocument && handleDownload(row.leave_url)}
@@ -237,7 +237,7 @@ function AdminManageLeave({ onBack, onGoHome, onGoRoster, onGoStaff, onGoShift, 
                     icon={<FileIcon color={hasDocument ? "#006EFF" : "#B0B0B0"} />}
                     color={hasDocument ? 'blue' : 'grey'}
                   />
-                </div>
+                </div> */}
                 {isEditing && (
                   <div className="admin-manageleave-col-select">
                     <input
