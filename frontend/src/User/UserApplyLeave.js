@@ -42,9 +42,9 @@ const SuccessSummary = ({ data, onGoHome }) => {
         <div className="user-userapplyleave-summary-leave-details">
           <div className="user-userapplyleave-summary-leavetype">{data.leaveTypeName}</div>
           <div>{formatDate(data.startDate)} - {formatDate(data.endDate)}</div>
-          <div className={`user-userapplyleave-summary-document-text ${hasDocument ? 'user-userapplyleave-doc-present' : 'user-userapplyleave-doc-missing'}`}>
+          {/* <div className={`user-userapplyleave-summary-document-text ${hasDocument ? 'user-userapplyleave-doc-present' : 'user-userapplyleave-doc-missing'}`}>
             {hasDocument ? `Document: ${data.fileName}` : 'No Document Uploaded'}
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -257,7 +257,7 @@ function UserApplyLeave({
               </div>
 
               {/* Upload File */}
-              <div className="user-userapplyleave-field-group">
+              {/* <div className="user-userapplyleave-field-group">
                 <div className="user-userapplyleave-label">Upload Document (Optional)</div>
                 <label className="user-userapplyleave-upload-box">
                   <div className="user-userapplyleave-upload-icon-placeholder" />
@@ -267,7 +267,7 @@ function UserApplyLeave({
                   </div>
                   <input type="file" style={{ display: 'none' }} onChange={handleFileChange} accept=".pdf,.png,.jpg,.jpeg" />
                 </label>
-              </div>
+              </div> */}
 
               {/* Action Buttons */}
               <div className="user-userapplyleave-button-container">
