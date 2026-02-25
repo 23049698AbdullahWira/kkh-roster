@@ -4,7 +4,7 @@
 // 1. CONFIGURATION & PROTOCOLS
 // ==========================================
 const MAX_CONSECUTIVE_DAYS = 6; 
-const WEEKEND_WORK_PROBABILITY = 0.35; // 35% chance to work Saturday
+const WEEKEND_WORK_PROBABILITY = 0.15; // 35% chance to work Saturday
 const AM_RATIO_TARGET = 0.70;   
 
 const SERVICE_PROTOCOLS = {
