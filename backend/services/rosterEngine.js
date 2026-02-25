@@ -4,7 +4,7 @@
 // 1. CONFIGURATION & PROTOCOLS
 // ==========================================
 const MAX_CONSECUTIVE_DAYS = 6; 
-const WEEKEND_WORK_PROBABILITY = 0.15; // 35% chance to work Saturday
+const WEEKEND_WORK_PROBABILITY = 0.15; 
 const AM_RATIO_TARGET = 0.70;   
 
 const SERVICE_PROTOCOLS = {
@@ -16,6 +16,7 @@ const SERVICE_PROTOCOLS = {
     'NEONATES': ['AM', 'PM'] 
 };
 
+// Strict Priority Tiers
 const RRT_TIER_1 = ['ACUTE', 'CE'];
 const RRT_TIER_2 = ['ONCO'];
 const RRT_TIER_3 = ['PAS'];
@@ -33,14 +34,12 @@ async function buildCalendarMap(month, yearInt) {
 
     for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(yearInt, mIdx, d);
-        
-        // Manual YYYY-MM-DD
         const y = dateObj.getFullYear();
         const m = String(dateObj.getMonth() + 1).padStart(2, '0');
         const dayStr = String(dateObj.getDate()).padStart(2, '0');
         const dateKey = `${y}-${m}-${dayStr}`;
 
-        const dow = dateObj.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+        const dow = dateObj.getDay(); // 0=Sun, 1=Mon...
 
         // Calculate Week ID
         const weekStart = new Date(dateObj);
@@ -56,7 +55,6 @@ async function buildCalendarMap(month, yearInt) {
             dayOfWeekIndex: dow, 
             isWeekend: (dow === 0 || dow === 6),
             isSunday: (dow === 0),
-            isMonday: (dow === 1),
             weekId: weekId 
         };
     }
@@ -159,7 +157,6 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         const m = String(dObj.getMonth() + 1).padStart(2, '0');
         const d = String(dObj.getDate()).padStart(2, '0');
         const dStr = `${y}-${m}-${d}`;
-
         const shiftCode = dbShiftTypes.find(t => t.shift_type_id === s.shift_type_id)?.shift_code || 'OFF';
         
         if (!rosterMap[dStr]) rosterMap[dStr] = {};
@@ -199,16 +196,12 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         if (!rosterMap[date]) rosterMap[date] = {};
         if (rosterMap[date][uid]) return; 
 
-        // CRITICAL UPDATE: SUNDAY LOCKDOWN
         const dayData = calendarMap[date];
         if (dayData && dayData.isSunday) {
-            // On Sunday, ONLY 'NNJ', 'OFF' (RD), or 'PH' are allowed.
             if (code !== 'NNJ' && code !== 'OFF' && code !== 'RD' && code !== 'PH') {
-                code = 'OFF'; // Force to Rest Day
+                code = 'OFF'; 
             }
         }
-
-        // Weekend Guard for NHOME/KHOME (Redundant but safe)
         if (dayData && dayData.isWeekend && (code.includes('NHOME') || code.includes('KHOME'))) {
             code = 'OFF';
         }
@@ -248,7 +241,6 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         let consecutive = 0;
         const [y, m, d] = dateStr.split('-').map(Number);
         
-        // Check backwards
         let curr = new Date(y, m-1, d);
         curr.setDate(curr.getDate() - 1);
         while(true) {
@@ -259,7 +251,6 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             curr.setDate(curr.getDate() - 1);
         }
         
-        // Check forwards
         curr = new Date(y, m-1, d);
         curr.setDate(curr.getDate() + 1);
         while(true) {
@@ -269,7 +260,6 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             consecutive++;
             curr.setDate(curr.getDate() + 1);
         }
-
         return (consecutive < MAX_CONSECUTIVE_DAYS);
     }
 
@@ -328,7 +318,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
     rosterDates.forEach(dateStr => {
         const dayData = calendarMap[dateStr]; 
         const isWeekend = dayData.isWeekend;
-        const isSunday = dayData.isSunday; // Check our flag
+        const isSunday = dayData.isSunday; 
         const isPH = publicHolidays.includes(dateStr);
         const yesterdayStr = getYesterday(dateStr);
 
@@ -355,7 +345,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             if (gp[0]) setShift(dateStr, gp[0].user_id, 'GPAPN', WARD_IDS.CE);
         }
         
-        // SUNDAY (0) NNJ - Highest Priority for Sunday
+        // SUNDAY (0) NNJ
         if (isSunday) {
             let nnj = dbUsers.filter(u => ['CE','PAME','NEONATES'].includes(stats[u.user_id].service) && isSafeToAssign(u.user_id, dateStr));
             nnj.sort((a, b) => stats[a.user_id].nnjCount - stats[b.user_id].nnjCount);
@@ -369,11 +359,44 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             if (kh[0]) setShift(dateStr, kh[0].user_id, 'KHOME');
         }
 
+        // --- RRT: STRICT HIERARCHY (Waterfall) ---
+        // ACUTE/CE > ONCO > PAS > NEO/PAME
+        // They only get the shift if they are available AND haven't done it this week.
         if (!isWeekend) {
-             const getRRT = (list) => dbUsers.filter(u => list.includes(stats[u.user_id].service) && nhomeWeekMap[dayData.weekId] !== u.user_id && isSafeToAssign(u.user_id, dateStr) && !stats[u.user_id].rrtWeeks.has(dayData.weekId) && rosterMap[yesterdayStr]?.[u.user_id]?.shiftId !== RRT_TYPE_ID);
-             let pool = [...getRRT(RRT_TIER_1), ...getRRT(RRT_TIER_2), ...getRRT(RRT_TIER_3), ...getRRT(RRT_TIER_4)];
-             pool.sort((a,b) => stats[a.user_id].rrtCount - stats[b.user_id].rrtCount);
-             if (pool[0]) setShift(dateStr, pool[0].user_id, 'RRT', WARD_IDS.CE);
+             const getEligibleRRT = (serviceList) => {
+                 return dbUsers.filter(u => {
+                     // Must be in tier
+                     if (!serviceList.includes(stats[u.user_id].service)) return false;
+                     // Must NOT be NHOME person
+                     if (nhomeWeekMap[dayData.weekId] === u.user_id) return false;
+                     // Must NOT have done RRT this week
+                     if (stats[u.user_id].rrtWeeks.has(dayData.weekId)) return false;
+                     // Must be SAFE (available) - this handles pre-assigned shifts
+                     if (!isSafeToAssign(u.user_id, dateStr)) return false;
+                     // Must NOT have done RRT yesterday
+                     if (rosterMap[yesterdayStr]?.[u.user_id]?.shiftId === RRT_TYPE_ID) return false;
+                     return true;
+                 });
+             };
+
+             // Waterfall Logic: Check Tier 1. If empty, check Tier 2, etc.
+             let rrtPool = getEligibleRRT(RRT_TIER_1);
+             
+             if (rrtPool.length === 0) {
+                 rrtPool = getEligibleRRT(RRT_TIER_2);
+             }
+             if (rrtPool.length === 0) {
+                 rrtPool = getEligibleRRT(RRT_TIER_3);
+             }
+             if (rrtPool.length === 0) {
+                 rrtPool = getEligibleRRT(RRT_TIER_4);
+             }
+
+             // If anyone was found in the highest available tier
+             if (rrtPool.length > 0) {
+                 rrtPool.sort((a,b) => stats[a.user_id].rrtCount - stats[b.user_id].rrtCount);
+                 setShift(dateStr, rrtPool[0].user_id, 'RRT', WARD_IDS.CE);
+             }
         }
 
         // --- RANDOM FILL ---
@@ -388,10 +411,8 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
 
             let shiftCode = 'AM';
 
-            // SUNDAY OVERRIDE
+            // SUNDAY LOCK
             if (isSunday) {
-                // On Sunday, only NNJ is allowed. If they didn't get NNJ above, they get OFF.
-                // We ignore the "reachedMaxRD" rule because the clinic is closed.
                 shiftCode = 'OFF';
             }
             // SATURDAY
@@ -403,7 +424,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
                     else shiftCode = (Math.random() > WEEKEND_WORK_PROBABILITY) ? 'OFF' : 'AM';
                 }
             }
-            // WEEKDAY (Mon-Fri)
+            // WEEKDAY
             else {
                 if (reachedMaxRD) {
                     shiftCode = (Math.random() <= AM_RATIO_TARGET) ? 'AM' : 'PM';
