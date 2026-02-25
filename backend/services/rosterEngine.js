@@ -34,6 +34,8 @@ async function buildCalendarMap(month, yearInt) {
 
     for (let d = 1; d <= daysInMonth; d++) {
         const dateObj = new Date(yearInt, mIdx, d);
+        
+        // Manual YYYY-MM-DD
         const y = dateObj.getFullYear();
         const m = String(dateObj.getMonth() + 1).padStart(2, '0');
         const dayStr = String(dateObj.getDate()).padStart(2, '0');
@@ -157,6 +159,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         const m = String(dObj.getMonth() + 1).padStart(2, '0');
         const d = String(dObj.getDate()).padStart(2, '0');
         const dStr = `${y}-${m}-${d}`;
+
         const shiftCode = dbShiftTypes.find(t => t.shift_type_id === s.shift_type_id)?.shift_code || 'OFF';
         
         if (!rosterMap[dStr]) rosterMap[dStr] = {};
@@ -196,6 +199,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         if (!rosterMap[date]) rosterMap[date] = {};
         if (rosterMap[date][uid]) return; 
 
+        // SUNDAY LOCKDOWN
         const dayData = calendarMap[date];
         if (dayData && dayData.isSunday) {
             if (code !== 'NNJ' && code !== 'OFF' && code !== 'RD' && code !== 'PH') {
@@ -263,6 +267,13 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
         return (consecutive < MAX_CONSECUTIVE_DAYS);
     }
 
+    function getNextDay(dateStr) {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const date = new Date(y, m - 1, d);
+        date.setDate(date.getDate() + 1);
+        return toDateStrLocal(date);
+    }
+
     // ==========================================
     // PHASE 0: NHOME ASSIGNMENT
     // ==========================================
@@ -296,7 +307,7 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
     });
 
     // ==========================================
-    // PHASE 0.1: CE NIGHT DUTY
+    // PHASE 0.1: CE NIGHT DUTY (With Post-ND RD)
     // ==========================================
     const ceTeam = dbUsers.filter(u => stats[u.user_id].service === 'CE');
     let ceIdx = 0;
@@ -306,8 +317,19 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             const randomDay = weekDays[Math.floor(Math.random() * weekDays.length)];
             const user = ceTeam[ceIdx % ceTeam.length];
             if (isSafeToAssign(user.user_id, randomDay)) {
+                // 1. Assign ND
                 setShift(randomDay, user.user_id, 'ND', WARD_IDS.CE);
                 ceIdx++;
+                
+                // 2. Force Next Day RD (Rest Day)
+                const nextDay = getNextDay(randomDay);
+                // Check if next day exists in this month (and isn't a PH, which is fine to overwrite with RD/OFF equivalent)
+                if (calendarMap[nextDay]) {
+                     // If it's a PH, let it stay PH (Phase 1 will handle). If not, force RD.
+                     if (!publicHolidays.includes(nextDay)) {
+                         setShift(nextDay, user.user_id, 'RD');
+                     }
+                }
             }
         }
     });
@@ -328,7 +350,6 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             }
         });
 
-        // PH Logic
         if (isPH) {
             let candidates = dbUsers.filter(u => ['CE','PAME','NEONATES'].includes(stats[u.user_id].service) && isSafeToAssign(u.user_id, dateStr));
             candidates.sort((a, b) => (stats[a.user_id].nnjCount - stats[b.user_id].nnjCount) || 0.5 - Math.random());
@@ -345,7 +366,6 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             if (gp[0]) setShift(dateStr, gp[0].user_id, 'GPAPN', WARD_IDS.CE);
         }
         
-        // SUNDAY (0) NNJ
         if (isSunday) {
             let nnj = dbUsers.filter(u => ['CE','PAME','NEONATES'].includes(stats[u.user_id].service) && isSafeToAssign(u.user_id, dateStr));
             nnj.sort((a, b) => stats[a.user_id].nnjCount - stats[b.user_id].nnjCount);
@@ -359,40 +379,24 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             if (kh[0]) setShift(dateStr, kh[0].user_id, 'KHOME');
         }
 
-        // --- RRT: STRICT HIERARCHY (Waterfall) ---
-        // ACUTE/CE > ONCO > PAS > NEO/PAME
-        // They only get the shift if they are available AND haven't done it this week.
+        // --- RRT: STRICT HIERARCHY ---
         if (!isWeekend) {
              const getEligibleRRT = (serviceList) => {
                  return dbUsers.filter(u => {
-                     // Must be in tier
                      if (!serviceList.includes(stats[u.user_id].service)) return false;
-                     // Must NOT be NHOME person
                      if (nhomeWeekMap[dayData.weekId] === u.user_id) return false;
-                     // Must NOT have done RRT this week
                      if (stats[u.user_id].rrtWeeks.has(dayData.weekId)) return false;
-                     // Must be SAFE (available) - this handles pre-assigned shifts
                      if (!isSafeToAssign(u.user_id, dateStr)) return false;
-                     // Must NOT have done RRT yesterday
                      if (rosterMap[yesterdayStr]?.[u.user_id]?.shiftId === RRT_TYPE_ID) return false;
                      return true;
                  });
              };
 
-             // Waterfall Logic: Check Tier 1. If empty, check Tier 2, etc.
              let rrtPool = getEligibleRRT(RRT_TIER_1);
-             
-             if (rrtPool.length === 0) {
-                 rrtPool = getEligibleRRT(RRT_TIER_2);
-             }
-             if (rrtPool.length === 0) {
-                 rrtPool = getEligibleRRT(RRT_TIER_3);
-             }
-             if (rrtPool.length === 0) {
-                 rrtPool = getEligibleRRT(RRT_TIER_4);
-             }
+             if (rrtPool.length === 0) rrtPool = getEligibleRRT(RRT_TIER_2);
+             if (rrtPool.length === 0) rrtPool = getEligibleRRT(RRT_TIER_3);
+             if (rrtPool.length === 0) rrtPool = getEligibleRRT(RRT_TIER_4);
 
-             // If anyone was found in the highest available tier
              if (rrtPool.length > 0) {
                  rrtPool.sort((a,b) => stats[a.user_id].rrtCount - stats[b.user_id].rrtCount);
                  setShift(dateStr, rrtPool[0].user_id, 'RRT', WARD_IDS.CE);
@@ -411,11 +415,9 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
 
             let shiftCode = 'AM';
 
-            // SUNDAY LOCK
             if (isSunday) {
                 shiftCode = 'OFF';
             }
-            // SATURDAY
             else if (isWeekend && !isSunday) {
                 if (reachedMaxRD) {
                     shiftCode = Math.random() > 0.5 ? 'AM' : 'PM';
@@ -424,7 +426,6 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
                     else shiftCode = (Math.random() > WEEKEND_WORK_PROBABILITY) ? 'OFF' : 'AM';
                 }
             }
-            // WEEKDAY
             else {
                 if (reachedMaxRD) {
                     shiftCode = (Math.random() <= AM_RATIO_TARGET) ? 'AM' : 'PM';
@@ -435,13 +436,11 @@ async function generateRoster(month, year, allUsers, dbHistory, dbWards, dbShift
             setShift(dateStr, u.user_id, shiftCode);
         });
 
-        // Cleanup
         dbUsers.forEach(u => {
             if (!rosterMap[dateStr]?.[u.user_id]) setShift(dateStr, u.user_id, 'OFF');
         });
     });
 
-    // --- EXPORT ---
     const newShifts = [];
     Object.keys(rosterMap).forEach(d => {
         Object.keys(rosterMap[d]).forEach(uid => {
@@ -470,6 +469,13 @@ function getYesterday(dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
     const date = new Date(y, m - 1, d);
     date.setDate(date.getDate() - 1);
+    return toDateStrLocal(date);
+}
+
+function getNextDay(dateStr) {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() + 1);
     return toDateStrLocal(date);
 }
 
