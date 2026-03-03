@@ -239,11 +239,42 @@ function UserRoster({
   }, [filterYear, showRosterSelector, uniqueYears]); // Re-run when modal opens or year changes
 
   // --- 5. GROUPING LOGIC ---
+  // const groupedStaff = useMemo(() => {
+  //   const groups = {};
+  //   SERVICE_PRIORITY.forEach(s => groups[s] = []);
+  //   groups['General / Other'] = [];
+  //   const sorted = [...staffList].sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+  //   sorted.forEach(staff => {
+  //     const svc = staff.service ? staff.service.trim() : 'General / Other';
+  //     const foundKey = SERVICE_PRIORITY.find(key => svc.includes(key));
+  //     if (foundKey) groups[foundKey].push(staff);
+  //     else groups['General / Other'].push(staff);
+  //   });
+  //   return groups;
+  // }, [staffList]);
+  // --- 5. GROUPING LOGIC ---
   const groupedStaff = useMemo(() => {
     const groups = {};
     SERVICE_PRIORITY.forEach(s => groups[s] = []);
     groups['General / Other'] = [];
-    const sorted = [...staffList].sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+
+    // We add the sorting logic here before grouping
+    const sorted = [...staffList].sort((a, b) => {
+      const wardA = a.ward_id || 0;
+      const wardB = b.ward_id || 0;
+      
+      // 1. Sort by Ward ID
+      if (wardA < wardB) return -1;
+      if (wardA > wardB) return 1;
+
+      // 2. If same Ward ID, sort Alphabetically
+      const nameA = (a.full_name || '').toLowerCase();
+      const nameB = (b.full_name || '').toLowerCase();
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      return 0;
+    });
+
     sorted.forEach(staff => {
       const svc = staff.service ? staff.service.trim() : 'General / Other';
       const foundKey = SERVICE_PRIORITY.find(key => svc.includes(key));

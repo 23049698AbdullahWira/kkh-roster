@@ -107,6 +107,12 @@ function AdminRosterView({
 
   const sortedStaffList = React.useMemo(() => {
     return [...staffList].sort((a, b) => {
+      const wardA = a.ward_id || 0;
+      const wardB = b.ward_id || 0;
+      
+      if (wardA < wardB) return sortOrder === 'asc' ? -1 : 1;
+      if (wardA > wardB) return sortOrder === 'asc' ? 1 : -1;
+      
       const nameA = (a.full_name || '').toLowerCase();
       const nameB = (b.full_name || '').toLowerCase();
       if (nameA < nameB) return sortOrder === 'asc' ? -1 : 1;
